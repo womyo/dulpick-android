@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ko-KR
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  poem: false
+  in_progress_fortune: false
+  collapse_walkthrough: true
+  sequence_diagrams: true
+  auto_apply_labels: false
+  auto_assign_reviewers: false
+  suggested_labels: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches:
+      - dev
+
+  path_filters:
+    - "!**/build/**"
+    - "!**/.gradle/**"
+    - "!**/.idea/**"
+    - "!**/*.iml"
+    - "!gradle/wrapper/**"
+    - "!**/generated/**"
+    - "!**/res/mipmap-*/**"
+    - "!**/res/drawable*/ic_launcher*"
+    - "!local.properties"
+
+  path_instructions:
+    - path: "app/src/main/java/com/dulpick/app/**"
+      instructions: |
+        Domain 계약은 *Repository(interface), Data 구현은 *RepositoryImpl, 바인딩은 di/ 의 Hilt @Binds/@Provides.
+        interface 의 live 바인딩은 di/ only. 외부 SDK 초기화는 SDK 를 소유한 계층이 갖고, DulpickApp 은 호출만 한다.
+        DO NOT: !! (non-null assertion), 불필요한 nullable, lateinit 남용.
+        상세: AGENTS.md, docs/ARCHITECTURE.md, docs/CONVENTIONS.md.
+
+    - path: "app/src/main/java/com/dulpick/app/feature/**"
+      instructions: |
+        Critical: data 계층 import 금지 (*RepositoryImpl, *Dto, DataSource). 데이터 접근은 domain *Repository interface 만.
+        Critical: Screen 간 직접 참조/상태 수정 금지. 상위 이동 요청은 SideEffect 로 올린다.
+        Critical: 현재 목적지/탭 변경, 딥링크 라우팅을 Screen 에서 직접 처리 금지 — navigation 이 한다.
+        Critical: 사용자가 키보드로 입력한 값을 애널리틱스(Mixpanel 등) 이벤트 속성에 원문 그대로 담지 않는다.
+        닉네임, 검색어, 장소 별칭, 커플·초대 코드가 그것이다. 마스킹하거나 이벤트에서 뺀다.
+        서버가 주는 공개 값(장소 이름·주소, 게시글 본문)은 가리지 않는다.
+        화면 상태는 ViewModel 의 StateFlow, Composable 은 state 렌더 + onIntent 중심. 로직을 두지 않는다.
+        Intent 네이밍은 이벤트 중심 (LoginButtonClicked, Appeared).
+        1회성 이벤트는 SideEffect + CollectSideEffect 로 처리, state 에 담지 않는다.
+        테스트는 ViewModel + fake Repository, 메서드명 test_한글_한글.
+
+    - path: "app/src/main/java/com/dulpick/app/domain/**"
+      instructions: |
+        domain 은 Entity, *Repository(interface), *Error 만.
+        Critical: data / feature import 금지. Compose·Hilt·안드로이드 프레임워크 타입을 모른다.
+        Critical: DTO, API model, SDK 타입 노출 금지.
+        interface 는 계약만, 구현/live 생성 로직을 넣지 않는다.
+
+    - path: "app/src/main/java/com/dulpick/app/data/**"
+      instructions: |
+        Critical: feature import 금지.
+        Core/인프라 에러(IOException, HTTP 등)는 Domain 에러로 매핑.
+        *RepositoryImpl 은 DataSource 를 기본으로 주입하고, SDK credential provider 등은 collaborator 로 허용.
+        DataSource 프로퍼티는 authLocal, authRemote 처럼 도메인 prefix.
+
+    - path: "app/src/main/java/com/dulpick/app/di/**"
+      instructions: |
+        Critical: interface ↔ 구현 바인딩은 여기 only. feature/domain 에 live 생성 로직을 흩뿌리지 않는다.
+        @Binds 로 계약↔구현, 외부 객체는 @Provides. 스코프는 필요 최소 (@Singleton 남용 금지).
+
+    - path: "docs/**"
+      instructions: |
+        링크와 현재 구조 정합만 확인.
+        코드 스타일 nitpick 금지.
+        source of truth: docs/ARCHITECTURE.md, docs/CONVENTIONS.md.
+
+  labeling_instructions:
+    - label: feat
+      instructions: 새 기능·화면·API·Repository
+    - label: fix
+      instructions: 버그 수정
+    - label: refactor
+      instructions: 동작 동일 구조 변경
+    - label: docs
+      instructions: 문서만
+    - label: chore
+      instructions: 빌드·설정·gitignore·도구
+    - label: test
+      instructions: 테스트만
+
+  finishing_touches:
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+    unit_tests:
+      enabled: false
+
+  tools:
+    detekt:
+      enabled: true
+      config_file: config/detekt/detekt.yml
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - AGENTS.md
+      - docs/ARCHITECTURE.md
+      - docs/CONVENTIONS.md
+  learnings:
+    scope: auto

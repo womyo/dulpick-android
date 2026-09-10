@@ -12,6 +12,7 @@ iOS 원본(`~/project/dnd-15th-1-ios`)을 Kotlin/Compose + MVI + Hilt 로 포팅
 | 모듈·의존·앱 흐름 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 코딩·Git 규칙 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) |
 | 정적 분석·안전성 | [config/detekt/detekt.yml](config/detekt/detekt.yml) (포맷은 Android Studio 기본 스타일) |
+| 리뷰 기준 | [.coderabbit.yaml](.coderabbit.yaml) |
 
 ---
 

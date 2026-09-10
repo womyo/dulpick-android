@@ -1,0 +1,49 @@
+# Gradle
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+release/
+
+# Kotlin
+.kotlin/
+
+# 로컬 SDK 경로·비밀값 (sdk.dir 등). 커밋하지 않는다
+local.properties
+
+# 서명 키·비밀값 (실제 값은 커밋하지 않는다)
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+# API 키 등은 local.properties 나 secrets 파일로 두고 위에서 무시한다
+
+# IntelliJ / Android Studio — 공유하는 몇 개만 남기고 나머지는 무시
+.idea/*
+!.idea/gradle.xml
+!.idea/misc.xml
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/deploymentTargetSelector.xml
+.idea/deploymentTargetDropDown.xml
+.idea/appInsightsSettings.xml
+.idea/androidTestResultsUserPreferences.xml
+*.iml
+
+# macOS
+.DS_Store
+
+# 로그
+*.log

@@ -1,0 +1,71 @@
+# Dulpick detekt — iOS .swiftlint.yml 임계값 이식, 분석·안전성만 (buildUponDefaultConfig=true)
+
+build:
+  maxIssues: 0
+
+complexity:
+  CyclomaticComplexMethod:
+    threshold: 12
+  LongMethod:
+    threshold: 90
+  LargeClass:
+    threshold: 250
+  NestedBlockDepth:
+    threshold: 4
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 7
+    ignoreDefaultParameters: true
+    ignoreAnnotatedParameter: ['Composable']
+  TooManyFunctions:
+    thresholdInFiles: 30
+    thresholdInClasses: 30
+    thresholdInObjects: 30
+    thresholdInInterfaces: 30
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+    excludeCommentStatements: true
+    excludePackageStatements: true
+    excludeImportStatements: true
+  MagicNumber:
+    active: false  # 숫자 리터럴 직접 쓰는 방침
+  ForbiddenComment:
+    active: false  # TODO/FIXME 허용
+  NewLineAtEndOfFile:
+    active: false  # 포맷 룰
+  ReturnCount:
+    active: true
+    max: 3
+  UnusedPrivateMember:
+    active: true
+  UnusedImports:
+    active: true
+
+naming:
+  # 길이 룰은 detekt 에 제외 목록이 없어 루프 변수·한글 테스트명 노이즈만 커서 끈다
+  FunctionMinLength:
+    active: false
+  FunctionMaxLength:
+    active: false
+  VariableMinLength:
+    active: false
+  VariableMaxLength:
+    active: false
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+    excludes: ['**/test/**', '**/androidTest/**']
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+  SwallowedException:
+    active: true

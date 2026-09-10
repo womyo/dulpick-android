@@ -11,7 +11,7 @@ iOS 원본(`~/project/dnd-15th-1-ios`)을 Kotlin/Compose + MVI + Hilt 로 포팅
 |---|---|
 | 모듈·의존·앱 흐름 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 코딩·Git 규칙 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) |
-| 포맷·안전성 | Android Studio 기본 코드 스타일 (`kotlin.code.style=official`) |
+| 정적 분석·안전성 | [config/detekt/detekt.yml](config/detekt/detekt.yml) (포맷은 Android Studio 기본 스타일) |
 
 ---
 
@@ -42,6 +42,9 @@ iOS 원본(`~/project/dnd-15th-1-ios`)을 Kotlin/Compose + MVI + Hilt 로 포팅
 ```bash
 # 동기화·빌드 (IDE 없이)
 ./gradlew assembleDebug
+
+# 정적 분석 (포맷 자동정렬은 없음, 분석·안전성만)
+./gradlew detekt
 
 # 단위 테스트
 ./gradlew testDebugUnitTest

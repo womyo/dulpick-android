@@ -1,9 +1,28 @@
+import io.gitlab.arturbosch.detekt.Detekt
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.detekt)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("$rootDir/config/detekt/detekt.yml")
+    parallel = true
+}
+
+tasks.withType<Detekt>().configureEach {
+    jvmTarget = "17"
+    reports {
+        html.required.set(true)
+        xml.required.set(true)
+        sarif.required.set(false)
+        txt.required.set(false)
+    }
 }
 
 android {
@@ -11,8 +30,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // base 뒤에 build type suffix 를 붙여 iOS 와 동일한 id 를 만든다
-        // release → com.dulpick.app, debug → com.dulpick.debug
+        // base + suffix → release com.dulpick.app, debug com.dulpick.debug
         applicationId = "com.dulpick"
         minSdk = 26
         targetSdk = 36
@@ -21,13 +39,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 기본 딥링크 스킴. debug 에서 덮어써 dulpickdebug 로 분리한다
         manifestPlaceholders["deepLinkScheme"] = "dulpick"
     }
 
     buildTypes {
         debug {
-            // 배포 빌드와 함께 설치되도록 패키지·스킴을 분리한다 (iOS Dulpick-Debug 대응)
+            // 배포 빌드와 나란히 설치되도록 id·스킴 분리
             applicationIdSuffix = ".debug"
             manifestPlaceholders["deepLinkScheme"] = "dulpickdebug"
         }

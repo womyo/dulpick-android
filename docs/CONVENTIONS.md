@@ -13,12 +13,13 @@
 
 ### 1. 코드 레이아웃
 
-포맷은 Android Studio 기본 코드 스타일(`kotlin.code.style=official`) 을 유일본으로 둔다. 문서에 다시 적지 않는다.
+포맷 자동정렬은 두지 않는다. 정렬은 Android Studio 기본 코드 스타일(`kotlin.code.style=official`) 에 맡긴다 (iOS 가 Xcode 기본 정렬에 맡긴 것과 같다).
+정적 분석·안전성은 [../config/detekt/detekt.yml](../config/detekt/detekt.yml) 이 유일본이다 — 복잡도·긴 함수/클래스·줄 길이·널 안전성·네이밍만 본다. 임계값은 iOS `.swiftlint.yml` 을 옮겼다 (복잡도 12, 함수 90줄, 클래스 250줄, 줄 120자). `./gradlew detekt` 로 돌린다.
 
-문서가 정하는 것은 포매터가 못 잡는 둘뿐이다.
+문서가 정하는 것은 detekt 가 안 잡는 둘뿐이다.
 
 - 한 줄이 길면 파라미터/인자 기준으로 줄바꿈한다 (trailing comma 허용)
-- `// region` / `// MARK` 대신 최상위 선언 순서(공개 → 비공개) 로 섹션을 가른다
+- `// region` 대신 최상위 선언 순서(공개 → 비공개) 로 섹션을 가른다
 
 ### 2. 명명
 

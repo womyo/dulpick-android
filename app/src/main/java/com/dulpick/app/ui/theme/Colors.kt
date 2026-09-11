@@ -2,7 +2,7 @@ package com.dulpick.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// iOS SharedDesignSystem 컬러 토큰 이식. 라이트 단일 (다크 미지원)
+// 라이트 단일 (다크 미지원)
 object Colors {
 
     // MARK: - Primitive

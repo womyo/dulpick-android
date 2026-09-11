@@ -32,11 +32,11 @@ object NetworkModule {
         explicitNulls = false
     }
 
+    // 로그인·토큰 재발급이 이 클라이언트를 탄다. 본문에 idToken/refreshToken 이 실려 로거를 아예 붙이지 않는다
     @Provides
     @Singleton
     @Plain
     fun plainOkHttp(): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(loggingInterceptor())
         .build()
 
     @Provides
@@ -105,9 +105,13 @@ object NetworkModule {
             .build()
     }
 
+    // Authorization 헤더·인증 본문이 Logcat 에 남지 않도록 BASIC(메서드·URL·상태만) 이하로 제한한다.
+    // 혹시 레벨이 올라가도 민감 헤더는 가린다
     private fun loggingInterceptor(): HttpLoggingInterceptor = HttpLoggingInterceptor().apply {
+        redactHeader("Authorization")
+        redactHeader("Cookie")
         level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
+            HttpLoggingInterceptor.Level.BASIC
         } else {
             HttpLoggingInterceptor.Level.NONE
         }

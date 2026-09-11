@@ -41,6 +41,7 @@ style:
     max: 3
   UnusedPrivateMember:
     active: true
+    ignoreAnnotated: ['Preview']  # @Preview 는 호출자가 없어도 정상
   UnusedImports:
     active: true
 
@@ -68,4 +69,4 @@ exceptions:
   TooGenericExceptionCaught:
     active: true
   SwallowedException:
-    active: true
+    active: false  # 경계에서 인프라 예외를 도메인 에러로 매핑하는 패턴이라 원본을 의도적으로 버린다

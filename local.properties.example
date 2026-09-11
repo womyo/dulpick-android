@@ -1,0 +1,14 @@
+# local.properties 로 복사해서 실제 값을 채운다
+# 실제 local.properties 는 gitignore 된다 (sdk.dir 는 Android Studio 가 자동 생성)
+# 값이 비어 있어도 빌드는 통과한다 (로그인 실행 시에만 실제 값 필요)
+
+# 백엔드
+API_BASE_URL=
+
+# 카카오 네이티브 앱 키 (dev 앱 / release 앱)
+KAKAO_NATIVE_APP_KEY_DEBUG=
+KAKAO_NATIVE_APP_KEY_RELEASE=
+
+# 구글 웹 클라이언트 ID (dev / prod)
+GOOGLE_WEB_CLIENT_ID_DEBUG=
+GOOGLE_WEB_CLIENT_ID_RELEASE=

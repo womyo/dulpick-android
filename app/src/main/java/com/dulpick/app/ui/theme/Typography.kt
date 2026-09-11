@@ -17,7 +17,7 @@ val Pretendard = FontFamily(
     Font(R.font.pretendard_bold, FontWeight.Bold),
 )
 
-// iOS Typography 토큰 이식. lineHeight = size×배수, letterSpacing = size 비율(.em), 굵기는 Pretendard 4종
+// lineHeight = size×배수, letterSpacing = size 비율(.em), 굵기는 Pretendard 4종
 // 자간 -0.02 는 큰 글씨(16↑ 시안 1.5 행간), -0.01 은 작은 글씨(14↓ 1.4 행간)
 private fun pretendard(
     weight: FontWeight,

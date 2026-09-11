@@ -1,7 +1,6 @@
 package com.dulpick.app.data.auth.token
 
 import com.dulpick.app.data.auth.local.AuthLocalDataSource
-import com.dulpick.app.data.auth.mapper.AuthMapper
 import com.dulpick.app.data.auth.remote.AuthApi
 import com.dulpick.app.data.auth.remote.dto.ReissueRequest
 
@@ -17,9 +16,13 @@ class AuthTokenRefresher(
         val current = authLocal.loadSession() ?: return null
         return try {
             val token = plainApi.reissue(ReissueRequest(refreshToken = current.refreshToken))
-            val rotated = AuthMapper.toEntity(token, current = current)
-            authLocal.saveSession(rotated)
-            rotated.accessToken
+            // 네트워크 대기 중 로그아웃·온보딩 갱신이 끼어들 수 있어, 저장은 원자적 CAS 로 맡긴다.
+            // 세션이 사라졌거나 이미 회전됐으면 null 이 돌아와 authenticator 가 재시도를 포기한다
+            authLocal.rotateTokens(
+                expectedRefreshToken = current.refreshToken,
+                newAccessToken = token.accessToken,
+                newRefreshToken = token.refreshToken,
+            )?.accessToken
         } catch (error: Exception) {
             null
         }

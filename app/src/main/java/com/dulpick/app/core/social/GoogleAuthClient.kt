@@ -7,11 +7,14 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import javax.inject.Inject
+import javax.inject.Singleton
 
 // Credential Manager 로 웹 클라이언트 ID audience 의 idToken 을 받는다
-class GoogleAuthClient(
+@Singleton
+class GoogleAuthClient @Inject constructor(
     private val activityProvider: ActivityProvider,
-    private val webClientId: String,
+    @GoogleWebClientId private val webClientId: String,
 ) : SocialAuthClient {
 
     override suspend fun login(nonce: String): SocialAuthCredential {

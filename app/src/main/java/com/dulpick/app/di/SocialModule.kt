@@ -5,35 +5,35 @@ import com.dulpick.app.core.social.ActivityProvider
 import com.dulpick.app.core.social.CurrentActivityProvider
 import com.dulpick.app.core.social.GoogleAuthClient
 import com.dulpick.app.core.social.GoogleClient
+import com.dulpick.app.core.social.GoogleWebClientId
 import com.dulpick.app.core.social.KakaoAuthClient
 import com.dulpick.app.core.social.KakaoClient
 import com.dulpick.app.core.social.SocialAuthClient
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 
+// 계약↔구현은 @Binds, 외부 값(BuildConfig)은 @Provides
 @Module
 @InstallIn(SingletonComponent::class)
-object SocialModule {
+abstract class SocialModule {
 
-    @Provides
-    @Singleton
-    fun currentActivityProvider(): CurrentActivityProvider = CurrentActivityProvider()
+    @Binds
+    abstract fun activityProvider(impl: CurrentActivityProvider): ActivityProvider
 
-    @Provides
-    fun activityProvider(provider: CurrentActivityProvider): ActivityProvider = provider
-
-    @Provides
-    @Singleton
+    @Binds
     @KakaoClient
-    fun kakaoClient(activityProvider: ActivityProvider): SocialAuthClient =
-        KakaoAuthClient(activityProvider)
+    abstract fun kakaoClient(impl: KakaoAuthClient): SocialAuthClient
 
-    @Provides
-    @Singleton
+    @Binds
     @GoogleClient
-    fun googleClient(activityProvider: ActivityProvider): SocialAuthClient =
-        GoogleAuthClient(activityProvider, BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    abstract fun googleClient(impl: GoogleAuthClient): SocialAuthClient
+
+    companion object {
+        @Provides
+        @GoogleWebClientId
+        fun googleWebClientId(): String = BuildConfig.GOOGLE_WEB_CLIENT_ID
+    }
 }

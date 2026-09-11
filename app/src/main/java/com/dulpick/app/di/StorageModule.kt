@@ -1,21 +1,19 @@
 package com.dulpick.app.di
 
-import android.content.Context
 import com.dulpick.app.core.storage.EncryptedSecureStorage
 import com.dulpick.app.core.storage.SecureStorage
+import dagger.Binds
 import dagger.Module
-import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+// 계약↔구현은 @Binds. EncryptedSecureStorage 는 @Inject 생성자를 가진다
 @Module
 @InstallIn(SingletonComponent::class)
-object StorageModule {
+abstract class StorageModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun secureStorage(@ApplicationContext context: Context): SecureStorage =
-        EncryptedSecureStorage(context)
+    abstract fun secureStorage(impl: EncryptedSecureStorage): SecureStorage
 }

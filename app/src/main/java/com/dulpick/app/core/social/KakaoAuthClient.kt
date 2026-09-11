@@ -9,9 +9,12 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import javax.inject.Inject
+import javax.inject.Singleton
 
 // 카카오톡 앱이 있으면 앱 로그인, 없으면 계정 로그인
-class KakaoAuthClient(
+@Singleton
+class KakaoAuthClient @Inject constructor(
     private val activityProvider: ActivityProvider,
 ) : SocialAuthClient {
 

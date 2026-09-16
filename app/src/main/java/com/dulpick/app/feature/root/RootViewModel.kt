@@ -75,5 +75,6 @@ enum class RootRoute(val route: String) {
     APP_INTRO("appIntro"),
     AUTH("auth"),
     ONBOARDING("onboarding"),
+    DATETYPE("datetype"),
     MAIN("main"),
 }

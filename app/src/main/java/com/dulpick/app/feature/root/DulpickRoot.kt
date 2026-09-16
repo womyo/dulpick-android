@@ -13,13 +13,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.dulpick.app.feature.appintro.AppIntroScreen
 import com.dulpick.app.feature.auth.AuthScreen
+import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
+import com.dulpick.app.feature.onboarding.couple.CoupleScreen
+import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
+import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -61,8 +68,53 @@ private fun DulpickNavHost(startRoute: String) {
                 },
             )
         }
-        composable(RootRoute.ONBOARDING.route) { PlaceholderScreen(text = "온보딩 (예정)") }
+        composable(RootRoute.ONBOARDING.route) {
+            NicknameScreen(
+                onConfirmed = { nickname ->
+                    navController.navigate("$ROUTE_COUPLE_BASE/${Uri.encode(nickname)}")
+                },
+                // TODO: iOS 는 첫 온보딩 화면에서 뒤로 가면 로그아웃한다. 지금은 로그인으로만 되돌린다
+                onBack = { navController.navigateToAuth() },
+            )
+        }
+        composable(
+            route = "$ROUTE_COUPLE_BASE/{$ARG_MY_NICKNAME}",
+            arguments = listOf(navArgument(ARG_MY_NICKNAME) { type = NavType.StringType }),
+        ) {
+            CoupleScreen(
+                // 커플 첫 화면에서 뒤로 → 닉네임으로
+                onBack = { navController.popBackStack() },
+                onFinished = { navController.navigateToDateType() },
+                onSessionExpired = { navController.navigateToAuth() },
+            )
+        }
+        composable(RootRoute.DATETYPE.route) {
+            DateTypeScreen(
+                onFinished = {
+                    navController.navigate(RootRoute.MAIN.route) {
+                        popUpTo(RootRoute.DATETYPE.route) { inclusive = true }
+                    }
+                },
+                onSessionExpired = { navController.navigateToAuth() },
+            )
+        }
         composable(RootRoute.MAIN.route) { PlaceholderScreen(text = "메인 (예정)") }
+    }
+}
+
+// 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
+private const val ROUTE_COUPLE_BASE = "couple"
+
+private fun androidx.navigation.NavController.navigateToAuth() {
+    navigate(RootRoute.AUTH.route) {
+        popUpTo(RootRoute.ONBOARDING.route) { inclusive = true }
+    }
+}
+
+// 성향 선택 진입 시 커플·닉네임을 스택에서 걷어낸다. 성향에서 뒤로 돌아갈 곳을 두지 않는다
+private fun androidx.navigation.NavController.navigateToDateType() {
+    navigate(RootRoute.DATETYPE.route) {
+        popUpTo(RootRoute.ONBOARDING.route) { inclusive = true }
     }
 }
 

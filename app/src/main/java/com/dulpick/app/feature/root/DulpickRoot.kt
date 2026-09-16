@@ -25,6 +25,7 @@ import com.dulpick.app.feature.appintro.AppIntroScreen
 import com.dulpick.app.feature.auth.AuthScreen
 import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
 import com.dulpick.app.feature.onboarding.couple.CoupleScreen
+import com.dulpick.app.feature.main.MainTabScreen
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.ui.component.AppButton
@@ -98,7 +99,7 @@ private fun DulpickNavHost(startRoute: String) {
                 onSessionExpired = { navController.navigateToAuth() },
             )
         }
-        composable(RootRoute.MAIN.route) { PlaceholderScreen(text = "메인 (예정)") }
+        composable(RootRoute.MAIN.route) { MainTabScreen() }
     }
 }
 
@@ -151,17 +152,5 @@ private fun ErrorScreen(onRetry: () -> Unit) {
             size = AppButtonSize.LG,
             modifier = Modifier.padding(top = 20.dp),
         )
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Colors.commonWhite),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = text, style = Typography.title3SB, color = Colors.textPrimary)
     }
 }

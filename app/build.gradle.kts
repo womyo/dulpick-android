@@ -123,6 +123,8 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 
+    implementation(libs.coil.compose)
+
     // 보안 저장 (세션 토큰)
     implementation(libs.androidx.security.crypto)
 

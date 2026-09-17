@@ -68,6 +68,7 @@ private const val FEEDBACK_SUBJECT = "둘픽 서비스 피드백"
 @Composable
 fun MyPageScreen(
     onLoggedOut: () -> Unit,
+    onOpenDateType: () -> Unit,
     viewModel: MyPageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -109,7 +110,7 @@ fun MyPageScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 MyPageCard(title = "개인/보안") {
-                    NavRow(title = "나의 데이트 유형", onClick = {})
+                    NavRow(title = "나의 데이트 유형", onClick = onOpenDateType)
                     RowDivider()
                     NavRow(title = "연결 관리", onClick = {})
                     RowDivider()

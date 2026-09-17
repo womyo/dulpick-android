@@ -1,9 +1,11 @@
 package com.dulpick.app.feature.main
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -28,9 +30,10 @@ import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
-// 로그인·온보딩을 마치고 진입하는 메인 탭 컨테이너 (iOS MainTabView 대응)
+// 로그인·온보딩을 마치고 진입하는 메인 탭 컨테이너 (iOS MainTabView 대응).
+// 상세 화면(예: 나의 데이트 유형)은 탭 밖(루트)에서 전체화면으로 push 한다 → onOpenDateType 로 위로 위임
 @Composable
-fun MainTabScreen(onLoggedOut: () -> Unit) {
+fun MainTabScreen(onLoggedOut: () -> Unit, onOpenDateType: () -> Unit) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -82,11 +85,19 @@ fun MainTabScreen(onLoggedOut: () -> Unit) {
             navController = tabNavController,
             startDestination = MainTab.HOME.route,
             modifier = Modifier.padding(innerPadding),
+            // 탭 전환은 기본 700ms 크로스페이드 대신 즉시 전환한다
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
         ) {
             MainTab.entries.forEach { tab ->
                 composable(tab.route) {
                     when (tab) {
-                        MainTab.MY -> MyPageScreen(onLoggedOut = onLoggedOut)
+                        MainTab.MY -> MyPageScreen(
+                            onLoggedOut = onLoggedOut,
+                            onOpenDateType = onOpenDateType,
+                        )
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }

@@ -1,5 +1,6 @@
 package com.dulpick.app.feature.onboarding.datetype
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.profile.ProfileError
@@ -8,10 +9,22 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// 마이페이지에서 진입할 때 편집 모드로 여는 nav 인자
+const val ARG_DATETYPE_EDIT = "edit"
+
 @HiltViewModel
 class DateTypeViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
+    savedStateHandle: SavedStateHandle,
 ) : MviViewModel<DateTypeState, DateTypeIntent, DateTypeSideEffect>(DateTypeState()) {
+
+    init {
+        // 편집 모드(마이페이지 진입): 건너뛰기 숨기고 현재 성향을 미리 선택한다
+        if (savedStateHandle.get<Boolean>(ARG_DATETYPE_EDIT) == true) {
+            setState { copy(showsSkip = false) }
+            loadCurrentPreference()
+        }
+    }
 
     override fun onIntent(intent: DateTypeIntent) {
         when (intent) {
@@ -62,6 +75,29 @@ class DateTypeViewModel @Inject constructor(
             ProfileError.Network -> setState { copy(toast = "네트워크 연결을 확인해 주세요.") }
             ProfileError.Unauthorized -> postSideEffect(DateTypeSideEffect.SessionExpired)
             else -> setState { copy(toast = "잠시 후 다시 시도해 주세요.") }
+        }
+    }
+
+    // 편집 모드에서 현재 저장된 성향을 불러와 4축을 미리 선택한다
+    private fun loadCurrentPreference() {
+        viewModelScope.launch {
+            runCatching { profileRepository.profile() }
+                .onSuccess { profile ->
+                    val preference = profile.datePreference ?: return@onSuccess
+                    setState {
+                        copy(
+                            indoorOutdoor = preference.indoorOutdoor,
+                            activityLevel = preference.activityLevel,
+                            dateTime = preference.dateTime,
+                            dateFocus = preference.dateFocus,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    if (error == ProfileError.Unauthorized) {
+                        postSideEffect(DateTypeSideEffect.SessionExpired)
+                    }
+                }
         }
     }
 }

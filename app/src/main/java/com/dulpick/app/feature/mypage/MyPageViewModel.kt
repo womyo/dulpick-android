@@ -32,6 +32,9 @@ class MyPageViewModel @Inject constructor(
             is MyPageIntent.MarketingToggled ->
                 toggle { copy(marketingAlarm = intent.enabled) }
             MyPageIntent.LogoutClicked -> logout()
+            MyPageIntent.WithdrawClicked -> setState { copy(isWithdrawDialogPresented = true) }
+            MyPageIntent.WithdrawDismissed -> setState { copy(isWithdrawDialogPresented = false) }
+            MyPageIntent.WithdrawConfirmed -> withdraw()
         }
     }
 
@@ -114,6 +117,28 @@ class MyPageViewModel @Inject constructor(
             // 로그아웃은 실패해도 로컬 세션 정리 후 로그인으로 보낸다
             runCatching { authRepository.logout() }
             postSideEffect(MyPageSideEffect.LoggedOut)
+        }
+    }
+
+    // 탈퇴 성공 시 로그아웃(로컬 정리)까지 하고 로그인으로. 실패하면 모달만 닫고 알린다
+    private fun withdraw() {
+        if (currentState.isWithdrawing) return
+        setState { copy(isWithdrawing = true) }
+        viewModelScope.launch {
+            runCatching { profileRepository.withdraw() }
+                .onSuccess {
+                    runCatching { authRepository.logout() }
+                    setState { copy(isWithdrawing = false, isWithdrawDialogPresented = false) }
+                    postSideEffect(MyPageSideEffect.LoggedOut)
+                }
+                .onFailure { error ->
+                    setState { copy(isWithdrawing = false, isWithdrawDialogPresented = false) }
+                    if (error == ProfileError.Unauthorized) {
+                        postSideEffect(MyPageSideEffect.SessionExpired)
+                    } else {
+                        postSideEffect(MyPageSideEffect.ShowToast("탈퇴에 실패했어요. 잠시 후 다시 시도해 주세요."))
+                    }
+                }
         }
     }
 }

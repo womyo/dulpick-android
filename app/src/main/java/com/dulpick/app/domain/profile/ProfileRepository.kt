@@ -5,6 +5,9 @@ interface ProfileRepository {
     // 현재 회원 프로필 조회(닉네임·아이콘·성향)
     suspend fun profile(): UserProfile
 
+    // 회원 탈퇴
+    suspend fun withdraw()
+
     // 온보딩 여부에 따라 초기화(POST) 또는 수정(PATCH) 한다
     suspend fun updateNickname(nickname: String, iconId: Int): UserProfile
 

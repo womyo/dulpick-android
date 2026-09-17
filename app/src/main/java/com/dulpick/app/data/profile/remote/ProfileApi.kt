@@ -9,6 +9,7 @@ import com.dulpick.app.data.profile.remote.dto.NotificationSettingsResponseDto
 import com.dulpick.app.data.profile.remote.dto.UpdateMemberProfileRequestDto
 import com.dulpick.app.data.profile.remote.dto.UpdatedMemberProfileResponseDto
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -17,6 +18,10 @@ import retrofit2.http.PUT
 interface ProfileApi {
     @GET("/api/v1/members/me")
     suspend fun member(): MemberResponseDto
+
+    // 회원 탈퇴
+    @DELETE("/api/v1/members/me")
+    suspend fun withdraw()
 
     @GET("/api/v1/members/me/notification-settings")
     suspend fun notificationSettings(): NotificationSettingsResponseDto

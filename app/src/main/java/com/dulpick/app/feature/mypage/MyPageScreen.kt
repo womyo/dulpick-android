@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
@@ -48,11 +50,16 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.component.ModalContent
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
 // 개인/보안·알림·문의 카드의 행 공통 높이. Switch 가 토글 행을 늘리지 않도록 고정한다
 private val ROW_HEIGHT = 52.dp
+
+// 서비스 피드백 수신 메일
+private const val FEEDBACK_EMAIL = "dulpick.co@gmail.com"
+private const val FEEDBACK_SUBJECT = "둘픽 서비스 피드백"
 
 // 마이페이지 메인 화면. 프로필·알림 설정은 API 연동, 상세 네비게이션은 이후 단계
 @Composable
@@ -121,7 +128,7 @@ fun MyPageScreen(
                 Spacer(modifier = Modifier.height(30.dp))
 
                 MyPageCard(title = "문의하기") {
-                    NavRow(title = "서비스 피드백하기", onClick = {})
+                    NavRow(title = "서비스 피드백하기") { context.startActivity(feedbackEmailIntent()) }
                 }
 
                 Spacer(modifier = Modifier.height(30.dp))
@@ -134,7 +141,7 @@ fun MyPageScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                WithdrawButton(onClick = {})
+                WithdrawButton { viewModel.onIntent(MyPageIntent.WithdrawClicked) }
             }
         }
 
@@ -144,6 +151,19 @@ fun MyPageScreen(
             bottomInset = 120,
         )
     }
+
+    if (state.isWithdrawDialogPresented) {
+        WithdrawDialog(
+            onConfirm = { viewModel.onIntent(MyPageIntent.WithdrawConfirmed) },
+            onDismiss = { viewModel.onIntent(MyPageIntent.WithdrawDismissed) },
+        )
+    }
+}
+
+// 서비스 피드백 메일 작성 화면을 연다 (iOS MyPageView.sendFeedbackMail 대응)
+private fun feedbackEmailIntent(): Intent {
+    val uri = Uri.parse("mailto:$FEEDBACK_EMAIL?subject=${Uri.encode(FEEDBACK_SUBJECT)}")
+    return Intent(Intent.ACTION_SENDTO, uri)
 }
 
 @Composable
@@ -304,6 +324,26 @@ private fun WithdrawButton(onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp),
     )
+}
+
+// 회원탈퇴 확인 모달. 공통 ModalContent 사용. dim 탭/뒤로가기로 닫으면 취소로 본다
+@Composable
+private fun WithdrawDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        ModalContent(
+            title = "정말 탈퇴하시나요?",
+            content = "지금까지 저장된 데이터가 모두 날아가요",
+            image = R.drawable.disconnect,
+            primaryTitle = "탈퇴하기",
+            onPrimary = onConfirm,
+            secondaryTitle = "취소",
+            onSecondary = onDismiss,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+    }
 }
 
 // 아이콘 ID 를 프로필 이미지로. 미매핑 값은 기본 프로필로 (iOS profileImage 대응)

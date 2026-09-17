@@ -15,6 +15,8 @@ data class MyPageState(
     // 알림 설정 전체 교체(PUT)에 실어 보낼 마케팅 동의 버전들
     val marketingConsentVersion: String? = null,
     val availableMarketingConsentVersion: String? = null,
+    val isWithdrawDialogPresented: Boolean = false,
+    val isWithdrawing: Boolean = false,
 ) : UiState {
     companion object {
         const val DEFAULT_ICON_ID = 1
@@ -27,6 +29,9 @@ sealed interface MyPageIntent : UiIntent {
     data class DateScheduleToggled(val enabled: Boolean) : MyPageIntent
     data class MarketingToggled(val enabled: Boolean) : MyPageIntent
     data object LogoutClicked : MyPageIntent
+    data object WithdrawClicked : MyPageIntent
+    data object WithdrawConfirmed : MyPageIntent
+    data object WithdrawDismissed : MyPageIntent
 }
 
 sealed interface MyPageSideEffect : UiSideEffect {

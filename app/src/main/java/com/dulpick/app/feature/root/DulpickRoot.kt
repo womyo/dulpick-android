@@ -1,5 +1,9 @@
 package com.dulpick.app.feature.root
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,8 +29,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dulpick.app.feature.appintro.AppIntroScreen
 import com.dulpick.app.feature.auth.AuthScreen
+import com.dulpick.app.feature.onboarding.couple.ARG_COUPLE_SHOWS_SKIP
 import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
 import com.dulpick.app.feature.onboarding.couple.CoupleScreen
+import com.dulpick.app.feature.main.MainTabScreen
+import com.dulpick.app.feature.mypage.connection.ConnectionManageScreen
+import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.ui.component.AppButton
@@ -48,7 +58,15 @@ fun DulpickRoot(viewModel: RootViewModel = hiltViewModel()) {
 private fun DulpickNavHost(startRoute: String) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = startRoute) {
+    NavHost(
+        navController = navController,
+        startDestination = startRoute,
+        // 기본 700ms 크로스페이드가 어색해 즉시 전환으로 둔다. 슬라이드가 필요한 화면만 개별 지정
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
+    ) {
         composable(RootRoute.APP_INTRO.route) {
             AppIntroScreen(
                 onFinished = {
@@ -98,9 +116,95 @@ private fun DulpickNavHost(startRoute: String) {
                 onSessionExpired = { navController.navigateToAuth() },
             )
         }
-        composable(RootRoute.MAIN.route) { PlaceholderScreen(text = "메인 (예정)") }
+        mainRoutes(navController = navController)
     }
 }
+
+// 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
+private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
+    composable(RootRoute.MAIN.route) {
+        MainTabScreen(
+            // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
+            onLoggedOut = {
+                navController.navigate(RootRoute.AUTH.route) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            },
+            // 상세는 탭 밖에서 전체화면 push
+            onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
+            onOpenConnection = { navController.navigate(MAIN_CONNECTION_ROUTE) },
+            onOpenCoupleConnect = { nickname ->
+                navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}")
+            },
+        )
+    }
+    // 미연결 상태에서 마이페이지 "연결 관리" → 커플 연결 플로우(건너뛰기 없음)
+    composable(
+        route = "$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}",
+        arguments = listOf(
+            navArgument(ARG_MY_NICKNAME) { type = NavType.StringType },
+            navArgument(ARG_COUPLE_SHOWS_SKIP) {
+                type = NavType.BoolType
+                defaultValue = false
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        CoupleScreen(
+            onBack = { navController.popBackStack() },
+            // 연결 성공 → 커플 플로우를 걷어내고 연결 관리 화면으로 대체
+            onFinished = {
+                navController.navigate(MAIN_CONNECTION_ROUTE) {
+                    popUpTo("$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}") { inclusive = true }
+                }
+            },
+            onSessionExpired = { navController.navigateToAuth() },
+        )
+    }
+    composable(
+        route = MAIN_CONNECTION_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        ConnectionManageScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+        )
+    }
+    composable(
+        route = MAIN_DATETYPE_ROUTE,
+        arguments = listOf(
+            navArgument(ARG_DATETYPE_EDIT) {
+                type = NavType.BoolType
+                defaultValue = true
+            },
+        ),
+        // 속도(animationSpec)는 slide* 함수의 기본 스프링에 맡긴다. 방향만 지정.
+        // 오른쪽에서 슬라이드 인, 뒤로가기는 오른쪽으로 슬라이드 아웃 (뒤 화면은 살짝 패럴랙스)
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        DateTypeScreen(
+            onFinished = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+}
+
+// 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
+private const val MAIN_DATETYPE_ROUTE = "main/datetype"
+private const val MAIN_CONNECTION_ROUTE = "main/connection"
+private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
+// 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
+private const val PARALLAX_DIVISOR = 4
 
 // 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
 private const val ROUTE_COUPLE_BASE = "couple"
@@ -153,17 +257,5 @@ private fun ErrorScreen(onRetry: () -> Unit) {
             size = AppButtonSize.LG,
             modifier = Modifier.padding(top = 20.dp),
         )
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Colors.commonWhite),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = text, style = Typography.title3SB, color = Colors.textPrimary)
     }
 }

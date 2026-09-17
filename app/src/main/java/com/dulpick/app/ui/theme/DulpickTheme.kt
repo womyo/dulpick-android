@@ -1,9 +1,11 @@
 package com.dulpick.app.ui.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography as MaterialTypography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
 // 라이트 단일. 다크·다이내믹 컬러 미지원 — Material 역할에 Dulpick 토큰을 고정 매핑
 private val DulpickColorScheme = lightColorScheme(
@@ -37,6 +39,10 @@ fun DulpickTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = DulpickColorScheme,
         typography = DulpickMaterialTypography,
-        content = content,
-    )
+    ) {
+        // clickable/selectable/toggleable 의 회색 리플을 앱 전역에서 끈다
+        CompositionLocalProvider(LocalIndication provides NoIndication) {
+            content()
+        }
+    }
 }

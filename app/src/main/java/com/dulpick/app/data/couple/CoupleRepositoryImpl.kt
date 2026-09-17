@@ -53,4 +53,12 @@ class CoupleRepositoryImpl @Inject constructor(
             throw CoupleErrorMapper.map(error)
         }
     }
+
+    override suspend fun disconnect() {
+        try {
+            coupleRemote.disconnect()
+        } catch (error: Throwable) {
+            throw CoupleErrorMapper.map(error)
+        }
+    }
 }

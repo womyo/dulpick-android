@@ -10,4 +10,7 @@ interface CoupleRepository {
 
     // 현재 연결 상태. 미연결이면 null
     suspend fun current(): CoupleStatus?
+
+    // 커플 연결 끊기
+    suspend fun disconnect()
 }

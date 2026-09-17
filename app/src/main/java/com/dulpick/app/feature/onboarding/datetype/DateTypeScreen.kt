@@ -1,5 +1,6 @@
 package com.dulpick.app.feature.onboarding.datetype
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.runtime.getValue
@@ -60,6 +61,9 @@ private const val TOOLTIP_TEXT =
 fun DateTypeScreen(
     onFinished: () -> Unit,
     onSessionExpired: () -> Unit,
+    modifier: Modifier = Modifier,
+    // 편집 모드(마이페이지)에서만 전달. 있으면 헤더에 뒤로가기·제목이 뜬다
+    onBack: (() -> Unit)? = null,
     viewModel: DateTypeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -74,11 +78,17 @@ fun DateTypeScreen(
         }
     }
 
+    if (onBack != null) {
+        BackHandler { onBack() }
+    }
+
     DateTypeContent(
         state = state,
         onIntent = viewModel::onIntent,
         toastMessage = toastMessage,
         onToastDismiss = { toastMessage = null },
+        onBack = onBack,
+        modifier = modifier,
     )
 }
 
@@ -88,9 +98,11 @@ private fun DateTypeContent(
     onIntent: (DateTypeIntent) -> Unit,
     toastMessage: String?,
     onToastDismiss: () -> Unit,
+    onBack: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(Colors.bgDefault),
     ) {
@@ -99,6 +111,7 @@ private fun DateTypeContent(
                 isTooltipPresented = state.isTooltipPresented,
                 onTipClick = { onIntent(DateTypeIntent.TooltipToggled) },
                 onTooltipDismiss = { onIntent(DateTypeIntent.TooltipDismissed) },
+                onBack = onBack,
             )
 
             AxisList(
@@ -142,20 +155,49 @@ private fun DateTypeContent(
     }
 }
 
+// 편집 모드 상단바. 핑크 헤더 위에 얹는 뒤로가기 + 제목 (iOS 네비 툴바 대응)
+@Composable
+private fun EditTopBar(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .statusBarsPadding()
+            .fillMaxWidth()
+            .height(56.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.arrowleft),
+            contentDescription = "뒤로",
+            colorFilter = ColorFilter.tint(Colors.commonWhite),
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(horizontal = 12.dp)
+                .size(24.dp)
+                .clickable(onClick = onBack),
+        )
+        Text(text = "나의 데이트 유형", style = Typography.body1SB, color = Colors.commonWhite)
+    }
+}
+
 @Composable
 private fun Header(
     isTooltipPresented: Boolean,
     onTipClick: () -> Unit,
     onTooltipDismiss: () -> Unit,
+    onBack: (() -> Unit)?,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Colors.primaryPink),
     ) {
+        // 편집 모드에서만 상단바(뒤로 + "나의 데이트 유형"). 이때 상태바 인셋은 여기서 처리한다
+        if (onBack != null) {
+            EditTopBar(onBack = onBack)
+        }
         Row(
             modifier = Modifier
-                .statusBarsPadding()
+                .then(if (onBack == null) Modifier.statusBarsPadding() else Modifier)
                 .padding(top = 30.dp)
                 .padding(horizontal = 20.dp)
                 // iOS: 제목·tip 을 높이 66 영역 하단에 붙인다

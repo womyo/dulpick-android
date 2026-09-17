@@ -18,4 +18,6 @@ class CoupleRemoteDataSource @Inject constructor(
 
     suspend fun current(): CoupleConnectionStatusResponseDto =
         safeApiCall { coupleApi.current() }
+
+    suspend fun disconnect() = safeApiCall { coupleApi.disconnect() }
 }

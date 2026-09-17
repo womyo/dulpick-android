@@ -18,6 +18,8 @@ class ProfileRemoteDataSource @Inject constructor(
 ) {
     suspend fun member(): MemberResponseDto = safeApiCall { profileApi.member() }
 
+    suspend fun withdraw() = safeApiCall { profileApi.withdraw() }
+
     suspend fun notificationSettings(): NotificationSettingsResponseDto =
         safeApiCall { profileApi.notificationSettings() }
 

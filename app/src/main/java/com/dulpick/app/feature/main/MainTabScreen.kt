@@ -106,7 +106,7 @@ fun MainTabScreen(
                             onOpenConnection = onOpenConnection,
                             onOpenCoupleConnect = onOpenCoupleConnect,
                         )
-                        MainTab.EXPLORE -> ExploreScreen()
+                        MainTab.EXPLORE -> ExploreScreen(onSessionExpired = onLoggedOut)
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }

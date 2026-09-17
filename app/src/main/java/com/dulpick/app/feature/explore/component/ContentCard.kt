@@ -12,17 +12,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.explore.Content
 import com.dulpick.app.ui.theme.Colors
@@ -40,14 +44,17 @@ fun ContentCard(content: Content, onClick: () -> Unit, modifier: Modifier = Modi
                 .fillMaxWidth()
                 .aspectRatio(THUMBNAIL_RATIO)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Colors.bgSubtle),
+                // 이미지가 없거나 로딩 중엔 이 회색 배경이 보인다 (iOS gray500)
+                .background(Colors.gray500),
         ) {
-            // TODO: 실제 원격 썸네일은 이미지 로더 붙이는 단계에서. 지금은 플레이스홀더
-            Image(
-                painter = painterResource(R.drawable.placeempty),
+            SubcomposeAsyncImage(
+                model = content.thumbnailUrls.firstOrNull(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                // 로딩 중엔 회색 배경만, 실패·URL 없음은 iOS placeEmpty 를 중앙에 얹는다
+                loading = {},
+                error = { EmptyThumbnail() },
             )
             PlaceCountBadge(
                 count = content.placeCount,
@@ -63,6 +70,28 @@ fun ContentCard(content: Content, onClick: () -> Unit, modifier: Modifier = Modi
             color = Colors.textPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+// iOS RemoteImage placeholder: gray500 배경(부모) + 하단 그라디언트 + placeEmpty 중앙 fit(폭 140)
+@Composable
+private fun EmptyThumbnail() {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f))),
+                ),
+        )
+        Image(
+            painter = painterResource(R.drawable.placeempty),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(140.dp),
         )
     }
 }

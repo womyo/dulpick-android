@@ -3,6 +3,8 @@ package com.dulpick.app.feature.mypage
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.auth.AuthRepository
+import com.dulpick.app.domain.couple.CoupleError
+import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.profile.NotificationSettings
 import com.dulpick.app.domain.profile.ProfileError
 import com.dulpick.app.domain.profile.ProfileRepository
@@ -17,6 +19,7 @@ import javax.inject.Inject
 class MyPageViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
+    private val coupleRepository: CoupleRepository,
 ) : MviViewModel<MyPageState, MyPageIntent, MyPageSideEffect>(MyPageState()) {
 
     // 알림 설정 PUT. 연타 시 직전 요청을 취소해 최신 상태만 반영한다
@@ -46,7 +49,30 @@ class MyPageViewModel @Inject constructor(
             MyPageIntent.ProfileEditDismissed ->
                 if (!currentState.isSavingProfile) setState { copy(isProfileEditPresented = false) }
             is MyPageIntent.ProfileSaveClicked -> saveProfile(intent.nickname, intent.iconId)
+            MyPageIntent.ConnectionClicked -> checkConnection()
             else -> Unit
+        }
+    }
+
+    // 연결 여부를 먼저 확인해 연결 관리 화면 / 커플 연결 플로우로 가른다 (iOS handleConnection 대응)
+    private fun checkConnection() {
+        viewModelScope.launch {
+            runCatching { coupleRepository.current() }
+                .onSuccess { status ->
+                    if (status?.connected == true) {
+                        postSideEffect(MyPageSideEffect.OpenConnection)
+                    } else {
+                        postSideEffect(MyPageSideEffect.OpenCoupleConnect(currentState.nickname))
+                    }
+                }
+                .onFailure { error ->
+                    // 조회 실패를 미연결로 오해하지 않도록 이동 없이 알린다
+                    if (error == CoupleError.Unauthorized) {
+                        postSideEffect(MyPageSideEffect.SessionExpired)
+                    } else {
+                        postSideEffect(MyPageSideEffect.ShowToast("연결 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."))
+                    }
+                }
         }
     }
 

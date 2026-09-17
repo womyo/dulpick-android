@@ -13,12 +13,18 @@ import javax.inject.Inject
 
 const val ARG_MY_NICKNAME = "myNickname"
 
+// 온보딩은 건너뛰기 노출(기본 true), 마이페이지에서 연결하면 숨긴다(false)
+const val ARG_COUPLE_SHOWS_SKIP = "showsSkip"
+
 @HiltViewModel
 class CoupleViewModel @Inject constructor(
     private val coupleRepository: CoupleRepository,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<CoupleState, CoupleIntent, CoupleSideEffect>(
-    CoupleState(myNickname = savedStateHandle.get<String>(ARG_MY_NICKNAME).orEmpty()),
+    CoupleState(
+        myNickname = savedStateHandle.get<String>(ARG_MY_NICKNAME).orEmpty(),
+        showsSkip = savedStateHandle.get<Boolean>(ARG_COUPLE_SHOWS_SKIP) ?: true,
+    ),
 ) {
 
     override fun onIntent(intent: CoupleIntent) {

@@ -70,6 +70,7 @@ fun MyPageScreen(
     onLoggedOut: () -> Unit,
     onOpenDateType: () -> Unit,
     onOpenConnection: () -> Unit,
+    onOpenCoupleConnect: (myNickname: String) -> Unit,
     viewModel: MyPageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,6 +83,8 @@ fun MyPageScreen(
             // 로그아웃·세션 만료 모두 로그인으로 되돌린다
             MyPageSideEffect.LoggedOut, MyPageSideEffect.SessionExpired -> onLoggedOut()
             is MyPageSideEffect.ShowToast -> toastMessage = effect.message
+            MyPageSideEffect.OpenConnection -> onOpenConnection()
+            is MyPageSideEffect.OpenCoupleConnect -> onOpenCoupleConnect(effect.myNickname)
         }
     }
 
@@ -113,7 +116,7 @@ fun MyPageScreen(
                 MyPageCard(title = "개인/보안") {
                     NavRow(title = "나의 데이트 유형", onClick = onOpenDateType)
                     RowDivider()
-                    NavRow(title = "연결 관리", onClick = onOpenConnection)
+                    NavRow(title = "연결 관리") { viewModel.onIntent(MyPageIntent.ConnectionClicked) }
                     RowDivider()
                     NavRow(title = "로그아웃") { viewModel.onIntent(MyPageIntent.LogoutClicked) }
                 }

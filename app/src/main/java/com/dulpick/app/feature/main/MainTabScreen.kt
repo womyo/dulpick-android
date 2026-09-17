@@ -37,6 +37,7 @@ fun MainTabScreen(
     onLoggedOut: () -> Unit,
     onOpenDateType: () -> Unit,
     onOpenConnection: () -> Unit,
+    onOpenCoupleConnect: (myNickname: String) -> Unit,
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
@@ -102,6 +103,7 @@ fun MainTabScreen(
                             onLoggedOut = onLoggedOut,
                             onOpenDateType = onOpenDateType,
                             onOpenConnection = onOpenConnection,
+                            onOpenCoupleConnect = onOpenCoupleConnect,
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }

@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dulpick.app.feature.appintro.AppIntroScreen
 import com.dulpick.app.feature.auth.AuthScreen
+import com.dulpick.app.feature.onboarding.couple.ARG_COUPLE_SHOWS_SKIP
 import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
 import com.dulpick.app.feature.onboarding.couple.CoupleScreen
 import com.dulpick.app.feature.main.MainTabScreen
@@ -132,6 +133,35 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             // 상세는 탭 밖에서 전체화면 push
             onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
             onOpenConnection = { navController.navigate(MAIN_CONNECTION_ROUTE) },
+            onOpenCoupleConnect = { nickname ->
+                navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}")
+            },
+        )
+    }
+    // 미연결 상태에서 마이페이지 "연결 관리" → 커플 연결 플로우(건너뛰기 없음)
+    composable(
+        route = "$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}",
+        arguments = listOf(
+            navArgument(ARG_MY_NICKNAME) { type = NavType.StringType },
+            navArgument(ARG_COUPLE_SHOWS_SKIP) {
+                type = NavType.BoolType
+                defaultValue = false
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        CoupleScreen(
+            onBack = { navController.popBackStack() },
+            // 연결 성공 → 커플 플로우를 걷어내고 연결 관리 화면으로 대체
+            onFinished = {
+                navController.navigate(MAIN_CONNECTION_ROUTE) {
+                    popUpTo("$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}") { inclusive = true }
+                }
+            },
+            onSessionExpired = { navController.navigateToAuth() },
         )
     }
     composable(
@@ -172,6 +202,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
+private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 

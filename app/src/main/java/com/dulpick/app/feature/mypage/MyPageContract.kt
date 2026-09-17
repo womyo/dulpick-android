@@ -37,6 +37,9 @@ sealed interface MyPageIntent : UiIntent {
     data object ProfileEditClicked : MyPageIntent
     data object ProfileEditDismissed : MyPageIntent
     data class ProfileSaveClicked(val nickname: String, val iconId: Int) : MyPageIntent
+
+    // 연결 여부를 확인해 연결 관리 화면 / 커플 연결 플로우로 가른다
+    data object ConnectionClicked : MyPageIntent
 }
 
 sealed interface MyPageSideEffect : UiSideEffect {
@@ -44,4 +47,9 @@ sealed interface MyPageSideEffect : UiSideEffect {
     data object LoggedOut : MyPageSideEffect
     data object SessionExpired : MyPageSideEffect
     data class ShowToast(val message: String) : MyPageSideEffect
+
+    // 연결 관리 화면으로 (이미 연결됨)
+    data object OpenConnection : MyPageSideEffect
+    // 커플 연결 플로우로 (미연결). 완료 화면 닉네임 칸에 쓸 내 닉네임을 함께 넘긴다
+    data class OpenCoupleConnect(val myNickname: String) : MyPageSideEffect
 }

@@ -6,6 +6,7 @@ import com.dulpick.app.data.home.remote.HomeRemoteDataSource
 import com.dulpick.app.domain.home.DateSchedule
 import com.dulpick.app.domain.home.HomeRepository
 import com.dulpick.app.domain.home.HomeSummary
+import com.dulpick.app.domain.home.PastDateCoursePage
 import com.dulpick.app.domain.place.Place
 import javax.inject.Inject
 
@@ -33,6 +34,14 @@ class HomeRepositoryImpl @Inject constructor(
     override suspend fun pastDates(size: Int): List<DateSchedule> {
         try {
             return HomeDtoMapper.toPastDates(homeRemote.pastDates(size))
+        } catch (error: Throwable) {
+            throw HomeErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun pastCourses(page: Int, size: Int): PastDateCoursePage {
+        try {
+            return HomeDtoMapper.toPastCoursePage(homeRemote.pastCourses(page, size))
         } catch (error: Throwable) {
             throw HomeErrorMapper.map(error)
         }

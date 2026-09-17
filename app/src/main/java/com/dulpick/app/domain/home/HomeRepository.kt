@@ -12,4 +12,7 @@ interface HomeRepository {
 
     // 지난 데이트 일정 미리보기 (연결됐을 때만 값이 있다)
     suspend fun pastDates(size: Int): List<DateSchedule>
+
+    // 지난 데이트 코스 목록 (페이지네이션)
+    suspend fun pastCourses(page: Int, size: Int): PastDateCoursePage
 }

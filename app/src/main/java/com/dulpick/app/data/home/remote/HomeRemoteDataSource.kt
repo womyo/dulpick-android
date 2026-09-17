@@ -4,6 +4,7 @@ import com.dulpick.app.core.network.Authed
 import com.dulpick.app.core.network.safeApiCall
 import com.dulpick.app.data.home.remote.dto.HomeDateCourseDto
 import com.dulpick.app.data.home.remote.dto.HomeSummaryResponseDto
+import com.dulpick.app.data.home.remote.dto.PastDateCoursesResponseDto
 import com.dulpick.app.data.home.remote.dto.SavedPlaceItemDto
 import javax.inject.Inject
 
@@ -17,4 +18,7 @@ class HomeRemoteDataSource @Inject constructor(
 
     suspend fun pastDates(size: Int): List<HomeDateCourseDto> =
         safeApiCall { homeApi.pastDates(size) }
+
+    suspend fun pastCourses(page: Int, size: Int): PastDateCoursesResponseDto =
+        safeApiCall { homeApi.pastCourses(page, size) }
 }

@@ -19,6 +19,14 @@ data class HomeDateCourseDto(
     val totalPlaceCount: Int = 0,
 )
 
+// 지난 데이트 코스 목록(GET /date-courses/past). totalCount 는 전체 데이트 횟수
+@Serializable
+data class PastDateCoursesResponseDto(
+    val dateCourses: List<HomeDateCourseDto> = emptyList(),
+    val totalCount: Int = 0,
+    val hasNext: Boolean = false,
+)
+
 // 최근 저장 장소 항목. 홈 행이 쓰는 이름·카테고리·썸네일만 선언한다
 @Serializable
 data class SavedPlaceItemDto(

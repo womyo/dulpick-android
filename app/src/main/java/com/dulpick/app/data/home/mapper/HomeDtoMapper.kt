@@ -2,11 +2,13 @@ package com.dulpick.app.data.home.mapper
 
 import com.dulpick.app.data.home.remote.dto.HomeDateCourseDto
 import com.dulpick.app.data.home.remote.dto.HomeSummaryResponseDto
+import com.dulpick.app.data.home.remote.dto.PastDateCoursesResponseDto
 import com.dulpick.app.data.home.remote.dto.SavedPlaceItemDto
 import com.dulpick.app.data.place.mapper.PlaceCategoryMapper
 import com.dulpick.app.domain.course.DateCourseSummary
 import com.dulpick.app.domain.home.DateSchedule
 import com.dulpick.app.domain.home.HomeSummary
+import com.dulpick.app.domain.home.PastDateCoursePage
 import com.dulpick.app.domain.place.Place
 
 object HomeDtoMapper {
@@ -20,6 +22,13 @@ object HomeDtoMapper {
         )
 
     fun toPastDates(dtos: List<HomeDateCourseDto>): List<DateSchedule> = dtos.map(::toDateSchedule)
+
+    fun toPastCoursePage(dto: PastDateCoursesResponseDto): PastDateCoursePage =
+        PastDateCoursePage(
+            courses = dto.dateCourses.map(::toDateSchedule),
+            totalCount = dto.totalCount,
+            hasNext = dto.hasNext,
+        )
 
     fun toSavedPlaces(dtos: List<SavedPlaceItemDto>): List<Place> = dtos.map(::toPlace)
 

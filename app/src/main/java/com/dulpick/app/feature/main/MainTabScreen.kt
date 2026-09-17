@@ -27,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dulpick.app.feature.explore.ExploreScreen
+import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -101,6 +102,7 @@ fun MainTabScreen(
             MainTab.entries.forEach { tab ->
                 composable(tab.route) {
                     when (tab) {
+                        MainTab.HOME -> HomeScreen(onSessionExpired = onLoggedOut)
                         MainTab.MY -> MyPageScreen(
                             onLoggedOut = onLoggedOut,
                             onOpenDateType = onOpenDateType,

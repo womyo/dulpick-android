@@ -23,13 +23,10 @@ class HomeViewModel @Inject constructor(
 
     private var loadJob: Job? = null
 
-    init {
-        load()
-    }
-
     override fun onIntent(intent: HomeIntent) {
         when (intent) {
-            HomeIntent.OnAppear -> Unit
+            // 홈이 보일 때마다 다시 받는다(탭 재진입·연결/해제 후 복귀 포함). iOS onAppear 는 가드가 없다
+            HomeIntent.OnAppear -> load()
             HomeIntent.RefreshRequested -> load()
             else -> handleNavigation(intent)
         }
@@ -38,11 +35,10 @@ class HomeViewModel @Inject constructor(
     // 화면 이동으로 위임하는 탭 인텐트들
     private fun handleNavigation(intent: HomeIntent) {
         when (intent) {
-            HomeIntent.CalendarClicked -> postSideEffect(HomeSideEffect.OpenCalendar)
-            HomeIntent.ConnectFlowRequested -> postSideEffect(HomeSideEffect.OpenConnectFlow)
+            HomeIntent.CalendarClicked -> handleCalendar()
+            HomeIntent.ConnectFlowRequested -> requestConnect()
             HomeIntent.CourseFlowRequested -> postSideEffect(HomeSideEffect.OpenCourseFlow)
-            HomeIntent.BannerClicked ->
-                currentState.upcomingSchedule?.let { postSideEffect(HomeSideEffect.OpenUpcomingCourse(it.id)) }
+            HomeIntent.BannerClicked -> openUpcomingCourse()
             is HomeIntent.RecommendationClicked -> postSideEffect(HomeSideEffect.OpenContentDetail(intent.id))
             is HomeIntent.PastScheduleClicked -> postSideEffect(HomeSideEffect.OpenPastSchedule(intent.id))
             is HomeIntent.SavedPlaceClicked -> postSideEffect(HomeSideEffect.OpenPlaceDetail(intent.id))
@@ -51,10 +47,28 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // 요약·저장장소·추천을 동시에 받는다. 하나가 실패해도 각자 스켈레톤만 걷는다
+    // 연결됐으면 지난 데이트, 아니면 커플 연결로 (iOS calendarTapped 대응)
+    private fun handleCalendar() {
+        if (currentState.isConnected) {
+            postSideEffect(HomeSideEffect.OpenPastDates(currentState.upcomingSchedule != null))
+        } else {
+            postSideEffect(HomeSideEffect.OpenConnectFlow)
+        }
+    }
+
+    // 배너는 미연결일 때만 보이지만 방어적으로 연결 상태는 무시한다
+    private fun requestConnect() {
+        if (!currentState.isConnected) postSideEffect(HomeSideEffect.OpenConnectFlow)
+    }
+
+    private fun openUpcomingCourse() {
+        currentState.upcomingSchedule?.let { postSideEffect(HomeSideEffect.OpenUpcomingCourse(it.id)) }
+    }
+
+    // 요약·저장장소·추천을 동시에 받는다. didLoad 를 false 로 되돌리지 않아
+    // 재진입 갱신은 스켈레톤 없이 조용히 바뀐다(첫 진입만 초기값 false 라 스켈레톤). 하나가 실패해도 각자 완료로 친다
     private fun load() {
         loadJob?.cancel()
-        setState { copy(didLoadSummary = false, didLoadSaved = false, didLoadRecommendations = false) }
         loadJob = viewModelScope.launch {
             launch { loadHome() }
             launch { loadSavedPlaces() }

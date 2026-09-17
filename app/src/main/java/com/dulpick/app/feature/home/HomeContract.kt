@@ -54,7 +54,8 @@ sealed interface HomeIntent : UiIntent {
 }
 
 sealed interface HomeSideEffect : UiSideEffect {
-    data object OpenCalendar : HomeSideEffect
+    // 연결됐을 때 헤더 달력 → 지난 데이트 코스 (hasCurrentCourse 로 빈 상태 버튼 노출 여부 결정)
+    data class OpenPastDates(val hasCurrentCourse: Boolean) : HomeSideEffect
     data object OpenConnectFlow : HomeSideEffect
     data object OpenCourseFlow : HomeSideEffect
     data class OpenUpcomingCourse(val id: String) : HomeSideEffect

@@ -57,6 +57,8 @@ private const val SAVED_SKELETON_ROWS = 3
 @Composable
 fun HomeScreen(
     onSessionExpired: () -> Unit,
+    onOpenCoupleConnect: (myNickname: String) -> Unit,
+    onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -64,9 +66,9 @@ fun HomeScreen(
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             HomeSideEffect.SessionExpired -> onSessionExpired()
-            // TODO: 달력·연결·코스·상세는 지도/코스 단계에서 연결한다
-            HomeSideEffect.OpenCalendar -> Unit
-            HomeSideEffect.OpenConnectFlow -> Unit
+            HomeSideEffect.OpenConnectFlow -> onOpenCoupleConnect(state.nickname)
+            is HomeSideEffect.OpenPastDates -> onOpenPastDates(effect.hasCurrentCourse)
+            // TODO: 코스·상세는 지도/코스 단계에서 연결한다
             HomeSideEffect.OpenCourseFlow -> Unit
             is HomeSideEffect.OpenUpcomingCourse -> Unit
             is HomeSideEffect.OpenContentDetail -> Unit

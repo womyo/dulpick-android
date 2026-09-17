@@ -17,6 +17,8 @@ data class MyPageState(
     val availableMarketingConsentVersion: String? = null,
     val isWithdrawDialogPresented: Boolean = false,
     val isWithdrawing: Boolean = false,
+    val isProfileEditPresented: Boolean = false,
+    val isSavingProfile: Boolean = false,
 ) : UiState {
     companion object {
         const val DEFAULT_ICON_ID = 1
@@ -32,6 +34,9 @@ sealed interface MyPageIntent : UiIntent {
     data object WithdrawClicked : MyPageIntent
     data object WithdrawConfirmed : MyPageIntent
     data object WithdrawDismissed : MyPageIntent
+    data object ProfileEditClicked : MyPageIntent
+    data object ProfileEditDismissed : MyPageIntent
+    data class ProfileSaveClicked(val nickname: String, val iconId: Int) : MyPageIntent
 }
 
 sealed interface MyPageSideEffect : UiSideEffect {

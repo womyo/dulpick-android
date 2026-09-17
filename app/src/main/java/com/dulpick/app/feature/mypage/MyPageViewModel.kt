@@ -32,9 +32,21 @@ class MyPageViewModel @Inject constructor(
             is MyPageIntent.MarketingToggled ->
                 toggle { copy(marketingAlarm = intent.enabled) }
             MyPageIntent.LogoutClicked -> logout()
+            else -> handleAccountIntent(intent)
+        }
+    }
+
+    // 회원탈퇴·프로필 수정 관련 인텐트. onIntent 복잡도를 낮추려 분리한다
+    private fun handleAccountIntent(intent: MyPageIntent) {
+        when (intent) {
             MyPageIntent.WithdrawClicked -> setState { copy(isWithdrawDialogPresented = true) }
             MyPageIntent.WithdrawDismissed -> setState { copy(isWithdrawDialogPresented = false) }
             MyPageIntent.WithdrawConfirmed -> withdraw()
+            MyPageIntent.ProfileEditClicked -> setState { copy(isProfileEditPresented = true) }
+            MyPageIntent.ProfileEditDismissed ->
+                if (!currentState.isSavingProfile) setState { copy(isProfileEditPresented = false) }
+            is MyPageIntent.ProfileSaveClicked -> saveProfile(intent.nickname, intent.iconId)
+            else -> Unit
         }
     }
 
@@ -117,6 +129,33 @@ class MyPageViewModel @Inject constructor(
             // 로그아웃은 실패해도 로컬 세션 정리 후 로그인으로 보낸다
             runCatching { authRepository.logout() }
             postSideEffect(MyPageSideEffect.LoggedOut)
+        }
+    }
+
+    // 프로필 수정 저장(PATCH). 성공 시 표시값 갱신하고 시트 닫음, 실패 시 토스트(시트는 유지)
+    private fun saveProfile(nickname: String, iconId: Int) {
+        if (currentState.isSavingProfile) return
+        setState { copy(isSavingProfile = true) }
+        viewModelScope.launch {
+            runCatching { profileRepository.updateProfile(nickname, iconId) }
+                .onSuccess { profile ->
+                    setState {
+                        copy(
+                            isSavingProfile = false,
+                            isProfileEditPresented = false,
+                            nickname = profile.nickname,
+                            iconId = profile.iconId,
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    setState { copy(isSavingProfile = false) }
+                    if (error == ProfileError.Unauthorized) {
+                        postSideEffect(MyPageSideEffect.SessionExpired)
+                    } else {
+                        postSideEffect(MyPageSideEffect.ShowToast("저장에 실패했어요. 잠시 후 다시 시도해 주세요."))
+                    }
+                }
         }
     }
 

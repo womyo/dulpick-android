@@ -21,10 +21,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,7 +64,7 @@ private val ROW_HEIGHT = 52.dp
 private const val FEEDBACK_EMAIL = "dulpick.co@gmail.com"
 private const val FEEDBACK_SUBJECT = "둘픽 서비스 피드백"
 
-// 마이페이지 메인 화면. 프로필·알림 설정은 API 연동, 상세 네비게이션은 이후 단계
+// 마이페이지 메인 화면. 프로필·알림 설정·프로필 수정 시트 연동
 @Composable
 fun MyPageScreen(
     onLoggedOut: () -> Unit,
@@ -97,7 +100,11 @@ fun MyPageScreen(
                     .padding(horizontal = 20.dp)
                     .padding(top = 20.dp, bottom = 16.dp),
             ) {
-                ProfileSection(nickname = state.nickname, iconId = state.iconId, onEdit = {})
+                ProfileSection(
+                    nickname = state.nickname,
+                    iconId = state.iconId,
+                    onEdit = { viewModel.onIntent(MyPageIntent.ProfileEditClicked) },
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -152,11 +159,37 @@ fun MyPageScreen(
         )
     }
 
+    MyPageOverlays(state = state, onIntent = viewModel::onIntent)
+}
+
+// 회원탈퇴 모달·프로필 수정 바텀시트. MyPageScreen 길이를 줄이려 분리한다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MyPageOverlays(state: MyPageState, onIntent: (MyPageIntent) -> Unit) {
     if (state.isWithdrawDialogPresented) {
         WithdrawDialog(
-            onConfirm = { viewModel.onIntent(MyPageIntent.WithdrawConfirmed) },
-            onDismiss = { viewModel.onIntent(MyPageIntent.WithdrawDismissed) },
+            onConfirm = { onIntent(MyPageIntent.WithdrawConfirmed) },
+            onDismiss = { onIntent(MyPageIntent.WithdrawDismissed) },
         )
+    }
+
+    if (state.isProfileEditPresented) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { onIntent(MyPageIntent.ProfileEditDismissed) },
+            sheetState = sheetState,
+            containerColor = Colors.commonWhite,
+        ) {
+            ProfileEditSheet(
+                initialNickname = state.nickname,
+                initialIconId = state.iconId,
+                isSaving = state.isSavingProfile,
+                onSave = { nickname, iconId ->
+                    onIntent(MyPageIntent.ProfileSaveClicked(nickname, iconId))
+                },
+                onClose = { onIntent(MyPageIntent.ProfileEditDismissed) },
+            )
+        }
     }
 }
 

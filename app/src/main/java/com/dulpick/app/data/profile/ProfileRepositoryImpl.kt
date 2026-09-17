@@ -33,6 +33,18 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateProfile(nickname: String, iconId: Int): UserProfile {
+        try {
+            val updated = profileRemote.updateProfile(
+                UpdateMemberProfileRequestDto(nickname = nickname, profileIcon = iconId),
+            )
+            // PATCH 응답엔 성향이 없다. 프로필 수정 결과는 닉네임·아이콘만 쓰므로 성향은 비운다
+            return ProfileDtoMapper.toDomain(updated, datePreference = null)
+        } catch (error: Throwable) {
+            throw ProfileErrorMapper.map(error)
+        }
+    }
+
     // 온보딩 전이면 초기화(POST), 이미 온보딩됐으면 수정(PATCH).
     // PATCH 응답엔 성향이 없어 방금 읽은 회원 정보의 성향을 재사용한다
     override suspend fun updateNickname(nickname: String, iconId: Int): UserProfile {

@@ -9,7 +9,6 @@ data class NicknameState(
     val nickname: String = "",
     val isSubmitting: Boolean = false,
     val inlineError: String? = null,
-    val toast: String? = null,
     // 온보딩 진입 시 약관 시트를 먼저 띄운다
     val isTermsSheetPresented: Boolean = true,
     val agreedTerms: Set<TermsType> = emptySet(),
@@ -54,7 +53,6 @@ sealed interface NicknameIntent : UiIntent {
     data class TermsCheckTapped(val terms: TermsType) : NicknameIntent
     data object TermsAgreeButtonTapped : NicknameIntent
     data class TermsDetailTapped(val terms: TermsType) : NicknameIntent
-    data object ToastDismissed : NicknameIntent
 }
 
 sealed interface NicknameSideEffect : UiSideEffect {
@@ -63,4 +61,6 @@ sealed interface NicknameSideEffect : UiSideEffect {
     // 세션 만료. 로그인으로 되돌린다
     data object SessionExpired : NicknameSideEffect
     data class OpenTermsUrl(val url: String) : NicknameSideEffect
+    // 1회성 토스트. state 에 담지 않고 side effect 로 흘린다
+    data class ShowToast(val message: String) : NicknameSideEffect
 }

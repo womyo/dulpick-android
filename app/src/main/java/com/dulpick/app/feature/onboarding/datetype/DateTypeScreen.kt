@@ -24,11 +24,14 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -64,11 +67,14 @@ fun DateTypeScreen(
     viewModel: DateTypeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 토스트는 1회성 이벤트라 state 가 아니라 side effect 로 받아 화면 로컬 상태로만 둔다
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             DateTypeSideEffect.Finished -> onFinished()
             DateTypeSideEffect.SessionExpired -> onSessionExpired()
+            is DateTypeSideEffect.ShowToast -> toastMessage = effect.message
         }
     }
 
@@ -76,13 +82,22 @@ fun DateTypeScreen(
         BackHandler { onBack() }
     }
 
-    DateTypeContent(state = state, onIntent = viewModel::onIntent, onBack = onBack, modifier = modifier)
+    DateTypeContent(
+        state = state,
+        onIntent = viewModel::onIntent,
+        toastMessage = toastMessage,
+        onToastDismiss = { toastMessage = null },
+        onBack = onBack,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun DateTypeContent(
     state: DateTypeState,
     onIntent: (DateTypeIntent) -> Unit,
+    toastMessage: String?,
+    onToastDismiss: () -> Unit,
     onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -133,8 +148,8 @@ private fun DateTypeContent(
         }
 
         AppToast(
-            message = state.toast,
-            onDismiss = { onIntent(DateTypeIntent.ToastDismissed) },
+            message = toastMessage,
+            onDismiss = onToastDismiss,
             bottomInset = 120,
         )
     }
@@ -238,9 +253,11 @@ private fun TipButton(
             )
         }
         if (isTooltipPresented) {
+            // Popup offset 은 px 단위라 dp 를 밀도로 환산한다. 리터럴 96 은 고밀도에서 너무 작아진다
+            val yOffsetPx = with(LocalDensity.current) { 96.dp.roundToPx() }
             Popup(
                 alignment = Alignment.TopEnd,
-                offset = IntOffset(x = 0, y = 96),
+                offset = IntOffset(x = 0, y = yOffsetPx),
                 onDismissRequest = onTooltipDismiss,
                 properties = PopupProperties(focusable = true),
             ) {

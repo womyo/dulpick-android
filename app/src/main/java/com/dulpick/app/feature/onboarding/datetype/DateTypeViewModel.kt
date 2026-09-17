@@ -36,7 +36,6 @@ class DateTypeViewModel @Inject constructor(
             DateTypeIntent.TooltipDismissed -> setState { copy(isTooltipPresented = false) }
             DateTypeIntent.SaveClicked -> save()
             DateTypeIntent.SkipClicked -> skip()
-            DateTypeIntent.ToastDismissed -> setState { copy(toast = null) }
         }
     }
 
@@ -56,7 +55,7 @@ class DateTypeViewModel @Inject constructor(
         val state = currentState
         val preference = state.datePreference ?: return
         if (!state.isSaveEnabled) return
-        setState { copy(isSubmitting = true, isTooltipPresented = false, toast = null) }
+        setState { copy(isSubmitting = true, isTooltipPresented = false) }
         viewModelScope.launch {
             runCatching { profileRepository.updateDatePreference(preference) }
                 .onSuccess {
@@ -72,9 +71,9 @@ class DateTypeViewModel @Inject constructor(
 
     private fun handleFailure(error: Throwable) {
         when (error) {
-            ProfileError.Network -> setState { copy(toast = "네트워크 연결을 확인해 주세요.") }
+            ProfileError.Network -> postSideEffect(DateTypeSideEffect.ShowToast("네트워크 연결을 확인해 주세요."))
             ProfileError.Unauthorized -> postSideEffect(DateTypeSideEffect.SessionExpired)
-            else -> setState { copy(toast = "잠시 후 다시 시도해 주세요.") }
+            else -> postSideEffect(DateTypeSideEffect.ShowToast("잠시 후 다시 시도해 주세요."))
         }
     }
 

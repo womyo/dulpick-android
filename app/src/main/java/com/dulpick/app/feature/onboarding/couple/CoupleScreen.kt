@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -29,12 +32,15 @@ fun CoupleScreen(
     viewModel: CoupleViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 토스트는 1회성이라 state 가 아니라 side effect 로 받아 화면 로컬 상태로만 둔다
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             CoupleSideEffect.Back -> onBack()
             CoupleSideEffect.Finished -> onFinished()
             CoupleSideEffect.SessionExpired -> onSessionExpired()
+            is CoupleSideEffect.ShowToast -> toastMessage = effect.message
         }
     }
 
@@ -65,7 +71,12 @@ fun CoupleScreen(
     ) { step ->
         when (step) {
             CoupleStep.CONNECT -> CoupleConnectScreen(state = state, onIntent = viewModel::onIntent)
-            CoupleStep.CODE_INPUT -> CoupleCodeInputScreen(state = state, onIntent = viewModel::onIntent)
+            CoupleStep.CODE_INPUT -> CoupleCodeInputScreen(
+                state = state,
+                onIntent = viewModel::onIntent,
+                toastMessage = toastMessage,
+                onToastDismiss = { toastMessage = null },
+            )
             CoupleStep.COMPLETE -> CoupleCompleteScreen(state = state, onIntent = viewModel::onIntent)
         }
     }

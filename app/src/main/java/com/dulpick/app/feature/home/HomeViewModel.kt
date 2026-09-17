@@ -2,22 +2,26 @@ package com.dulpick.app.feature.home
 
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
-import com.dulpick.app.domain.course.DateCourseSummary
-import com.dulpick.app.domain.explore.Content
-import com.dulpick.app.domain.home.DateSchedule
-import com.dulpick.app.domain.place.Place
-import com.dulpick.app.domain.place.PlaceCategory
+import com.dulpick.app.domain.explore.ContentSort
+import com.dulpick.app.domain.explore.ExploreRepository
+import com.dulpick.app.domain.home.HomeError
+import com.dulpick.app.domain.home.HomeRepository
+import com.dulpick.app.domain.profile.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// TODO: 홈 API(요약·추천·저장장소) 연동 전까지 목데이터로 UI 만 확인한다
-private const val MOCK_LOAD_DELAY_MS = 600L
-
 @HiltViewModel
-class HomeViewModel @Inject constructor() :
-    MviViewModel<HomeState, HomeIntent, HomeSideEffect>(HomeState()) {
+@Suppress("TooGenericExceptionCaught")
+class HomeViewModel @Inject constructor(
+    private val homeRepository: HomeRepository,
+    private val exploreRepository: ExploreRepository,
+    private val profileRepository: ProfileRepository,
+) : MviViewModel<HomeState, HomeIntent, HomeSideEffect>(HomeState()) {
+
+    private var loadJob: Job? = null
 
     init {
         load()
@@ -47,58 +51,78 @@ class HomeViewModel @Inject constructor() :
         }
     }
 
-    // 첫 진입·새로고침 모두 같은 데이터를 다시 읽는다. 스켈레톤을 잠깐 보여준 뒤 채운다
+    // 요약·저장장소·추천을 동시에 받는다. 하나가 실패해도 각자 스켈레톤만 걷는다
     private fun load() {
-        setState {
-            copy(didLoadSummary = false, didLoadSaved = false, didLoadRecommendations = false)
-        }
-        viewModelScope.launch {
-            delay(MOCK_LOAD_DELAY_MS)
-            setState {
-                copy(
-                    nickname = MOCK_NICKNAME,
-                    partnerName = MOCK_PARTNER_NAME,
-                    upcomingSchedule = MOCK_UPCOMING,
-                    recommendations = MOCK_RECOMMENDATIONS,
-                    pastSchedules = MOCK_PAST_SCHEDULES,
-                    savedPlaces = MOCK_SAVED_PLACES,
-                    isRefreshing = false,
-                    didLoadSummary = true,
-                    didLoadSaved = true,
-                    didLoadRecommendations = true,
-                )
-            }
+        loadJob?.cancel()
+        setState { copy(didLoadSummary = false, didLoadSaved = false, didLoadRecommendations = false) }
+        loadJob = viewModelScope.launch {
+            launch { loadHome() }
+            launch { loadSavedPlaces() }
+            launch { loadRecommendations() }
         }
     }
 
-    private companion object {
-        const val MOCK_NICKNAME = "둘픽"
-        const val MOCK_PARTNER_NAME = "연인"
-
-        // 예정 일정이 없으면 코스 배너가 뜬다. 예정 배너를 보려면 값을 넣는다
-        val MOCK_UPCOMING: DateCourseSummary? = null
-
-        val MOCK_RECOMMENDATIONS = List(6) { index ->
-            Content(
-                id = "rec-$index",
-                title = "성수동 데이트하기 좋은 장소 모음 ${index + 1}",
-                placeCount = index + 3,
-                thumbnailUrls = emptyList(),
-            )
+    private suspend fun loadHome() {
+        try {
+            val summary = homeRepository.home()
+            setState {
+                copy(
+                    didLoadSummary = true,
+                    nickname = summary.myNickname,
+                    partnerName = summary.partnerNickname,
+                    upcomingSchedule = summary.currentDateCourse,
+                )
+            }
+            // 지난 데이트는 연결됐을 때만 있다
+            if (summary.connected) loadPastDates()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            // 실패해도 스켈레톤은 걷는다. 인증 만료만 상위로 올려 로그인으로 보낸다
+            setState { copy(didLoadSummary = true) }
+            if (error == HomeError.Unauthorized) postSideEffect(HomeSideEffect.SessionExpired)
         }
+    }
 
-        val MOCK_PAST_SCHEDULES = listOf(
-            DateSchedule(id = "past-1", title = "홍대 나들이", placeCount = 4, date = "2026.08.10"),
-            DateSchedule(id = "past-2", title = "성수 카페 투어", placeCount = 3, date = "2026.07.28"),
-            DateSchedule(id = "past-3", title = "한강 피크닉", placeCount = 2, date = "2026.07.15"),
-        )
+    private suspend fun loadSavedPlaces() {
+        try {
+            val places = homeRepository.recentSavedPlaces(HomeState.RECENT_SAVED_PLACE_COUNT)
+            setState { copy(didLoadSaved = true, savedPlaces = places) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            // 실패 시 기존 데이터는 그대로 두고, 완료만 알려 스켈레톤을 걷는다
+            setState { copy(didLoadSaved = true) }
+        }
+    }
 
-        val MOCK_SAVED_PLACES = listOf(
-            Place("p1", "블루보틀 성수", PlaceCategory.CAFE, 12, emptyList()),
-            Place("p2", "롯데월드타워", PlaceCategory.TOURISM, 34, emptyList()),
-            Place("p3", "성수 소품샵", PlaceCategory.SHOPPING, 8, emptyList()),
-            Place("p4", "이태원 맛집", PlaceCategory.FOOD, 21, emptyList()),
-            Place("p5", "잠실 볼링장", PlaceCategory.ACTIVITY, 5, emptyList()),
-        )
+    private suspend fun loadRecommendations() {
+        // datePreference 를 등록한 사용자만 성향(PREFERENCE) 정렬, 아니면 인기(POPULAR)
+        val sort = try {
+            if (profileRepository.profile().datePreference != null) ContentSort.PREFERENCE else ContentSort.POPULAR
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            ContentSort.POPULAR
+        }
+        try {
+            val page = exploreRepository.contents(0, HomeState.RECOMMENDATION_COUNT, sort)
+            setState { copy(didLoadRecommendations = true, recommendations = page.items) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            setState { copy(didLoadRecommendations = true) }
+        }
+    }
+
+    private suspend fun loadPastDates() {
+        try {
+            val dates = homeRepository.pastDates(HomeState.PAST_DATE_COUNT)
+            setState { copy(pastSchedules = dates) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            // 지난 데이트 실패는 섹션만 비운다
+        }
     }
 }

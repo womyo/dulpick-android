@@ -26,6 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -105,6 +106,7 @@ fun MainTabScreen(
                             onOpenConnection = onOpenConnection,
                             onOpenCoupleConnect = onOpenCoupleConnect,
                         )
+                        MainTab.EXPLORE -> ExploreScreen()
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }

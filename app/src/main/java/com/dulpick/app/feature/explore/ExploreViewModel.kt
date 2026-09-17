@@ -20,6 +20,11 @@ class ExploreViewModel @Inject constructor(
     // 칩을 바꾸면 진행 중이던 이전 로드를 취소해 결과가 섞이지 않게 한다
     private var loadJob: Job? = null
 
+    init {
+        // 첫 프레임부터 로딩 상태로 두어 고정 "인기" 칩이 잠깐 보였다 스켈레톤으로 바뀌지 않게 한다
+        loadNext()
+    }
+
     override fun onIntent(intent: ExploreIntent) {
         when (intent) {
             // 최초 진입에만 첫 페이지 로드, 탭 재진입 시엔 유지된 목록 그대로 둔다

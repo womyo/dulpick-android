@@ -34,11 +34,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.feature.explore.component.ContentCard
+import com.dulpick.app.feature.explore.component.ContentGridSkeleton
 import com.dulpick.app.feature.explore.component.FilterChip
+import com.dulpick.app.feature.explore.component.FilterChipSkeleton
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
 private val HORIZONTAL_PADDING = 20.dp
+private const val SKELETON_CHIP_COUNT = 4
 
 @Composable
 fun ExploreScreen(
@@ -110,6 +113,7 @@ private fun ExploreList(state: ExploreState, onIntent: (ExploreIntent) -> Unit) 
             FilterChipsRow(
                 filters = state.filters,
                 selectedFilter = state.selectedFilter,
+                isLoading = state.isInitialLoading,
                 onSelect = { onIntent(ExploreIntent.FilterTapped(it)) },
             )
         }
@@ -123,7 +127,7 @@ private fun ExploreList(state: ExploreState, onIntent: (ExploreIntent) -> Unit) 
         }
 
         if (state.isInitialLoading) {
-            item(key = "initialLoading") { CenteredLoading() }
+            item(key = "initialLoading") { ContentGridSkeleton() }
         } else {
             itemsIndexed(rows, key = { _, row -> row.first().id }) { index, rowItems ->
                 if (index == rows.lastIndex && state.hasNext && !state.isLoadingContents) {
@@ -168,19 +172,29 @@ private fun ContentRow(
 }
 
 @Composable
-private fun FilterChipsRow(filters: List<String>, selectedFilter: String, onSelect: (String) -> Unit) {
+private fun FilterChipsRow(
+    filters: List<String>,
+    selectedFilter: String,
+    isLoading: Boolean,
+    onSelect: (String) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        filters.forEach { filter ->
-            FilterChip(
-                title = filter,
-                isSelected = filter == selectedFilter,
-                onClick = { onSelect(filter) },
-            )
+        if (isLoading) {
+            // 로딩 중엔 인기 칩도 선명하면 어색해 칩 자리를 스켈레톤 4개로만 채운다
+            repeat(SKELETON_CHIP_COUNT) { FilterChipSkeleton() }
+        } else {
+            filters.forEach { filter ->
+                FilterChip(
+                    title = filter,
+                    isSelected = filter == selectedFilter,
+                    onClick = { onSelect(filter) },
+                )
+            }
         }
     }
 }

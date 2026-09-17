@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.explore.Content
+import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -52,8 +53,8 @@ fun ContentCard(content: Content, onClick: () -> Unit, modifier: Modifier = Modi
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                // 로딩 중엔 회색 배경만, 실패·URL 없음은 iOS placeEmpty 를 중앙에 얹는다
-                loading = {},
+                // 로딩 중엔 쉬머, 실패·URL 없음은 iOS placeEmpty 를 중앙에 얹는다
+                loading = { ShimmerBox(modifier = Modifier.fillMaxSize()) },
                 error = { EmptyThumbnail() },
             )
             PlaceCountBadge(

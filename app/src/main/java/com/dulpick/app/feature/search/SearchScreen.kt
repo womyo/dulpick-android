@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.feature.explore.component.ContentCard
+import com.dulpick.app.feature.explore.component.ContentGridSkeleton
 import com.dulpick.app.feature.search.component.PlaceRow
 import com.dulpick.app.ui.component.AppTextField
 import com.dulpick.app.ui.theme.Colors
@@ -88,9 +89,7 @@ fun SearchScreen(
                     onDelete = { viewModel.onIntent(SearchIntent.RecentDeleted(it)) },
                     onClear = { viewModel.onIntent(SearchIntent.ClearRecent) },
                 )
-                state.isFirstSearch && state.isSearching -> CenteredLoading()
-                state.hasSearchResult -> SearchResults(state = state, onIntent = viewModel::onIntent)
-                else -> EmptyResult()
+                else -> SearchResults(state = state, onIntent = viewModel::onIntent)
             }
         }
     }
@@ -209,27 +208,39 @@ private fun RecentChip(term: String, onTap: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
-// 결과 = 세그먼트 탭 + 선택 탭 본문 (게시글 그리드 / 장소 리스트)
+// 결과 = 세그먼트 탭 + 본문. 첫 검색 중엔 탭(클릭 막음) + 게시글 스켈레톤을 보여준다 (iOS resultContent 대응)
 @Composable
 private fun SearchResults(state: SearchState, onIntent: (SearchIntent) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
-        SegmentTabs(
-            selected = state.selectedTab,
-            onSelect = { onIntent(SearchIntent.TabSelected(it)) },
-        )
-        Spacer(modifier = Modifier.height(24.dp))
+        // 결과가 있거나 첫 검색 로딩 중일 때만 탭을 노출한다
+        if (state.hasSearchResult || state.isFirstSearch) {
+            SegmentTabs(
+                selected = state.selectedTab,
+                // 첫 검색 로딩 중에는 탭 선택을 막는다
+                enabled = state.hasSearchResult,
+                onSelect = { onIntent(SearchIntent.TabSelected(it)) },
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             when {
-                !state.hasResult -> EmptyResult()
-                state.selectedTab == SearchTab.POST -> ResultGrid(state = state, onIntent = onIntent)
-                else -> PlaceResultList(state = state, onIntent = onIntent)
+                state.hasSearchResult && state.hasResult ->
+                    if (state.selectedTab == SearchTab.POST) {
+                        ResultGrid(state = state, onIntent = onIntent)
+                    } else {
+                        PlaceResultList(state = state, onIntent = onIntent)
+                    }
+                // 첫 결과 전(디바운스 대기·검색 중)엔 게시글 스켈레톤. 빈 상태가 먼저 깜빡이지 않게 한다
+                state.isFirstSearch ->
+                    ContentGridSkeleton(modifier = Modifier.padding(horizontal = HORIZONTAL_PADDING))
+                else -> EmptyResult()
             }
         }
     }
 }
 
 @Composable
-private fun SegmentTabs(selected: SearchTab, onSelect: (SearchTab) -> Unit) {
+private fun SegmentTabs(selected: SearchTab, enabled: Boolean, onSelect: (SearchTab) -> Unit) {
     Row(
         modifier = Modifier.padding(horizontal = HORIZONTAL_PADDING),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -241,7 +252,7 @@ private fun SegmentTabs(selected: SearchTab, onSelect: (SearchTab) -> Unit) {
             Column(
                 modifier = Modifier
                     .width(IntrinsicSize.Max)
-                    .clickable { onSelect(tab) },
+                    .clickable(enabled = enabled) { onSelect(tab) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(

@@ -39,6 +39,7 @@ fun MainTabScreen(
     onOpenDateType: () -> Unit,
     onOpenConnection: () -> Unit,
     onOpenCoupleConnect: (myNickname: String) -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
@@ -106,7 +107,10 @@ fun MainTabScreen(
                             onOpenConnection = onOpenConnection,
                             onOpenCoupleConnect = onOpenCoupleConnect,
                         )
-                        MainTab.EXPLORE -> ExploreScreen(onSessionExpired = onLoggedOut)
+                        MainTab.EXPLORE -> ExploreScreen(
+                            onSessionExpired = onLoggedOut,
+                            onOpenSearch = onOpenSearch,
+                        )
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }

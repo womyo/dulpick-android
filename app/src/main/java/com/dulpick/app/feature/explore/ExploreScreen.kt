@@ -43,14 +43,15 @@ private val HORIZONTAL_PADDING = 20.dp
 @Composable
 fun ExploreScreen(
     onSessionExpired: () -> Unit,
+    onOpenSearch: () -> Unit,
     viewModel: ExploreViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
-            // TODO: 검색 화면·게시물 상세는 다음 단계
-            ExploreSideEffect.SearchRequested -> Unit
+            ExploreSideEffect.SearchRequested -> onOpenSearch()
+            // TODO: 게시물 상세는 지도 단계에서
             is ExploreSideEffect.ShowContentDetail -> Unit
             ExploreSideEffect.SessionExpired -> onSessionExpired()
         }

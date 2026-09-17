@@ -37,6 +37,7 @@ import com.dulpick.app.feature.mypage.connection.ConnectionManageScreen
 import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
+import com.dulpick.app.feature.search.SearchScreen
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -136,6 +137,19 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onOpenCoupleConnect = { nickname ->
                 navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}")
             },
+            onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
+        )
+    }
+    composable(
+        route = MAIN_SEARCH_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        SearchScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
         )
     }
     // 미연결 상태에서 마이페이지 "연결 관리" → 커플 연결 플로우(건너뛰기 없음)
@@ -203,6 +217,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
+private const val MAIN_SEARCH_ROUTE = "main/search"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 

@@ -99,7 +99,16 @@ private fun DulpickNavHost(startRoute: String) {
                 onSessionExpired = { navController.navigateToAuth() },
             )
         }
-        composable(RootRoute.MAIN.route) { MainTabScreen() }
+        composable(RootRoute.MAIN.route) {
+            MainTabScreen(
+                // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
+                onLoggedOut = {
+                    navController.navigate(RootRoute.AUTH.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
+        }
     }
 }
 

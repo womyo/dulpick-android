@@ -3,6 +3,7 @@ package com.dulpick.app.feature.main
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,18 +24,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
 // 로그인·온보딩을 마치고 진입하는 메인 탭 컨테이너 (iOS MainTabView 대응)
 @Composable
-fun MainTabScreen() {
+fun MainTabScreen(onLoggedOut: () -> Unit) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
 
     Scaffold(
         containerColor = Colors.bgDefault,
+        // 상단(상태바) 인셋은 각 화면이 직접 처리한다. 그래야 화면 배경이 상태바 뒤까지 그려진다
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             // 네이티브 Material3 탭바. containerColor 가 테마 surface(흰색)와 같으면 tonalElevation
             // 톤 오버레이가 얹혀 틴트가 남으므로 elevation 을 0 으로 꺼 순백을 만든다
@@ -80,7 +84,12 @@ fun MainTabScreen() {
             modifier = Modifier.padding(innerPadding),
         ) {
             MainTab.entries.forEach { tab ->
-                composable(tab.route) { TabPlaceholder(label = tab.label) }
+                composable(tab.route) {
+                    when (tab) {
+                        MainTab.MY -> MyPageScreen(onLoggedOut = onLoggedOut)
+                        else -> TabPlaceholder(label = tab.label)
+                    }
+                }
             }
         }
     }

@@ -17,6 +17,14 @@ class ProfileRepositoryImpl @Inject constructor(
     private val profileRemote: ProfileRemoteDataSource,
 ) : ProfileRepository {
 
+    override suspend fun profile(): UserProfile {
+        try {
+            return ProfileDtoMapper.toDomain(profileRemote.member()) ?: throw ProfileError.Unknown
+        } catch (error: Throwable) {
+            throw ProfileErrorMapper.map(error)
+        }
+    }
+
     // 온보딩 전이면 초기화(POST), 이미 온보딩됐으면 수정(PATCH).
     // PATCH 응답엔 성향이 없어 방금 읽은 회원 정보의 성향을 재사용한다
     override suspend fun updateNickname(nickname: String, iconId: Int): UserProfile {

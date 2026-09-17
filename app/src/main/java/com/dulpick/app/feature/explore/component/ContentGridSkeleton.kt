@@ -35,7 +35,7 @@ fun ContentGridSkeleton(modifier: Modifier = Modifier) {
 
 // ContentCard 와 같은 비율·모서리·간격으로 이미지와 2줄 제목 자리를 쉬머로 채운다
 @Composable
-private fun ContentCardSkeleton(modifier: Modifier = Modifier) {
+fun ContentCardSkeleton(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),

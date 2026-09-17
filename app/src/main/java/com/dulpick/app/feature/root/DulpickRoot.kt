@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,6 +32,7 @@ import com.dulpick.app.feature.auth.AuthScreen
 import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
 import com.dulpick.app.feature.onboarding.couple.CoupleScreen
 import com.dulpick.app.feature.main.MainTabScreen
+import com.dulpick.app.feature.mypage.connection.ConnectionManageScreen
 import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
@@ -112,44 +115,63 @@ private fun DulpickNavHost(startRoute: String) {
                 onSessionExpired = { navController.navigateToAuth() },
             )
         }
-        composable(RootRoute.MAIN.route) {
-            MainTabScreen(
-                // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
-                onLoggedOut = {
-                    navController.navigate(RootRoute.AUTH.route) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                    }
-                },
-                // 상세(나의 데이트 유형)는 탭 밖에서 전체화면 push
-                onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
-            )
-        }
-        composable(
-            route = MAIN_DATETYPE_ROUTE,
-            arguments = listOf(
-                navArgument(ARG_DATETYPE_EDIT) {
-                    type = NavType.BoolType
-                    defaultValue = true
-                },
-            ),
-            // 속도(animationSpec)는 slide* 함수의 기본 스프링에 맡긴다. 방향만 지정.
-            // 오른쪽에서 슬라이드 인, 뒤로가기는 오른쪽으로 슬라이드 아웃 (뒤 화면은 살짝 패럴랙스)
-            enterTransition = { slideInHorizontally { it } },
-            exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-            popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
-            popExitTransition = { slideOutHorizontally { it } },
-        ) {
-            DateTypeScreen(
-                onFinished = { navController.popBackStack() },
-                onSessionExpired = { navController.navigateToAuth() },
-                onBack = { navController.popBackStack() },
-            )
-        }
+        mainRoutes(navController = navController)
     }
 }
 
-// 마이페이지에서 여는 "나의 데이트 유형" 전체화면 라우트 (탭 밖 push)
+// 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
+private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
+    composable(RootRoute.MAIN.route) {
+        MainTabScreen(
+            // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
+            onLoggedOut = {
+                navController.navigate(RootRoute.AUTH.route) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            },
+            // 상세는 탭 밖에서 전체화면 push
+            onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
+            onOpenConnection = { navController.navigate(MAIN_CONNECTION_ROUTE) },
+        )
+    }
+    composable(
+        route = MAIN_CONNECTION_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        ConnectionManageScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+        )
+    }
+    composable(
+        route = MAIN_DATETYPE_ROUTE,
+        arguments = listOf(
+            navArgument(ARG_DATETYPE_EDIT) {
+                type = NavType.BoolType
+                defaultValue = true
+            },
+        ),
+        // 속도(animationSpec)는 slide* 함수의 기본 스프링에 맡긴다. 방향만 지정.
+        // 오른쪽에서 슬라이드 인, 뒤로가기는 오른쪽으로 슬라이드 아웃 (뒤 화면은 살짝 패럴랙스)
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        DateTypeScreen(
+            onFinished = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+}
+
+// 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
+private const val MAIN_CONNECTION_ROUTE = "main/connection"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 

@@ -33,7 +33,11 @@ import com.dulpick.app.ui.theme.Typography
 // 로그인·온보딩을 마치고 진입하는 메인 탭 컨테이너 (iOS MainTabView 대응).
 // 상세 화면(예: 나의 데이트 유형)은 탭 밖(루트)에서 전체화면으로 push 한다 → onOpenDateType 로 위로 위임
 @Composable
-fun MainTabScreen(onLoggedOut: () -> Unit, onOpenDateType: () -> Unit) {
+fun MainTabScreen(
+    onLoggedOut: () -> Unit,
+    onOpenDateType: () -> Unit,
+    onOpenConnection: () -> Unit,
+) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -97,6 +101,7 @@ fun MainTabScreen(onLoggedOut: () -> Unit, onOpenDateType: () -> Unit) {
                         MainTab.MY -> MyPageScreen(
                             onLoggedOut = onLoggedOut,
                             onOpenDateType = onOpenDateType,
+                            onOpenConnection = onOpenConnection,
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }

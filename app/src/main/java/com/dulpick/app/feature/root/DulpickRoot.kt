@@ -105,9 +105,11 @@ private fun DulpickNavHost(startRoute: String) {
 // 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
 private const val ROUTE_COUPLE_BASE = "couple"
 
+// 온보딩 어느 화면에서 호출되든(예: DATETYPE 세션 만료) 백스택 전체를 비우고 로그인만 남긴다.
+// ONBOARDING 라우트는 navigateToDateType 시점에 이미 제거될 수 있어 대상으로 쓰면 pop 이 안 된다
 private fun androidx.navigation.NavController.navigateToAuth() {
     navigate(RootRoute.AUTH.route) {
-        popUpTo(RootRoute.ONBOARDING.route) { inclusive = true }
+        popUpTo(this@navigateToAuth.graph.id) { inclusive = true }
     }
 }
 

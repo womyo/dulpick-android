@@ -49,10 +49,10 @@ object ProfileDtoMapper {
     fun toDatePreference(dto: MemberDatePreferencesResponseDto?): DatePreference? {
         dto ?: return null
         return buildPreference(
-            IndoorOutdoor.from(dto.indoorOutdoor),
-            ActivityLevel.from(dto.activityLevel),
-            DateTime.from(dto.dateTime),
-            DateFocus.from(dto.dateFocus),
+            parseIndoorOutdoor(dto.indoorOutdoor),
+            parseActivityLevel(dto.activityLevel),
+            parseDateTime(dto.dateTime),
+            parseDateFocus(dto.dateFocus),
         )
     }
 
@@ -86,9 +86,54 @@ object ProfileDtoMapper {
 
     fun toRequest(preference: DatePreference): DatePreferencesRequestDto =
         DatePreferencesRequestDto(
-            indoorOutdoor = preference.indoorOutdoor.rawValue,
-            activityLevel = preference.activityLevel.rawValue,
-            dateTime = preference.dateTime.rawValue,
-            dateFocus = preference.dateFocus.rawValue,
+            indoorOutdoor = preference.indoorOutdoor.raw(),
+            activityLevel = preference.activityLevel.raw(),
+            dateTime = preference.dateTime.raw(),
+            dateFocus = preference.dateFocus.raw(),
         )
+
+    // 서버 문자열 계약 ↔ 도메인 enum. 이 매핑을 data 계층에서 소유한다
+    private fun parseIndoorOutdoor(raw: String?): IndoorOutdoor? = when (raw) {
+        "INDOOR" -> IndoorOutdoor.INDOOR
+        "OUTDOOR" -> IndoorOutdoor.OUTDOOR
+        else -> null
+    }
+
+    private fun parseActivityLevel(raw: String?): ActivityLevel? = when (raw) {
+        "ACTIVE" -> ActivityLevel.ACTIVE
+        "STATIC" -> ActivityLevel.STATIC
+        else -> null
+    }
+
+    private fun parseDateTime(raw: String?): DateTime? = when (raw) {
+        "DAY" -> DateTime.DAY
+        "NIGHT" -> DateTime.NIGHT
+        else -> null
+    }
+
+    private fun parseDateFocus(raw: String?): DateFocus? = when (raw) {
+        "FOOD" -> DateFocus.FOOD
+        "SIGHTSEEING" -> DateFocus.SIGHTSEEING
+        else -> null
+    }
+
+    private fun IndoorOutdoor.raw(): String = when (this) {
+        IndoorOutdoor.INDOOR -> "INDOOR"
+        IndoorOutdoor.OUTDOOR -> "OUTDOOR"
+    }
+
+    private fun ActivityLevel.raw(): String = when (this) {
+        ActivityLevel.ACTIVE -> "ACTIVE"
+        ActivityLevel.STATIC -> "STATIC"
+    }
+
+    private fun DateTime.raw(): String = when (this) {
+        DateTime.DAY -> "DAY"
+        DateTime.NIGHT -> "NIGHT"
+    }
+
+    private fun DateFocus.raw(): String = when (this) {
+        DateFocus.FOOD -> "FOOD"
+        DateFocus.SIGHTSEEING -> "SIGHTSEEING"
+    }
 }

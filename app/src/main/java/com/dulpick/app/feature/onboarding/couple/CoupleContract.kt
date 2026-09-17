@@ -23,11 +23,10 @@ data class CoupleState(
     val isConnecting: Boolean = false,
     val connectedCouple: Couple? = null,
     val isCheckingConnection: Boolean = false,
-    val toast: String? = null,
 ) : UiState {
 
     val isConnectEnabled: Boolean
-        get() = code.length == CODE_LENGTH && !isConnecting && toast == null
+        get() = code.length == CODE_LENGTH && !isConnecting
 
     val partnerNickname: String
         get() = connectedCouple?.partnerNickname.orEmpty()
@@ -56,7 +55,6 @@ sealed interface CoupleIntent : UiIntent {
     data object ConnectClicked : CoupleIntent
     data object CompleteClicked : CoupleIntent
     data object BackClicked : CoupleIntent
-    data object ToastDismissed : CoupleIntent
 }
 
 sealed interface CoupleSideEffect : UiSideEffect {
@@ -65,4 +63,6 @@ sealed interface CoupleSideEffect : UiSideEffect {
     // 구간을 벗어나 성향 선택으로 (연결 완료 or 건너뛰기)
     data object Finished : CoupleSideEffect
     data object SessionExpired : CoupleSideEffect
+    // 1회성 토스트. state 에 담지 않고 side effect 로 흘린다
+    data class ShowToast(val message: String) : CoupleSideEffect
 }

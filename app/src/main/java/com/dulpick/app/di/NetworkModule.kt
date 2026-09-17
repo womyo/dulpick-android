@@ -9,6 +9,7 @@ import com.dulpick.app.data.auth.token.AuthTokenAuthenticator
 import com.dulpick.app.data.auth.token.AuthTokenInterceptor
 import com.dulpick.app.data.auth.token.AuthTokenRefresher
 import com.dulpick.app.data.couple.remote.CoupleApi
+import com.dulpick.app.data.explore.remote.ExploreApi
 import com.dulpick.app.data.profile.remote.ProfileApi
 import dagger.Module
 import dagger.Provides
@@ -100,6 +101,11 @@ object NetworkModule {
     @Singleton
     @Authed
     fun coupleApi(@Authed retrofit: Retrofit): CoupleApi = retrofit.create(CoupleApi::class.java)
+
+    @Provides
+    @Singleton
+    @Authed
+    fun exploreApi(@Authed retrofit: Retrofit): ExploreApi = retrofit.create(ExploreApi::class.java)
 
     private fun retrofit(client: OkHttpClient, json: Json): Retrofit {
         val raw = BuildConfig.API_BASE_URL.ifEmpty { PLACEHOLDER_BASE_URL }

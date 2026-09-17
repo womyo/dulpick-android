@@ -2,9 +2,11 @@ package com.dulpick.app.di
 
 import com.dulpick.app.data.auth.AuthRepositoryImpl
 import com.dulpick.app.data.couple.CoupleRepositoryImpl
+import com.dulpick.app.data.explore.ExploreRepositoryImpl
 import com.dulpick.app.data.profile.ProfileRepositoryImpl
 import com.dulpick.app.domain.auth.AuthRepository
 import com.dulpick.app.domain.couple.CoupleRepository
+import com.dulpick.app.domain.explore.ExploreRepository
 import com.dulpick.app.domain.profile.ProfileRepository
 import dagger.Binds
 import dagger.Module
@@ -27,4 +29,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindCoupleRepository(impl: CoupleRepositoryImpl): CoupleRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindExploreRepository(impl: ExploreRepositoryImpl): ExploreRepository
 }

@@ -38,8 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.home.DateSchedule
-import com.dulpick.app.feature.explore.component.ContentCard
-import com.dulpick.app.feature.explore.component.ContentCardSkeleton
+import com.dulpick.app.ui.component.ContentCard
+import com.dulpick.app.ui.component.ContentCardSkeleton
 import com.dulpick.app.feature.home.component.DateScheduleCard
 import com.dulpick.app.feature.home.component.HomeBanner
 import com.dulpick.app.feature.home.component.HomeHeader

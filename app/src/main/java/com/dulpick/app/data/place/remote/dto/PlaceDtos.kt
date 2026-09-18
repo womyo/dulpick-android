@@ -22,6 +22,12 @@ data class PlaceSearchItemDto(
     val imageUrls: List<String> = emptyList(),
 )
 
+// 별칭 수정 요청 (PATCH /api/v1/places/{id}/alias)
+@Serializable
+data class PlaceAliasRequestDto(
+    val alias: String?,
+)
+
 // 저장한 장소 (GET /api/v1/places) (iOS SavedPlaceResponseDTO 대응)
 @Serializable
 data class SavedPlaceResponseDto(

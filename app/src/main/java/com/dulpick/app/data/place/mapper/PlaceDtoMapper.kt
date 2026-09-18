@@ -28,7 +28,7 @@ object PlaceDtoMapper {
             coordinate = Coordinate(dto.latitude, dto.longitude),
         )
 
-    private fun toSavedPlace(dto: SavedPlaceResponseDto): SavedPlace =
+    fun toSavedPlace(dto: SavedPlaceResponseDto): SavedPlace =
         SavedPlace(
             place = Place(
                 id = dto.placeId.toString(),

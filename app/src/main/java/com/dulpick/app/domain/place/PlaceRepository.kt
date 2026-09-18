@@ -6,4 +6,10 @@ interface PlaceRepository {
 
     // 커플이 저장한 장소 전체 (지도·목록)
     suspend fun savedPlaces(): List<SavedPlace>
+
+    // 저장 장소 삭제
+    suspend fun removePlace(placeId: Long)
+
+    // 별칭 수정. 갱신된 저장 장소를 돌려준다
+    suspend fun updateAlias(placeId: Long, alias: String?): SavedPlace
 }

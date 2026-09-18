@@ -29,4 +29,20 @@ class PlaceRepositoryImpl @Inject constructor(
             throw ExploreErrorMapper.map(error)
         }
     }
+
+    override suspend fun removePlace(placeId: Long) {
+        try {
+            placeRemote.removePlace(placeId)
+        } catch (error: Throwable) {
+            throw ExploreErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun updateAlias(placeId: Long, alias: String?): SavedPlace {
+        try {
+            return PlaceDtoMapper.toSavedPlace(placeRemote.updateAlias(placeId, alias))
+        } catch (error: Throwable) {
+            throw ExploreErrorMapper.map(error)
+        }
+    }
 }

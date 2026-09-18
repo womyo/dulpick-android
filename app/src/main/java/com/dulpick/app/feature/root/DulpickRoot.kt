@@ -37,6 +37,7 @@ import com.dulpick.app.feature.mypage.connection.ConnectionManageScreen
 import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
+import com.dulpick.app.feature.search.SearchScreen
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -136,6 +137,19 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onOpenCoupleConnect = { nickname ->
                 navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}")
             },
+            onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
+        )
+    }
+    composable(
+        route = MAIN_SEARCH_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        SearchScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
         )
     }
     // 미연결 상태에서 마이페이지 "연결 관리" → 커플 연결 플로우(건너뛰기 없음)
@@ -203,14 +217,16 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
+private const val MAIN_SEARCH_ROUTE = "main/search"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 
 // 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
 private const val ROUTE_COUPLE_BASE = "couple"
 
-// 온보딩 어느 화면에서 호출되든(예: DATETYPE 세션 만료) 백스택 전체를 비우고 로그인만 남긴다.
-// ONBOARDING 라우트는 navigateToDateType 시점에 이미 제거될 수 있어 대상으로 쓰면 pop 이 안 된다
+// 세션 만료·온보딩 이탈 공통. 보호 화면(검색·상세 등)이나 온보딩 화면(예: DATETYPE 세션 만료)에서
+// 호출되든 백스택 전체를 비우고 로그인만 남긴다. ONBOARDING 은 navigateToDateType 시점에 이미
+// 제거될 수 있어 그 지점까지만 지우면 pop 이 안 되므로 그래프 전체를 대상으로 한다
 private fun androidx.navigation.NavController.navigateToAuth() {
     navigate(RootRoute.AUTH.route) {
         popUpTo(this@navigateToAuth.graph.id) { inclusive = true }

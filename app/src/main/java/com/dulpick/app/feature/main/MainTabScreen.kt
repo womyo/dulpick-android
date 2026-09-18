@@ -26,6 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -38,6 +39,7 @@ fun MainTabScreen(
     onOpenDateType: () -> Unit,
     onOpenConnection: () -> Unit,
     onOpenCoupleConnect: (myNickname: String) -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
@@ -104,6 +106,10 @@ fun MainTabScreen(
                             onOpenDateType = onOpenDateType,
                             onOpenConnection = onOpenConnection,
                             onOpenCoupleConnect = onOpenCoupleConnect,
+                        )
+                        MainTab.EXPLORE -> ExploreScreen(
+                            onSessionExpired = onLoggedOut,
+                            onOpenSearch = onOpenSearch,
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }

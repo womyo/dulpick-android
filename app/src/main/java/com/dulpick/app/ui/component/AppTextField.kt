@@ -4,9 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -34,6 +37,8 @@ fun AppTextField(
     focusRequester: FocusRequester? = null,
     imeAction: ImeAction = ImeAction.Done,
     onSubmit: () -> Unit = {},
+    // 필드 우측 액세서리(예: 검색 돋보기). 없으면 안 그린다
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier,
@@ -55,14 +60,23 @@ fun AppTextField(
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
             keyboardActions = KeyboardActions(onAny = { onSubmit() }),
             decorationBox = { innerTextField ->
-                Box(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterStart,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (value.isEmpty()) {
-                        Text(text = placeholder, style = Typography.body1M, color = Colors.gray400)
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(text = placeholder, style = Typography.body1M, color = Colors.gray400)
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
+                    if (trailingContent != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        trailingContent()
+                    }
                 }
             },
         )

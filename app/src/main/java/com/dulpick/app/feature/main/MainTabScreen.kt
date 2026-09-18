@@ -115,7 +115,7 @@ fun MainTabScreen(
                             onSessionExpired = onLoggedOut,
                             onOpenSearch = actions.onOpenSearch,
                         )
-                        MainTab.MAP -> MapScreen()
+                        MainTab.MAP -> MapScreen(onSessionExpired = onLoggedOut)
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }

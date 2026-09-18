@@ -23,7 +23,6 @@ class NicknameViewModel @Inject constructor(
             is NicknameIntent.TermsCheckTapped -> toggleTerms(intent.terms)
             NicknameIntent.TermsAgreeButtonTapped -> agreeTerms()
             is NicknameIntent.TermsDetailTapped -> openTermsDetail(intent.terms)
-            NicknameIntent.ToastDismissed -> setState { copy(toast = null) }
         }
     }
 
@@ -56,7 +55,7 @@ class NicknameViewModel @Inject constructor(
         if (!state.isNextEnabled) return
         val nickname = state.nickname
         val enablesMarketing = TermsType.MARKETING in state.agreedTerms
-        setState { copy(isSubmitting = true, inlineError = null, toast = null) }
+        setState { copy(isSubmitting = true, inlineError = null) }
         viewModelScope.launch {
             runCatching { profileRepository.updateNickname(nickname, NicknameState.ICON_ID) }
                 .onSuccess {
@@ -75,9 +74,9 @@ class NicknameViewModel @Inject constructor(
     private fun handleSubmitFailure(error: Throwable) {
         when (error) {
             ProfileError.InvalidNickname -> setState { copy(inlineError = "사용할 수 없는 닉네임이에요") }
-            ProfileError.Network -> setState { copy(toast = "네트워크 연결을 확인해 주세요.") }
+            ProfileError.Network -> postSideEffect(NicknameSideEffect.ShowToast("네트워크 연결을 확인해 주세요."))
             ProfileError.Unauthorized -> postSideEffect(NicknameSideEffect.SessionExpired)
-            else -> setState { copy(toast = "잠시 후 다시 시도해 주세요.") }
+            else -> postSideEffect(NicknameSideEffect.ShowToast("잠시 후 다시 시도해 주세요."))
         }
     }
 

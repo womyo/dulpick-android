@@ -1,5 +1,7 @@
 package com.dulpick.app.feature.mypage
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.annotation.DrawableRes
@@ -63,6 +65,9 @@ private val ROW_HEIGHT = 52.dp
 // 서비스 피드백 수신 메일
 private const val FEEDBACK_EMAIL = "dulpick.co@gmail.com"
 private const val FEEDBACK_SUBJECT = "둘픽 서비스 피드백"
+
+// 메일·브라우저 등 처리할 앱이 없을 때 안내 문구
+private const val NO_APP_MESSAGE = "열 수 있는 앱이 없어요"
 
 // 마이페이지 메인 화면. 프로필·알림 설정·프로필 수정 시트 연동
 @Composable
@@ -140,14 +145,18 @@ fun MyPageScreen(
                 Spacer(modifier = Modifier.height(30.dp))
 
                 MyPageCard(title = "문의하기") {
-                    NavRow(title = "서비스 피드백하기") { context.startActivity(feedbackEmailIntent()) }
+                    NavRow(title = "서비스 피드백하기") {
+                        context.startExternal(feedbackEmailIntent()) { toastMessage = NO_APP_MESSAGE }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(30.dp))
 
                 TermsLinks(
                     onSelect = { terms ->
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(terms.url)))
+                        context.startExternal(Intent(Intent.ACTION_VIEW, Uri.parse(terms.url))) {
+                            toastMessage = NO_APP_MESSAGE
+                        }
                     },
                 )
 
@@ -195,6 +204,15 @@ private fun MyPageOverlays(state: MyPageState, onIntent: (MyPageIntent) -> Unit)
                 onClose = { onIntent(MyPageIntent.ProfileEditDismissed) },
             )
         }
+    }
+}
+
+// 외부 앱(메일·브라우저)을 연다. 처리할 앱이 없으면 크래시 대신 안내 콜백을 부른다
+private fun Context.startExternal(intent: Intent, onUnavailable: () -> Unit) {
+    try {
+        startActivity(intent)
+    } catch (error: ActivityNotFoundException) {
+        onUnavailable()
     }
 }
 

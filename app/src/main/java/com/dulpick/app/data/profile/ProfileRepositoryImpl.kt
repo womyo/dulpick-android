@@ -45,12 +45,13 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    // 온보딩 전이면 초기화(POST), 이미 온보딩됐으면 수정(PATCH).
+    // 프로필이 없으면(nickname == null) 초기화(POST), 있으면 수정(PATCH).
+    // onboardingCompleted 는 닉네임 저장 뒤에도 false 일 수 있어 재진입 시 중복 초기화가 나므로 쓰지 않는다
     // PATCH 응답엔 성향이 없어 방금 읽은 회원 정보의 성향을 재사용한다
     override suspend fun updateNickname(nickname: String, iconId: Int): UserProfile {
         try {
             val member = profileRemote.member()
-            if (!member.onboardingCompleted) {
+            if (member.nickname == null) {
                 val initialized = profileRemote.initializeProfile(
                     InitializeMemberProfileRequestDto(nickname = nickname, profileIcon = iconId),
                 )

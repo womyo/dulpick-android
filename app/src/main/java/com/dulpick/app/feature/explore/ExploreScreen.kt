@@ -33,10 +33,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
-import com.dulpick.app.feature.explore.component.ContentCard
-import com.dulpick.app.feature.explore.component.ContentGridSkeleton
 import com.dulpick.app.feature.explore.component.FilterChip
 import com.dulpick.app.feature.explore.component.FilterChipSkeleton
+import com.dulpick.app.ui.component.ContentCard
+import com.dulpick.app.ui.component.ContentGridSkeleton
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 

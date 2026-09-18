@@ -46,8 +46,7 @@ class CoupleViewModel @Inject constructor(
             CoupleIntent.SkipClicked -> setState { copy(isSkipConfirmPresented = true) }
             CoupleIntent.SkipConfirmed -> skipConfirmed()
             CoupleIntent.SkipConfirmDismissed -> setState { copy(isSkipConfirmPresented = false) }
-            CoupleIntent.CodeInputClicked -> setState { copy(step = CoupleStep.CODE_INPUT, toast = null) }
-            CoupleIntent.ToastDismissed -> setState { copy(toast = null) }
+            CoupleIntent.CodeInputClicked -> setState { copy(step = CoupleStep.CODE_INPUT) }
             else -> Unit
         }
     }
@@ -120,18 +119,17 @@ class CoupleViewModel @Inject constructor(
         postSideEffect(CoupleSideEffect.Finished)
     }
 
-    // 입력칸이 잠겼다 풀리면 같은 값을 돌려보낸다. 그걸 입력으로 치면 방금 띄운 실패가 지워진다
     private fun changeCode(raw: String) {
         val normalized = CoupleState.normalizedCode(raw)
         if (normalized == currentState.code) return
-        setState { copy(toast = null, code = normalized) }
+        setState { copy(code = normalized) }
     }
 
     private fun connect() {
         val state = currentState
         if (!state.isConnectEnabled) return
         val code = state.code
-        setState { copy(isConnecting = true, toast = null) }
+        setState { copy(isConnecting = true) }
         viewModelScope.launch {
             runCatching { coupleRepository.connect(code) }
                 .onSuccess { couple ->
@@ -147,14 +145,18 @@ class CoupleViewModel @Inject constructor(
     }
 
     private fun handleConnectFailure(error: Throwable) {
-        when (error) {
-            CoupleError.InvalidInviteCode -> setState { copy(toast = "유효하지 않은 코드에요. 다시 확인해주세요") }
-            CoupleError.AlreadyConnected -> setState { copy(toast = "이미 커플로 연결되어 있어요.") }
-            CoupleError.RateLimited -> setState { copy(toast = "요청이 많아요. 잠시 후 다시 시도해 주세요.") }
-            CoupleError.Network -> setState { copy(toast = "네트워크 연결을 확인해 주세요.") }
-            CoupleError.Unauthorized -> postSideEffect(CoupleSideEffect.SessionExpired)
-            else -> setState { copy(toast = "잠시 후 다시 시도해 주세요.") }
+        val message = when (error) {
+            CoupleError.InvalidInviteCode -> "유효하지 않은 코드에요. 다시 확인해주세요"
+            CoupleError.AlreadyConnected -> "이미 커플로 연결되어 있어요."
+            CoupleError.RateLimited -> "요청이 많아요. 잠시 후 다시 시도해 주세요."
+            CoupleError.Network -> "네트워크 연결을 확인해 주세요."
+            CoupleError.Unauthorized -> {
+                postSideEffect(CoupleSideEffect.SessionExpired)
+                return
+            }
+            else -> "잠시 후 다시 시도해 주세요."
         }
+        postSideEffect(CoupleSideEffect.ShowToast(message))
     }
 
     private fun complete() {
@@ -163,8 +165,6 @@ class CoupleViewModel @Inject constructor(
     }
 
     private fun back() {
-        // 이전 화면에서 띄운 토스트는 경로가 바뀌면 유효하지 않다
-        setState { copy(toast = null) }
         when (currentState.step) {
             // 코드 입력에서 뒤로 → 커플 첫 화면으로
             CoupleStep.CODE_INPUT -> setState { copy(step = CoupleStep.CONNECT) }

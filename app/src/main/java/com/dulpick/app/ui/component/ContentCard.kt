@@ -1,4 +1,4 @@
-package com.dulpick.app.feature.explore.component
+package com.dulpick.app.ui.component
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -29,11 +29,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.explore.Content
-import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
-// 탐색 그리드 카드. 썸네일(비율 170:227) + 장소 수 배지 + 제목 2줄 (iOS ContentCard 대응)
+// 게시글 그리드 카드. 썸네일(비율 170:227) + 장소 수 배지 + 제목 2줄 (iOS ContentCard 대응).
+// 탐색·검색이 함께 쓰므로 공통 UI 계층에 둔다
 @Composable
 fun ContentCard(content: Content, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(

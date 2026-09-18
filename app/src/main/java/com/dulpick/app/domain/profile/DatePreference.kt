@@ -8,43 +8,11 @@ data class DatePreference(
     val dateFocus: DateFocus,
 )
 
-// rawValue 는 서버 계약값. DTO 매핑에 그대로 쓴다
-enum class IndoorOutdoor(val rawValue: String) {
-    INDOOR("INDOOR"),
-    OUTDOOR("OUTDOOR"),
-    ;
+// 서버 문자열 계약(값·변환)은 도메인에 두지 않는다. 문자열 ↔ enum 변환은 data 의 ProfileDtoMapper 가 맡는다
+enum class IndoorOutdoor { INDOOR, OUTDOOR }
 
-    companion object {
-        fun from(raw: String?): IndoorOutdoor? = entries.firstOrNull { it.rawValue == raw }
-    }
-}
+enum class ActivityLevel { ACTIVE, STATIC }
 
-enum class ActivityLevel(val rawValue: String) {
-    ACTIVE("ACTIVE"),
-    STATIC("STATIC"),
-    ;
+enum class DateTime { DAY, NIGHT }
 
-    companion object {
-        fun from(raw: String?): ActivityLevel? = entries.firstOrNull { it.rawValue == raw }
-    }
-}
-
-enum class DateTime(val rawValue: String) {
-    DAY("DAY"),
-    NIGHT("NIGHT"),
-    ;
-
-    companion object {
-        fun from(raw: String?): DateTime? = entries.firstOrNull { it.rawValue == raw }
-    }
-}
-
-enum class DateFocus(val rawValue: String) {
-    FOOD("FOOD"),
-    SIGHTSEEING("SIGHTSEEING"),
-    ;
-
-    companion object {
-        fun from(raw: String?): DateFocus? = entries.firstOrNull { it.rawValue == raw }
-    }
-}
+enum class DateFocus { FOOD, SIGHTSEEING }

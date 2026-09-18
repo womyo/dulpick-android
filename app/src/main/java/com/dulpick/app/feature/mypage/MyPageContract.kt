@@ -5,8 +5,10 @@ import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 
 data class MyPageState(
-    // 프로필·알림을 아직 못 불러온 초기 상태
-    val isLoading: Boolean = true,
+    // 조회가 성공해 실제 값이 채워졌는지. 채워지기 전엔 프로필 수정·연결·알림 토글을 막아
+    // 기본값(빈 닉네임·기본 아이콘·전부 off)이 서버로 새어 나가지 않게 한다 (iOS 스켈레톤 게이팅 대응)
+    val isProfileLoaded: Boolean = false,
+    val isNotificationsLoaded: Boolean = false,
     val nickname: String = "",
     val iconId: Int = DEFAULT_ICON_ID,
     val savedContentAlarm: Boolean = false,

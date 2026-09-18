@@ -51,15 +51,17 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun onQueryChanged(query: String) {
+        // 화면 표시는 원문 그대로, 원격 요청은 앞뒤 공백을 정규화해 첫 페이지·다음 페이지가 같은 검색어를 쓰게 한다
         setState { copy(query = query) }
         debounceJob?.cancel()
-        if (query.isEmpty()) {
-            search(query)
+        val normalized = query.trim()
+        if (normalized.isEmpty()) {
+            search("")
             return
         }
         debounceJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
-            search(query)
+            search(normalized)
         }
     }
 
@@ -103,13 +105,17 @@ class SearchViewModel @Inject constructor(
                 copy(
                     contents = emptyList(), contentsPage = 0, contentsHasNext = true,
                     places = emptyList(), placesPage = 0, placesHasNext = true,
-                    isSearching = false, isFirstSearch = true,
+                    // 진행 중이던 더보기를 취소했으니 플래그도 내려야 다음 검색의 페이지네이션이 막히지 않는다
+                    isSearching = false, isLoadingMore = false, isFirstSearch = true,
                 )
             }
             return
         }
         setState {
-            copy(isSearching = true, contentsPage = 0, contentsHasNext = true, placesPage = 0, placesHasNext = true)
+            copy(
+                isSearching = true, isLoadingMore = false,
+                contentsPage = 0, contentsHasNext = true, placesPage = 0, placesHasNext = true,
+            )
         }
         searchJob = viewModelScope.launch {
             try {
@@ -143,17 +149,18 @@ class SearchViewModel @Inject constructor(
 
     private fun loadMoreContents() {
         val state = currentState
-        if (state.query.isEmpty() || !state.contentsHasNext) return
+        val query = state.query.trim()
+        if (query.isEmpty() || !state.contentsHasNext) return
         if (state.isLoadingMore || state.isSearching) return
         setState { copy(isLoadingMore = true) }
         val page = state.contentsPage
-        val query = state.query
         loadMoreJob = viewModelScope.launch {
             try {
                 val result = exploreRepository.searchContents(query, page, SearchState.PAGE_SIZE)
                 setState {
                     copy(
-                        contents = contents + result.items,
+                        // 페이지 간 id 중복은 LazyColumn 중복 key 크래시를 부르므로 제거한다
+                        contents = (contents + result.items).distinctBy { it.id },
                         contentsHasNext = result.hasNext,
                         contentsPage = this.contentsPage + 1,
                         isLoadingMore = false,
@@ -170,17 +177,17 @@ class SearchViewModel @Inject constructor(
 
     private fun loadMorePlaces() {
         val state = currentState
-        if (state.query.isEmpty() || !state.placesHasNext) return
+        val query = state.query.trim()
+        if (query.isEmpty() || !state.placesHasNext) return
         if (state.isLoadingMore || state.isSearching) return
         setState { copy(isLoadingMore = true) }
         val page = state.placesPage
-        val query = state.query
         loadMoreJob = viewModelScope.launch {
             try {
                 val result = placeRepository.searchPlaces(query, page, SearchState.PAGE_SIZE)
                 setState {
                     copy(
-                        places = places + result.items,
+                        places = (places + result.items).distinctBy { it.id },
                         placesHasNext = result.hasNext,
                         placesPage = this.placesPage + 1,
                         isLoadingMore = false,

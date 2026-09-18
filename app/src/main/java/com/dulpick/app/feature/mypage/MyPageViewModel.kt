@@ -43,9 +43,11 @@ class MyPageViewModel @Inject constructor(
     private fun handleAccountIntent(intent: MyPageIntent) {
         when (intent) {
             MyPageIntent.WithdrawClicked -> setState { copy(isWithdrawDialogPresented = true) }
-            MyPageIntent.WithdrawDismissed -> setState { copy(isWithdrawDialogPresented = false) }
+            // 탈퇴 요청 중에는 닫지 않는다. 여기서 닫히면 요청은 계속돼 취소로 오해할 수 있다
+            MyPageIntent.WithdrawDismissed ->
+                if (!currentState.isWithdrawing) setState { copy(isWithdrawDialogPresented = false) }
             MyPageIntent.WithdrawConfirmed -> withdraw()
-            MyPageIntent.ProfileEditClicked -> setState { copy(isProfileEditPresented = true) }
+            MyPageIntent.ProfileEditClicked -> openProfileEdit()
             MyPageIntent.ProfileEditDismissed ->
                 if (!currentState.isSavingProfile) setState { copy(isProfileEditPresented = false) }
             is MyPageIntent.ProfileSaveClicked -> saveProfile(intent.nickname, intent.iconId)
@@ -54,8 +56,17 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
+    // 프로필을 불러온 뒤에만 수정 시트를 연다. 로드 전이면 기본 아이콘이 편집값으로 잡혀
+    // 저장 시 기존 아이콘을 덮어쓸 수 있다
+    private fun openProfileEdit() {
+        if (!currentState.isProfileLoaded) return
+        setState { copy(isProfileEditPresented = true) }
+    }
+
     // 연결 여부를 먼저 확인해 연결 관리 화면 / 커플 연결 플로우로 가른다 (iOS handleConnection 대응)
     private fun checkConnection() {
+        // 프로필 로드 전이면 커플 연결에 빈 닉네임이 넘어가므로 로드 후에만 진행한다
+        if (!currentState.isProfileLoaded) return
         viewModelScope.launch {
             runCatching { coupleRepository.current() }
                 .onSuccess { status ->
@@ -84,7 +95,7 @@ class MyPageViewModel @Inject constructor(
     private suspend fun loadProfile() {
         runCatching { profileRepository.profile() }
             .onSuccess { profile ->
-                setState { copy(nickname = profile.nickname, iconId = profile.iconId) }
+                setState { copy(isProfileLoaded = true, nickname = profile.nickname, iconId = profile.iconId) }
             }
             .onFailure { error ->
                 if (error == ProfileError.Unauthorized) {
@@ -97,8 +108,7 @@ class MyPageViewModel @Inject constructor(
         runCatching { profileRepository.notificationSettings() }
             .onSuccess { settings -> applyLoaded(settings) }
             .onFailure { error ->
-                // 실패해도 로딩은 걷어 무한 로딩을 막는다
-                setState { copy(isLoading = false) }
+                // 실패 시 isNotificationsLoaded 를 올리지 않아, 기본값(전부 off)이 PUT 으로 새지 않게 한다
                 if (error == ProfileError.Unauthorized) postSideEffect(MyPageSideEffect.SessionExpired)
             }
     }
@@ -106,7 +116,7 @@ class MyPageViewModel @Inject constructor(
     private fun applyLoaded(settings: NotificationSettings) {
         setState {
             copy(
-                isLoading = false,
+                isNotificationsLoaded = true,
                 savedContentAlarm = settings.contentSavedEnabled,
                 dateScheduleAlarm = settings.dateScheduleEnabled,
                 marketingAlarm = settings.marketingEnabled,
@@ -116,8 +126,10 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
-    // 토글을 즉시 반영(낙관적)하고 현재 상태 전체를 PUT 한다
+    // 토글을 즉시 반영(낙관적)하고 현재 상태 전체를 PUT 한다.
+    // 알림 설정을 아직 못 불러왔으면 기본값이 서버를 덮어쓰므로 조작을 무시한다
     private fun toggle(reducer: MyPageState.() -> MyPageState) {
+        if (!currentState.isNotificationsLoaded) return
         setState { reducer() }
         pushNotifications()
     }

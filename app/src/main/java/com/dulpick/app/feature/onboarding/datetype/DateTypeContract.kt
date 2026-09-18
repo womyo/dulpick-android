@@ -16,7 +16,6 @@ data class DateTypeState(
     val dateFocus: DateFocus? = null,
     val isSubmitting: Boolean = false,
     val isTooltipPresented: Boolean = false,
-    val toast: String? = null,
     // 온보딩은 건너뛰기 노출, 마이페이지 수정은 숨김
     val showsSkip: Boolean = true,
 ) : UiState {
@@ -44,11 +43,12 @@ sealed interface DateTypeIntent : UiIntent {
     data object TooltipDismissed : DateTypeIntent
     data object SaveClicked : DateTypeIntent
     data object SkipClicked : DateTypeIntent
-    data object ToastDismissed : DateTypeIntent
 }
 
 sealed interface DateTypeSideEffect : UiSideEffect {
     // 저장/건너뛰기 모두 온보딩을 끝내고 메인으로 간다
     data object Finished : DateTypeSideEffect
     data object SessionExpired : DateTypeSideEffect
+    // 1회성 토스트. state 에 담지 않고 side effect 로 흘린다
+    data class ShowToast(val message: String) : DateTypeSideEffect
 }

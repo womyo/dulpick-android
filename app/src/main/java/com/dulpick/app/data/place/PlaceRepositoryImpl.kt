@@ -5,6 +5,7 @@ import com.dulpick.app.data.place.mapper.PlaceDtoMapper
 import com.dulpick.app.data.place.remote.PlaceRemoteDataSource
 import com.dulpick.app.domain.place.PlacePage
 import com.dulpick.app.domain.place.PlaceRepository
+import com.dulpick.app.domain.place.SavedPlace
 import javax.inject.Inject
 
 @Suppress("TooGenericExceptionCaught")
@@ -17,6 +18,14 @@ class PlaceRepositoryImpl @Inject constructor(
             return PlaceDtoMapper.toDomain(placeRemote.search(query, page, size))
         } catch (error: Throwable) {
             // 검색 실패 처리는 탐색과 동일하게 (네트워크/인증/그 외)
+            throw ExploreErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun savedPlaces(): List<SavedPlace> {
+        try {
+            return PlaceDtoMapper.toSavedPlaces(placeRemote.savedPlaces())
+        } catch (error: Throwable) {
             throw ExploreErrorMapper.map(error)
         }
     }

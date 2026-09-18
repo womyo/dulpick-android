@@ -21,3 +21,23 @@ data class PlaceSearchItemDto(
     val categoryName: String = "",
     val imageUrls: List<String> = emptyList(),
 )
+
+// 저장한 장소 (GET /api/v1/places) (iOS SavedPlaceResponseDTO 대응)
+@Serializable
+data class SavedPlaceResponseDto(
+    val placeId: Long = 0,
+    val kakaoPlaceId: String? = null,
+    val name: String = "",
+    val address: String = "",
+    // 도로명이 없는 장소가 있어 nullable
+    val roadAddress: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val category: String = "",
+    val categoryName: String = "",
+    val ownershipStatus: String = "",
+    val alias: String? = null,
+    val savedAt: String? = null,
+    val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
+)

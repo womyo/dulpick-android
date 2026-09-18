@@ -5,6 +5,14 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,14 +20,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.SavedPlace
+import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.ui.component.pinRes
+import com.dulpick.app.ui.theme.Colors
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.camera.CameraUpdateFactory
@@ -27,10 +40,14 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 
-// 지도 탭. 단계 1: 저장 장소를 불러와 지도에 카테고리 아이콘 핀으로 찍는다 (iOS MapView 대응)
+// 지도 탭. 저장 장소를 지도에 핀으로 찍고, 아래 바텀시트에 목록으로 보여준다 (iOS MapView 대응)
 private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 private const val DEFAULT_ZOOM_LEVEL = 15
+private const val SHEET_PEEK_FRACTION = 0.5f
+private const val SHEET_EXPANDED_FRACTION = 0.9f
+private val SHEET_CORNER_RADIUS = 32.dp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
     onSessionExpired: () -> Unit,
@@ -39,6 +56,7 @@ fun MapScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    val screenHeight = LocalConfiguration.current.screenHeightDp
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
@@ -47,17 +65,39 @@ fun MapScreen(
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
 
-    KakaoMapView(
-        modifier = Modifier.fillMaxSize(),
-        onMapReady = { map ->
-            map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
-            kakaoMap = map
+    BottomSheetScaffold(
+        scaffoldState = rememberBottomSheetScaffoldState(),
+        sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+        sheetContainerColor = Colors.commonWhite,
+        // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
+        sheetTonalElevation = 0.dp,
+        sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
+        sheetContent = {
+            MapSheetContent(places = state.places, height = (screenHeight * SHEET_EXPANDED_FRACTION).dp)
         },
-    )
+    ) {
+        // 지도는 시트 뒤 전체를 채운다(시트 인셋 무시). 딤 없이 지도가 그대로 조작된다
+        KakaoMapView(
+            modifier = Modifier.fillMaxSize(),
+            onMapReady = { map ->
+                map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
+                kakaoMap = map
+            },
+        )
+    }
 
     // 지도 준비/저장장소 변경 시 라벨 레이어를 다시 그린다
     LaunchedEffect(kakaoMap, state.places) {
         renderPlacePins(context, kakaoMap ?: return@LaunchedEffect, state.places)
+    }
+}
+
+@Composable
+private fun MapSheetContent(places: List<SavedPlace>, height: Dp) {
+    LazyColumn(modifier = Modifier.fillMaxWidth().height(height)) {
+        items(places, key = { it.id }) { place ->
+            PlaceListRow(place = place, onMenuClick = {}, onClick = {})
+        }
     }
 }
 

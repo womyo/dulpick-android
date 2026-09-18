@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -25,6 +29,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dulpick.app.feature.appintro.AppIntroScreen
@@ -32,12 +37,18 @@ import com.dulpick.app.feature.auth.AuthScreen
 import com.dulpick.app.feature.onboarding.couple.ARG_COUPLE_SHOWS_SKIP
 import com.dulpick.app.feature.onboarding.couple.ARG_MY_NICKNAME
 import com.dulpick.app.feature.onboarding.couple.CoupleScreen
+import com.dulpick.app.feature.main.MainTabActions
 import com.dulpick.app.feature.main.MainTabScreen
 import com.dulpick.app.feature.mypage.connection.ConnectionManageScreen
 import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
+import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
+import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
+import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.search.SearchScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -45,19 +56,46 @@ import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
 @Composable
-fun DulpickRoot(viewModel: RootViewModel = hiltViewModel()) {
+fun DulpickRoot(
+    importUrl: StateFlow<String?> = MutableStateFlow(null),
+    onImportUrlConsumed: () -> Unit = {},
+    viewModel: RootViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val sharedUrl by importUrl.collectAsStateWithLifecycle()
 
     when (val current = state) {
         RootState.Loading -> SplashScreen()
         RootState.Error -> ErrorScreen(onRetry = viewModel::retry)
-        is RootState.Ready -> DulpickNavHost(startRoute = current.start.route)
+        is RootState.Ready -> DulpickNavHost(
+            startRoute = current.start.route,
+            sharedUrl = sharedUrl,
+            onSharedUrlConsumed = onImportUrlConsumed,
+        )
     }
 }
 
 @Composable
-private fun DulpickNavHost(startRoute: String) {
+private fun DulpickNavHost(
+    startRoute: String,
+    sharedUrl: String?,
+    onSharedUrlConsumed: () -> Unit,
+) {
     val navController = rememberNavController()
+    // 공유로 받은 URL 을 대기열에 담는다. 로그인(MAIN) 상태가 되면 추출 모달을 띄운다
+    var pendingImportUrl by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(sharedUrl) {
+        val url = sharedUrl ?: return@LaunchedEffect
+        pendingImportUrl = url
+        // 소스는 비운다. 대기는 여기서 관리한다
+        onSharedUrlConsumed()
+    }
+
+    // 현재 목적지가 로그인 후(MAIN 계열)인지. 로그인 전이면 URL 을 들고 기다린다
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route.orEmpty()
+    val isLoggedIn = currentRoute == RootRoute.MAIN.route ||
+        currentRoute.startsWith("${RootRoute.MAIN.route}/")
 
     NavHost(
         navController = navController,
@@ -119,6 +157,19 @@ private fun DulpickNavHost(startRoute: String) {
         }
         mainRoutes(navController = navController)
     }
+
+    // 로그인 상태에서만, 탭바 포함 전 화면 위에 Dialog 로 추출 모달을 띄운다
+    val importUrl = pendingImportUrl
+    if (importUrl != null && isLoggedIn) {
+        PlaceImportScreen(
+            sourceUrl = importUrl,
+            onClose = { pendingImportUrl = null },
+            onSessionExpired = {
+                pendingImportUrl = null
+                navController.navigateToAuth()
+            },
+        )
+    }
 }
 
 // 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
@@ -132,12 +183,22 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                 }
             },
             // 상세는 탭 밖에서 전체화면 push
-            onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
-            onOpenConnection = { navController.navigate(MAIN_CONNECTION_ROUTE) },
-            onOpenCoupleConnect = { nickname ->
-                navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}")
-            },
-            onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
+            actions = MainTabActions(
+                onOpenDateType = { navController.navigate(MAIN_DATETYPE_ROUTE) },
+                onOpenConnection = { navController.navigate(MAIN_CONNECTION_ROUTE) },
+                // 마이페이지에서 연결 → 완료 시 연결 관리로
+                onOpenCoupleConnect = { nickname ->
+                    navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_MYPAGE")
+                },
+                // 홈에서 연결 → 완료 시 홈으로 되돌아온다(홈은 재진입 onAppear 로 갱신)
+                onOpenCoupleConnectFromHome = { nickname ->
+                    navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
+                },
+                onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
+                onOpenPastDates = { hasCurrentCourse ->
+                    navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
+                },
+            ),
         )
     }
     composable(
@@ -152,32 +213,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
-    // 미연결 상태에서 마이페이지 "연결 관리" → 커플 연결 플로우(건너뛰기 없음)
-    composable(
-        route = "$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}",
-        arguments = listOf(
-            navArgument(ARG_MY_NICKNAME) { type = NavType.StringType },
-            navArgument(ARG_COUPLE_SHOWS_SKIP) {
-                type = NavType.BoolType
-                defaultValue = false
-            },
-        ),
-        enterTransition = { slideInHorizontally { it } },
-        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
-        popExitTransition = { slideOutHorizontally { it } },
-    ) {
-        CoupleScreen(
-            onBack = { navController.popBackStack() },
-            // 연결 성공 → 커플 플로우를 걷어내고 연결 관리 화면으로 대체
-            onFinished = {
-                navController.navigate(MAIN_CONNECTION_ROUTE) {
-                    popUpTo("$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}") { inclusive = true }
-                }
-            },
-            onSessionExpired = { navController.navigateToAuth() },
-        )
-    }
+    coupleConnectRoute(navController)
     composable(
         route = MAIN_CONNECTION_ROUTE,
         enterTransition = { slideInHorizontally { it } },
@@ -190,6 +226,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
+    pastDatesRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -213,11 +250,74 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     }
 }
 
+// 미연결 상태에서 커플 연결 플로우(건너뛰기 없음). origin 으로 완료 후 목적지를 가른다
+private fun NavGraphBuilder.coupleConnectRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}/{$ARG_COUPLE_ORIGIN}",
+        arguments = listOf(
+            navArgument(ARG_MY_NICKNAME) { type = NavType.StringType },
+            navArgument(ARG_COUPLE_ORIGIN) { type = NavType.StringType },
+            navArgument(ARG_COUPLE_SHOWS_SKIP) {
+                type = NavType.BoolType
+                defaultValue = false
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        val fromHome = entry.arguments?.getString(ARG_COUPLE_ORIGIN) == COUPLE_ORIGIN_HOME
+        CoupleScreen(
+            onBack = { navController.popBackStack() },
+            onFinished = {
+                if (fromHome) {
+                    // 홈에서 왔으면 홈으로 되돌아간다. 홈은 재진입 onAppear 에서 스스로 갱신한다
+                    navController.popBackStack()
+                } else {
+                    // 마이페이지에서 왔으면 커플 플로우를 걷어내고 연결 관리로 대체
+                    navController.navigate(MAIN_CONNECTION_ROUTE) {
+                        popUpTo("$MAIN_COUPLE_ROUTE_BASE/{$ARG_MY_NICKNAME}/{$ARG_COUPLE_ORIGIN}") {
+                            inclusive = true
+                        }
+                    }
+                }
+            },
+            onSessionExpired = { navController.navigateToAuth() },
+        )
+    }
+}
+
+// 홈 헤더 달력(연결 상태) → 지난 데이트 코스 목록
+private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_PASTDATES_ROUTE_BASE/{$ARG_PASTDATES_HAS_CURRENT}",
+        arguments = listOf(
+            navArgument(ARG_PASTDATES_HAS_CURRENT) {
+                type = NavType.BoolType
+                defaultValue = false
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        PastDateCoursesScreen(onBack = { navController.popBackStack() })
+    }
+}
+
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 private const val MAIN_SEARCH_ROUTE = "main/search"
+private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
+
+// 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
+private const val ARG_COUPLE_ORIGIN = "origin"
+private const val COUPLE_ORIGIN_HOME = "home"
+private const val COUPLE_ORIGIN_MYPAGE = "mypage"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 

@@ -1,6 +1,5 @@
 package com.dulpick.app.feature.search.component
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,8 +26,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.place.Place
-import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.ui.component.ShimmerBox
+import com.dulpick.app.ui.component.iconRes
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -52,7 +51,7 @@ fun PlaceRow(place: Place, onClick: () -> Unit, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Image(
-                painter = painterResource(categoryIcon(place.category)),
+                painter = painterResource(place.category.iconRes()),
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
             )
@@ -110,15 +109,4 @@ private fun BookmarkBadge(count: Int) {
         )
         Text(text = "$count", style = Typography.body2SB, color = Colors.textSecondary)
     }
-}
-
-@DrawableRes
-private fun categoryIcon(category: PlaceCategory): Int = when (category) {
-    PlaceCategory.ACCOMMODATION -> R.drawable.category_accommodation
-    PlaceCategory.TOURISM -> R.drawable.category_tourism
-    PlaceCategory.SHOPPING -> R.drawable.category_shopping
-    PlaceCategory.ACTIVITY -> R.drawable.category_activity
-    PlaceCategory.CONVENIENCE -> R.drawable.category_convenience
-    PlaceCategory.CAFE -> R.drawable.category_cafe
-    PlaceCategory.FOOD -> R.drawable.category_food
 }

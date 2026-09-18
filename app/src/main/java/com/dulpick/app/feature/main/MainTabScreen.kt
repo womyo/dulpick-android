@@ -27,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dulpick.app.feature.explore.ExploreScreen
+import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -36,10 +37,7 @@ import com.dulpick.app.ui.theme.Typography
 @Composable
 fun MainTabScreen(
     onLoggedOut: () -> Unit,
-    onOpenDateType: () -> Unit,
-    onOpenConnection: () -> Unit,
-    onOpenCoupleConnect: (myNickname: String) -> Unit,
-    onOpenSearch: () -> Unit,
+    actions: MainTabActions,
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
@@ -101,15 +99,20 @@ fun MainTabScreen(
             MainTab.entries.forEach { tab ->
                 composable(tab.route) {
                     when (tab) {
+                        MainTab.HOME -> HomeScreen(
+                            onSessionExpired = onLoggedOut,
+                            onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
+                            onOpenPastDates = actions.onOpenPastDates,
+                        )
                         MainTab.MY -> MyPageScreen(
                             onLoggedOut = onLoggedOut,
-                            onOpenDateType = onOpenDateType,
-                            onOpenConnection = onOpenConnection,
-                            onOpenCoupleConnect = onOpenCoupleConnect,
+                            onOpenDateType = actions.onOpenDateType,
+                            onOpenConnection = actions.onOpenConnection,
+                            onOpenCoupleConnect = actions.onOpenCoupleConnect,
                         )
                         MainTab.EXPLORE -> ExploreScreen(
                             onSessionExpired = onLoggedOut,
-                            onOpenSearch = onOpenSearch,
+                            onOpenSearch = actions.onOpenSearch,
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }

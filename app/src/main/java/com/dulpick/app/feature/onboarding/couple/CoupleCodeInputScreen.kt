@@ -33,6 +33,8 @@ import com.dulpick.app.ui.theme.Typography
 fun CoupleCodeInputScreen(
     state: CoupleState,
     onIntent: (CoupleIntent) -> Unit,
+    toastMessage: String?,
+    onToastDismiss: () -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -94,8 +96,8 @@ fun CoupleCodeInputScreen(
         }
 
         AppToast(
-            message = state.toast,
-            onDismiss = { onIntent(CoupleIntent.ToastDismissed) },
+            message = toastMessage,
+            onDismiss = onToastDismiss,
             bottomInset = 120,
         )
     }

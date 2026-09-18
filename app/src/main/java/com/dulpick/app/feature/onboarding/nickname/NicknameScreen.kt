@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -44,6 +46,7 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppTextField
+import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.CtaContainer
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -59,6 +62,8 @@ fun NicknameScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
+    // 토스트는 1회성이라 state 가 아니라 side effect 로 받아 화면 로컬 상태로만 둔다
+    var toastMessage by remember { mutableStateOf<String?>(null) }
 
     // rememberModalBottomSheetState 는 rememberSaveable 기반이라, nav 전환으로 이 목적지에 진입하면
     // back stack entry 의 저장 상태가 복원되는 시점에 sheetState 가 다시 만들어져 show() 가 두 번 실행된다
@@ -82,6 +87,7 @@ fun NicknameScreen(
             NicknameSideEffect.NavigateBack, NicknameSideEffect.SessionExpired -> onBack()
             is NicknameSideEffect.OpenTermsUrl ->
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(effect.url)))
+            is NicknameSideEffect.ShowToast -> toastMessage = effect.message
         }
     }
 
@@ -129,6 +135,12 @@ fun NicknameScreen(
                 )
             }
         }
+
+        AppToast(
+            message = toastMessage,
+            onDismiss = { toastMessage = null },
+            bottomInset = 120,
+        )
     }
 }
 

@@ -3,12 +3,13 @@ package com.dulpick.app.feature.onboarding.datetype.component
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -30,7 +32,11 @@ fun <T> DateTypeAxisRow(
     onSelect: (T) -> Unit,
 ) {
     Box(contentAlignment = Alignment.Center) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 한 축의 두 선택지는 라디오 그룹. TalkBack 이 그룹으로 인식하게 한다
+        Row(
+            modifier = Modifier.selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             OptionButton(
                 option = leading,
                 isSelected = selection == leading.value,
@@ -67,7 +73,11 @@ private fun <T> OptionButton(
                     Modifier.border(1.dp, Colors.borderDefault, RoundedCornerShape(12.dp))
                 },
             )
-            .clickable { onSelect(option.value) }
+            .selectable(
+                selected = isSelected,
+                role = Role.RadioButton,
+                onClick = { onSelect(option.value) },
+            )
             .padding(horizontal = 24.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {

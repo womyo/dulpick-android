@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.R
 import com.dulpick.app.ui.component.AppButton
@@ -153,11 +155,16 @@ private fun IconRow(selectedIconId: Int, onSelect: (Int) -> Unit) {
                 modifier = Modifier
                     .size(60.dp)
                     .clip(CircleShape)
-                    .clickable { onSelect(id) },
+                    // 스크린 리더가 각 아이콘을 구분하고 현재 선택을 읽도록 라디오 버튼 시맨틱을 준다
+                    .selectable(
+                        selected = id == selectedIconId,
+                        role = Role.RadioButton,
+                        onClick = { onSelect(id) },
+                    ),
             ) {
                 Image(
                     painter = painterResource(profileDrawable(id)),
-                    contentDescription = null,
+                    contentDescription = "프로필 아이콘 $id",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )

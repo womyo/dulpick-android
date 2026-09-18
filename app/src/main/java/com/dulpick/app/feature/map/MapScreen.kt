@@ -4,14 +4,20 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,20 +25,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
+import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
+import com.dulpick.app.feature.map.component.OwnershipDropdown
 import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.ui.component.pinRes
 import com.dulpick.app.ui.theme.Colors
+import com.dulpick.app.ui.theme.Typography
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.camera.CameraUpdateFactory
@@ -73,7 +85,11 @@ fun MapScreen(
         sheetTonalElevation = 0.dp,
         sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
         sheetContent = {
-            MapSheetContent(places = state.places, height = (screenHeight * SHEET_EXPANDED_FRACTION).dp)
+            MapSheetContent(
+                state = state,
+                onOwnershipSelected = { viewModel.onIntent(MapIntent.OwnershipSelected(it)) },
+                height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
+            )
         },
     ) {
         // 지도는 시트 뒤 전체를 채운다(시트 인셋 무시). 딤 없이 지도가 그대로 조작된다
@@ -86,18 +102,65 @@ fun MapScreen(
         )
     }
 
-    // 지도 준비/저장장소 변경 시 라벨 레이어를 다시 그린다
-    LaunchedEffect(kakaoMap, state.places) {
-        renderPlacePins(context, kakaoMap ?: return@LaunchedEffect, state.places)
+    // 지도 준비/필터 변경 시 라벨 레이어를 다시 그린다
+    LaunchedEffect(kakaoMap, state.filteredPlaces) {
+        renderPlacePins(context, kakaoMap ?: return@LaunchedEffect, state.filteredPlaces)
     }
 }
 
 @Composable
-private fun MapSheetContent(places: List<SavedPlace>, height: Dp) {
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(height)) {
-        items(places, key = { it.id }) { place ->
-            PlaceListRow(place = place, onMenuClick = {}, onClick = {})
+private fun MapSheetContent(
+    state: MapState,
+    onOwnershipSelected: (PlaceOwnership) -> Unit,
+    height: Dp,
+) {
+    Column(modifier = Modifier.fillMaxWidth().height(height)) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
+            if (state.isCoupleConnected) {
+                OwnershipDropdown(selected = state.selectedOwnership, onSelect = onOwnershipSelected)
+            }
         }
+        if (state.isEmpty) {
+            MapEmptyState(
+                hasNoSavedPlace = state.hasNoSavedPlace,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                items(state.filteredPlaces, key = { it.id }) { place ->
+                    PlaceListRow(place = place, onMenuClick = {}, onClick = {})
+                }
+            }
+        }
+    }
+}
+
+// 저장 장소가 없거나(hasNoSavedPlace) 필터 결과가 비었을 때 문구가 다르다 (iOS EmptyStateView 대응)
+@Composable
+private fun MapEmptyState(hasNoSavedPlace: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(top = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Image(painter = painterResource(R.drawable.placeempty), contentDescription = null)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = if (hasNoSavedPlace) "저장한 장소가 없어요" else "조건에 맞는 장소가 없어요",
+            style = Typography.title3SB,
+            color = Colors.textPrimary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (hasNoSavedPlace) "마음에 드는 장소를 저장해보세요" else "필터를 바꿔보세요",
+            style = Typography.body1M,
+            color = Colors.textTertiary,
+        )
     }
 }
 

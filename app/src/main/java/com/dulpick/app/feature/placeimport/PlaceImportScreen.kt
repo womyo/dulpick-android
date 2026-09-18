@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,11 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
@@ -56,35 +55,41 @@ import com.dulpick.app.ui.theme.Typography
 // 한 페이지에 담는 후보 수
 private const val CANDIDATES_PER_PAGE = 4
 
-// 공유 링크에서 뽑은 장소 후보를 골라 저장하는 모달 (iOS PlaceImportView 대응)
+// 후보 행 고정 높이. 페이지마다 후보 수가 달라도 높이가 흔들리지 않게 4개 기준으로 고정한다
+private val CANDIDATE_ROW_HEIGHT = 80.dp
+
+// 공유 링크에서 뽑은 장소 후보를 골라 저장하는 모달 (iOS PlaceImportView 대응).
+// Dialog 로 띄워 회원탈퇴 모달처럼 탭바 포함 전 화면을 딤 처리하고 뒤 조작을 막는다
 @Composable
-fun PlaceImportScreen(onClose: () -> Unit, viewModel: PlaceImportViewModel = hiltViewModel()) {
+fun PlaceImportScreen(
+    sourceUrl: String,
+    onClose: () -> Unit,
+    // 링크가 바뀌면 새 세션이 되도록 sourceUrl 로 ViewModel 을 구분한다
+    viewModel: PlaceImportViewModel = hiltViewModel(key = sourceUrl),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    BackHandler { onClose() }
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             PlaceImportSideEffect.Dismiss -> onClose()
         }
     }
-    LaunchedEffect(Unit) { viewModel.onIntent(PlaceImportIntent.OnAppear) }
+    LaunchedEffect(sourceUrl) { viewModel.onIntent(PlaceImportIntent.Start(sourceUrl)) }
 
-    // 뒤가 비치지 않는 nav 목적지라 어두운 스크림 위에 카드를 띄워 모달처럼 보이게 한다
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.4f))
-            .noRippleClick { onClose() },
-        contentAlignment = Alignment.Center,
+    Dialog(
+        onDismissRequest = onClose,
+        // 추출한 후보가 날아가지 않게 바깥(딤) 탭으로는 닫지 않는다. 뒤로가기·닫기 버튼만 허용
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+        ),
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
                 .fillMaxWidth()
+                .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Colors.commonWhite)
-                // 카드 안쪽 탭은 스크림으로 전달돼 닫히지 않게 소비한다
-                .noRippleClick { }
                 .padding(top = 32.dp, start = 24.dp, end = 24.dp, bottom = 24.dp),
         ) {
             when (state.phase) {
@@ -208,13 +213,18 @@ private fun CandidatesPager(
 
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalPager(state = pagerState) { page ->
+            val items = pages[page]
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                pages[page].forEach { candidate ->
+                items.forEach { candidate ->
                     CandidateRow(
                         candidate = candidate,
                         isSelected = candidate.candidateId in selectedIds,
                         onClick = { onToggle(candidate.candidateId) },
                     )
+                }
+                // 후보가 4개 미만이어도 빈 자리로 채워 페이지 높이를 4개 기준으로 고정한다
+                repeat(CANDIDATES_PER_PAGE - items.size) {
+                    Spacer(modifier = Modifier.fillMaxWidth().height(CANDIDATE_ROW_HEIGHT))
                 }
             }
         }
@@ -257,10 +267,12 @@ private fun CandidateRow(candidate: ImportCandidate, isSelected: Boolean, onClic
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(CANDIDATE_ROW_HEIGHT)
             .clip(RoundedCornerShape(12.dp))
             .background(Colors.bgSubtle)
             .noRippleClick(onClick)
-            .padding(horizontal = 16.dp, vertical = 20.dp),
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Image(

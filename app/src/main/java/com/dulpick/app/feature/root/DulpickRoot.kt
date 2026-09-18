@@ -2,8 +2,6 @@ package com.dulpick.app.feature.root
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -31,6 +29,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.dulpick.app.feature.appintro.AppIntroScreen
@@ -46,13 +45,10 @@ import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
-import com.dulpick.app.feature.placeimport.ARG_IMPORT_URL
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -86,7 +82,7 @@ private fun DulpickNavHost(
     onSharedUrlConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
-    // 공유로 받은 URL 을 대기열에 담는다. 로그인(MAIN) 상태가 되면 추출 화면을 연다
+    // 공유로 받은 URL 을 대기열에 담는다. 로그인(MAIN) 상태가 되면 추출 모달을 띄운다
     var pendingImportUrl by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sharedUrl) {
@@ -96,15 +92,10 @@ private fun DulpickNavHost(
         onSharedUrlConsumed()
     }
 
-    LaunchedEffect(pendingImportUrl) {
-        val url = pendingImportUrl ?: return@LaunchedEffect
-        // 로그인해 메인에 도달할 때까지 기다렸다 연다. 이미 메인이면 즉시 열린다
-        navController.currentBackStackEntryFlow
-            .map { it.destination.route.orEmpty() }
-            .first { it == RootRoute.MAIN.route || it.startsWith("${RootRoute.MAIN.route}/") }
-        navController.navigate("$MAIN_IMPORT_ROUTE?$ARG_IMPORT_URL=${Uri.encode(url)}")
-        pendingImportUrl = null
-    }
+    // 현재 목적지가 로그인 후(MAIN 계열)인지. 로그인 전이면 URL 을 들고 기다린다
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route.orEmpty()
+    val isLoggedIn = currentRoute == RootRoute.MAIN.route ||
+        currentRoute.startsWith("${RootRoute.MAIN.route}/")
 
     NavHost(
         navController = navController,
@@ -166,6 +157,15 @@ private fun DulpickNavHost(
         }
         mainRoutes(navController = navController)
     }
+
+    // 로그인 상태에서만, 탭바 포함 전 화면 위에 Dialog 로 추출 모달을 띄운다
+    val importUrl = pendingImportUrl
+    if (importUrl != null && isLoggedIn) {
+        PlaceImportScreen(
+            sourceUrl = importUrl,
+            onClose = { pendingImportUrl = null },
+        )
+    }
 }
 
 // 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
@@ -223,7 +223,6 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
         )
     }
     pastDatesRoute(navController)
-    placeImportRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -285,27 +284,6 @@ private fun NavGraphBuilder.coupleConnectRoute(navController: NavHostController)
     }
 }
 
-// 공유로 받은 인스타 링크 → 장소 추출 화면 (탭 밖 전체화면)
-private fun NavGraphBuilder.placeImportRoute(navController: NavHostController) {
-    composable(
-        route = "$MAIN_IMPORT_ROUTE?$ARG_IMPORT_URL={$ARG_IMPORT_URL}",
-        arguments = listOf(
-            navArgument(ARG_IMPORT_URL) {
-                type = NavType.StringType
-                defaultValue = ""
-            },
-        ),
-        // 모달이라 슬라이드 대신 페이드로 띄운다
-        enterTransition = { fadeIn() },
-        exitTransition = { fadeOut() },
-        popEnterTransition = { fadeIn() },
-        popExitTransition = { fadeOut() },
-    ) {
-        // sourceUrl 은 PlaceImportViewModel 이 SavedStateHandle 로 직접 읽는다
-        PlaceImportScreen(onClose = { navController.popBackStack() })
-    }
-}
-
 // 홈 헤더 달력(연결 상태) → 지난 데이트 코스 목록
 private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
     composable(
@@ -331,7 +309,6 @@ private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 private const val MAIN_SEARCH_ROUTE = "main/search"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
-private const val MAIN_IMPORT_ROUTE = "main/import"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
 private const val ARG_COUPLE_ORIGIN = "origin"

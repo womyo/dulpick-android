@@ -1,6 +1,5 @@
 package com.dulpick.app.feature.placeimport
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.placeimport.ImportNextAction
@@ -14,17 +13,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// 공유로 받은 링크를 넘기는 nav 쿼리 인자
-const val ARG_IMPORT_URL = "url"
-
 @HiltViewModel
 @Suppress("TooGenericExceptionCaught")
 class PlaceImportViewModel @Inject constructor(
     private val repository: PlaceImportRepository,
-    savedStateHandle: SavedStateHandle,
 ) : MviViewModel<PlaceImportState, PlaceImportIntent, PlaceImportSideEffect>(PlaceImportState()) {
 
-    private val sourceUrl: String = savedStateHandle.get<String>(ARG_IMPORT_URL).orEmpty()
     private var importId: Long? = null
     private var started = false
     private var pollCount = 0
@@ -32,14 +26,15 @@ class PlaceImportViewModel @Inject constructor(
 
     override fun onIntent(intent: PlaceImportIntent) {
         when (intent) {
-            PlaceImportIntent.OnAppear -> onAppear()
+            is PlaceImportIntent.Start -> start(intent.sourceUrl)
             is PlaceImportIntent.CandidateToggled -> toggle(intent.id)
             PlaceImportIntent.SaveClicked -> save()
             PlaceImportIntent.CloseClicked -> postSideEffect(PlaceImportSideEffect.Dismiss)
         }
     }
 
-    private fun onAppear() {
+    // 첫 진입에만 추출을 시작한다. 같은 세션에서 재호출은 무시한다
+    private fun start(sourceUrl: String) {
         if (started) return
         started = true
         job = viewModelScope.launch { runImport { repository.start(sourceUrl) } }

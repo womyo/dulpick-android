@@ -42,7 +42,8 @@ data class PlaceImportState(
 }
 
 sealed interface PlaceImportIntent : UiIntent {
-    data object OnAppear : PlaceImportIntent
+    // 공유로 받은 링크로 추출 시작
+    data class Start(val sourceUrl: String) : PlaceImportIntent
     data class CandidateToggled(val id: Long) : PlaceImportIntent
     data object SaveClicked : PlaceImportIntent
     data object CloseClicked : PlaceImportIntent

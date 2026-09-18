@@ -224,9 +224,11 @@ private const val PARALLAX_DIVISOR = 4
 // 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
 private const val ROUTE_COUPLE_BASE = "couple"
 
+// 세션 만료·온보딩 이탈 공통. 온보딩을 마친 사용자는 스택에 ONBOARDING 이 없어
+// 그 지점까지만 지우면 보호 화면(검색·상세 등)이 뒤로가기에 남는다. 로그아웃처럼 그래프 전체를 비운다
 private fun androidx.navigation.NavController.navigateToAuth() {
     navigate(RootRoute.AUTH.route) {
-        popUpTo(RootRoute.ONBOARDING.route) { inclusive = true }
+        popUpTo(graph.id) { inclusive = true }
     }
 }
 

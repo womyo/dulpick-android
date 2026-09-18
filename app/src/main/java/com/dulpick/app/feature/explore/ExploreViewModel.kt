@@ -87,7 +87,8 @@ class ExploreViewModel @Inject constructor(
             }
             copy(
                 isLoadingContents = false,
-                contents = contents + page.items,
+                // 페이지 간 contentId 가 겹치면 LazyColumn 이 중복 key 로 크래시하므로 id 기준으로 제거한다
+                contents = (contents + page.items).distinctBy { it.id },
                 hasNext = page.hasNext,
                 page = this.page + 1,
                 filters = nextFilters,

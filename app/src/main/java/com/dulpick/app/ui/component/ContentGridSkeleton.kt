@@ -1,4 +1,4 @@
-package com.dulpick.app.feature.explore.component
+package com.dulpick.app.ui.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.dulpick.app.ui.component.ShimmerBox
 
 private const val THUMBNAIL_RATIO = 170f / 227f
 private const val CARD_ROWS = 2

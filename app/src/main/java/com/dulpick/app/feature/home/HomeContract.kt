@@ -9,6 +9,8 @@ import com.dulpick.app.domain.home.DateSchedule
 import com.dulpick.app.domain.place.Place
 
 data class HomeState(
+    // 커플 연결 여부. 서버가 connected=true 인데 partnerNickname=null 인 경우도 있어 별도로 둔다
+    val connected: Boolean = false,
     val nickname: String = "",
     val partnerName: String? = null,
     val upcomingSchedule: DateCourseSummary? = null,
@@ -25,7 +27,7 @@ data class HomeState(
     val didLoadRecommendations: Boolean = false,
 ) : UiState {
 
-    val isConnected: Boolean get() = partnerName != null
+    val isConnected: Boolean get() = connected
 
     val showsPastSchedules: Boolean get() = isConnected && pastSchedules.isNotEmpty()
 

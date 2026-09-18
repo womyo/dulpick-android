@@ -82,6 +82,7 @@ class HomeViewModel @Inject constructor(
             setState {
                 copy(
                     didLoadSummary = true,
+                    connected = summary.connected,
                     nickname = summary.myNickname,
                     partnerName = summary.partnerNickname,
                     upcomingSchedule = summary.currentDateCourse,
@@ -136,7 +137,7 @@ class HomeViewModel @Inject constructor(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            // 지난 데이트 실패는 섹션만 비운다
+            // 실패 시 기존 목록은 그대로 둔다(재진입 갱신 실패로 빈 화면 깜빡임 방지). loadSavedPlaces 와 동일
         }
     }
 }

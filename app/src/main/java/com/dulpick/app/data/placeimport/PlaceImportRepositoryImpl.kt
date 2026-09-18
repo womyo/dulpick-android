@@ -9,12 +9,13 @@ import javax.inject.Inject
 
 @Suppress("TooGenericExceptionCaught")
 class PlaceImportRepositoryImpl @Inject constructor(
-    private val remote: PlaceImportRemoteDataSource,
+    private val placeImportRemote: PlaceImportRemoteDataSource,
 ) : PlaceImportRepository {
 
     override suspend fun start(sourceUrl: String): PlaceImport {
         try {
-            return PlaceImportDtoMapper.toDomain(remote.start(PlaceImportDtoMapper.toStartRequest(sourceUrl)))
+            val response = placeImportRemote.start(PlaceImportDtoMapper.toStartRequest(sourceUrl))
+            return PlaceImportDtoMapper.toDomain(response)
         } catch (error: Throwable) {
             throw PlaceImportErrorMapper.map(error)
         }
@@ -22,7 +23,7 @@ class PlaceImportRepositoryImpl @Inject constructor(
 
     override suspend fun poll(importId: Long): PlaceImport {
         try {
-            return PlaceImportDtoMapper.toDomain(remote.poll(importId))
+            return PlaceImportDtoMapper.toDomain(placeImportRemote.poll(importId))
         } catch (error: Throwable) {
             throw PlaceImportErrorMapper.map(error)
         }
@@ -30,7 +31,7 @@ class PlaceImportRepositoryImpl @Inject constructor(
 
     override suspend fun confirm(importId: Long, candidateIds: List<Long>) {
         try {
-            remote.confirm(importId, PlaceImportDtoMapper.toConfirmRequest(candidateIds))
+            placeImportRemote.confirm(importId, PlaceImportDtoMapper.toConfirmRequest(candidateIds))
         } catch (error: Throwable) {
             throw PlaceImportErrorMapper.map(error)
         }

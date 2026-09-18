@@ -32,10 +32,10 @@ object PlaceImportDtoMapper {
         importId = dto.importId,
         contentId = dto.contentId,
         canonicalUrl = dto.canonicalUrl,
-        // 알 수 없는 값은 iOS 와 같은 기본값으로 떨군다
         sourceType = enumOrDefault(dto.sourceType, ImportSourceType.INSTAGRAM_POST),
         status = enumOrDefault(dto.status, ImportStatus.FAILED),
-        nextAction = enumOrDefault(dto.nextAction, ImportNextAction.RETRY),
+        // 서버 enum 이 확장돼 모르는 값이 와도 RETRY(=실패)로 끊지 않고 상태 기반 처리(NONE)로 넘긴다
+        nextAction = enumOrDefault(dto.nextAction, ImportNextAction.NONE),
         retryAfterSeconds = dto.retryAfterSeconds,
         failure = dto.failure?.let { ImportFailure(code = it.code, retryable = it.retryable) },
         content = toDomain(dto.content),

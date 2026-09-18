@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
+import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.domain.place.matches
@@ -14,10 +15,14 @@ data class MapState(
     // 커플 연동 시에만 소유자 필터를 노출한다
     val isCoupleConnected: Boolean = false,
     val selectedOwnership: PlaceOwnership = PlaceOwnership.TOGETHER,
+    // null 이면 전체 카테고리
+    val selectedCategory: PlaceCategory? = null,
 ) : UiState {
-    // 지도 핀과 시트 목록이 함께 보는 하나의 배열. 소유자 필터를 적용한다
+    // 지도 핀과 시트 목록이 함께 보는 하나의 배열. 소유자·카테고리 필터를 적용한다
     val filteredPlaces: List<SavedPlace>
-        get() = places.filter { selectedOwnership.matches(it.ownership) }
+        get() = places
+            .filter { selectedOwnership.matches(it.ownership) }
+            .filter { selectedCategory == null || it.place.category == selectedCategory }
 
     // 저장한 장소 자체가 없다(필터 때문에 빈 것과 문구가 다르다)
     val hasNoSavedPlace: Boolean get() = !isLoading && places.isEmpty()
@@ -29,6 +34,8 @@ data class MapState(
 sealed interface MapIntent : UiIntent {
     data object OnAppear : MapIntent
     data class OwnershipSelected(val ownership: PlaceOwnership) : MapIntent
+    // null 이면 전체
+    data class CategorySelected(val category: PlaceCategory?) : MapIntent
 }
 
 sealed interface MapSideEffect : UiSideEffect {

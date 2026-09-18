@@ -6,12 +6,15 @@ import android.graphics.Canvas
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,10 +41,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
+import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
-import com.dulpick.app.feature.map.component.OwnershipDropdown
+import com.dulpick.app.feature.map.component.CATEGORY_ORDER
+import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
+import com.dulpick.app.feature.map.component.CategoryChipBar
+import com.dulpick.app.feature.map.component.FilterDropdown
+import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceListRow
+import com.dulpick.app.feature.map.component.displayName
 import com.dulpick.app.ui.component.pinRes
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -88,18 +97,30 @@ fun MapScreen(
             MapSheetContent(
                 state = state,
                 onOwnershipSelected = { viewModel.onIntent(MapIntent.OwnershipSelected(it)) },
+                onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
                 height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
             )
         },
     ) {
         // 지도는 시트 뒤 전체를 채운다(시트 인셋 무시). 딤 없이 지도가 그대로 조작된다
-        KakaoMapView(
-            modifier = Modifier.fillMaxSize(),
-            onMapReady = { map ->
-                map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
-                kakaoMap = map
-            },
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            KakaoMapView(
+                modifier = Modifier.fillMaxSize(),
+                onMapReady = { map ->
+                    map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
+                    kakaoMap = map
+                },
+            )
+            // 지도 위에 떠 있는 카테고리 칩바
+            CategoryChipBar(
+                selected = state.selectedCategory,
+                onSelect = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp),
+            )
+        }
     }
 
     // 지도 준비/필터 변경 시 라벨 레이어를 다시 그린다
@@ -112,6 +133,7 @@ fun MapScreen(
 private fun MapSheetContent(
     state: MapState,
     onOwnershipSelected: (PlaceOwnership) -> Unit,
+    onCategorySelected: (PlaceCategory?) -> Unit,
     height: Dp,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
@@ -122,8 +144,23 @@ private fun MapSheetContent(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
-            if (state.isCoupleConnected) {
-                OwnershipDropdown(selected = state.selectedOwnership, onSelect = onOwnershipSelected)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (state.isCoupleConnected) {
+                    FilterDropdown(
+                        label = state.selectedOwnership.displayName(),
+                        isActive = state.selectedOwnership != PlaceOwnership.TOGETHER,
+                        options = OWNERSHIP_ORDER.map { it.displayName() },
+                        selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
+                        onSelect = { onOwnershipSelected(OWNERSHIP_ORDER[it]) },
+                    )
+                }
+                FilterDropdown(
+                    label = state.selectedCategory?.displayName() ?: CATEGORY_UNFILTERED,
+                    isActive = state.selectedCategory != null,
+                    options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
+                    selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
+                    onSelect = { onCategorySelected(if (it == 0) null else CATEGORY_ORDER[it - 1]) },
+                )
             }
         }
         if (state.isEmpty) {

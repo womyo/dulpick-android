@@ -21,6 +21,7 @@ class MapViewModel @Inject constructor(
         when (intent) {
             MapIntent.OnAppear -> load()
             is MapIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
+            is MapIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
         }
     }
 

@@ -72,6 +72,9 @@ fun PastDateCoursesScreen(
             when {
                 // 로딩 중엔 "총 0번" 이 번쩍이지 않게 로딩만 보여준다
                 !state.hasLoaded -> CenteredLoading(modifier = Modifier.fillMaxSize())
+                state.hasError -> ErrorRetry(
+                    onRetry = { viewModel.onIntent(PastDateCoursesIntent.RetryClicked) },
+                )
                 state.courses.isEmpty() -> EmptyState(
                     showCreate = !state.hasCurrentCourse,
                     onCreate = { viewModel.onIntent(PastDateCoursesIntent.CreateCourseClicked) },
@@ -121,7 +124,7 @@ private fun CourseList(state: PastDateCoursesState, onIntent: (PastDateCoursesIn
             CountBanner(totalCount = state.totalCount, modifier = Modifier.padding(bottom = 12.dp))
         }
         itemsIndexed(state.courses, key = { _, course -> course.id }) { index, course ->
-            if (index == state.courses.lastIndex && state.hasNext && !state.isLoadingMore) {
+            if (index == state.courses.lastIndex && state.canLoadMore) {
                 LaunchedEffect(index, state.courses.size) { onIntent(PastDateCoursesIntent.ReachedEnd) }
             }
             PastDateCourseRow(
@@ -234,5 +237,28 @@ private fun EmptyState(showCreate: Boolean, onCreate: () -> Unit) {
 private fun CenteredLoading(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         CircularProgressIndicator(color = Colors.primaryPink)
+    }
+}
+
+// 첫 로딩이 통신 오류로 끝났을 때. 빈 목록과 구분해 재시도를 제공한다
+@Composable
+private fun ErrorRetry(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = HORIZONTAL_PADDING),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(text = "일정을 불러오지 못했어요", style = Typography.title3SB, color = Colors.textPrimary)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = "잠시 후 다시 시도해 주세요", style = Typography.body1M, color = Colors.textTertiary)
+        Spacer(modifier = Modifier.height(24.dp))
+        AppButton(
+            text = "다시 시도",
+            onClick = onRetry,
+            variant = AppButtonVariant.OUTLINED,
+            size = AppButtonSize.LG,
+        )
     }
 }

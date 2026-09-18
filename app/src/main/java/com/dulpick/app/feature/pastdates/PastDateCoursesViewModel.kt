@@ -27,6 +27,7 @@ class PastDateCoursesViewModel @Inject constructor(
     override fun onIntent(intent: PastDateCoursesIntent) {
         when (intent) {
             PastDateCoursesIntent.ReachedEnd -> loadMore()
+            PastDateCoursesIntent.RetryClicked -> loadFirst()
             PastDateCoursesIntent.CreateCourseClicked ->
                 postSideEffect(PastDateCoursesSideEffect.OpenCreateCourse)
             is PastDateCoursesIntent.CourseClicked ->
@@ -35,14 +36,24 @@ class PastDateCoursesViewModel @Inject constructor(
     }
 
     private fun loadFirst() {
+        setState { copy(hasError = false) }
         viewModelScope.launch {
-            val page = runCatching { homeRepository.pastCourses(0, PastDateCoursesState.PAGE_SIZE) }.getOrNull()
+            val page = try {
+                homeRepository.pastCourses(0, PastDateCoursesState.PAGE_SIZE)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                // 통신 오류를 빈 목록으로 위장하지 않는다. 오류 상태로 두어 재시도할 수 있게 한다
+                setState { copy(hasLoaded = true, hasError = true) }
+                return@launch
+            }
             setState {
                 copy(
                     hasLoaded = true,
-                    courses = page?.courses ?: emptyList(),
-                    totalCount = page?.totalCount ?: 0,
-                    hasNext = page?.hasNext ?: false,
+                    hasError = false,
+                    courses = page.courses,
+                    totalCount = page.totalCount,
+                    hasNext = page.hasNext,
                     page = 1,
                 )
             }
@@ -51,7 +62,7 @@ class PastDateCoursesViewModel @Inject constructor(
 
     private fun loadMore() {
         val state = currentState
-        if (!state.hasLoaded || !state.hasNext || state.isLoadingMore) return
+        if (!state.hasLoaded || !state.canLoadMore) return
         setState { copy(isLoadingMore = true) }
         val requestedPage = state.page
         viewModelScope.launch {
@@ -59,7 +70,8 @@ class PastDateCoursesViewModel @Inject constructor(
                 val page = homeRepository.pastCourses(requestedPage, PastDateCoursesState.PAGE_SIZE)
                 setState {
                     copy(
-                        courses = courses + page.courses,
+                        // 페이지 간 id 중복은 LazyColumn 중복 key 크래시를 부르므로 제거한다
+                        courses = (courses + page.courses).distinctBy { it.id },
                         totalCount = page.totalCount,
                         hasNext = page.hasNext,
                         page = this.page + 1,
@@ -69,7 +81,8 @@ class PastDateCoursesViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                setState { copy(isLoadingMore = false) }
+                // 실패를 기록해 마지막 항목 재노출로 자동 재요청이 반복되지 않게 한다
+                setState { copy(isLoadingMore = false, loadMoreFailed = true) }
             }
         }
     }

@@ -52,4 +52,7 @@ sealed interface PlaceImportIntent : UiIntent {
 sealed interface PlaceImportSideEffect : UiSideEffect {
     // 닫기(추출 실패·선택 없음·저장 완료). 홈은 재진입 onAppear 로 갱신된다
     data object Dismiss : PlaceImportSideEffect
+
+    // 세션 만료(401). 상위에서 로그인으로 보낸다
+    data object SessionExpired : PlaceImportSideEffect
 }

@@ -5,6 +5,7 @@ import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.placeimport.ImportNextAction
 import com.dulpick.app.domain.placeimport.ImportStatus
 import com.dulpick.app.domain.placeimport.PlaceImport
+import com.dulpick.app.domain.placeimport.PlaceImportError
 import com.dulpick.app.domain.placeimport.PlaceImportRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -23,6 +24,7 @@ class PlaceImportViewModel @Inject constructor(
     private var started = false
     private var pollCount = 0
     private var job: Job? = null
+    private var confirmJob: Job? = null
 
     override fun onIntent(intent: PlaceImportIntent) {
         when (intent) {
@@ -40,12 +42,14 @@ class PlaceImportViewModel @Inject constructor(
         job = viewModelScope.launch { runImport { repository.start(sourceUrl) } }
     }
 
-    // 시작·폴링 공통: 결과로 다음 행동을 적용, 실패면 실패 화면. 취소는 그대로 전파한다
+    // 시작·폴링 공통: 결과로 다음 행동을 적용. 취소는 전파, 세션 만료는 위로 올리고, 그 외는 실패 화면
     private suspend fun runImport(block: suspend () -> PlaceImport) {
         try {
             applyImport(block())
         } catch (error: CancellationException) {
             throw error
+        } catch (error: PlaceImportError.Unauthorized) {
+            postSideEffect(PlaceImportSideEffect.SessionExpired)
         } catch (error: Throwable) {
             fail()
         }
@@ -118,14 +122,18 @@ class PlaceImportViewModel @Inject constructor(
             return
         }
         val id = importId ?: return
-        viewModelScope.launch {
+        // 진행 중이면 연타를 무시해 같은 선택으로 confirm 이 중복 전송되지 않게 한다
+        if (confirmJob?.isActive == true) return
+        confirmJob = viewModelScope.launch {
             try {
                 repository.confirm(id, ids.toList())
                 postSideEffect(PlaceImportSideEffect.Dismiss)
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: PlaceImportError.Unauthorized) {
+                postSideEffect(PlaceImportSideEffect.SessionExpired)
             } catch (ignored: Throwable) {
-                // iOS 처럼 저장 실패 시 화면을 유지한다
+                // 그 외 저장 실패는 iOS 처럼 화면을 유지한다
             }
         }
     }

@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,12 +60,16 @@ private const val CANDIDATES_PER_PAGE = 4
 // 후보 행 고정 높이. 페이지마다 후보 수가 달라도 높이가 흔들리지 않게 4개 기준으로 고정한다
 private val CANDIDATE_ROW_HEIGHT = 80.dp
 
+// 후보 페이저 고정 높이(4행 + 3간격). 세로 스크롤 안에서도 무한 제약 없이 측정되도록 명시한다
+private val CANDIDATES_PAGE_HEIGHT = CANDIDATE_ROW_HEIGHT * CANDIDATES_PER_PAGE + 8.dp * (CANDIDATES_PER_PAGE - 1)
+
 // 공유 링크에서 뽑은 장소 후보를 골라 저장하는 모달 (iOS PlaceImportView 대응).
 // Dialog 로 띄워 회원탈퇴 모달처럼 탭바 포함 전 화면을 딤 처리하고 뒤 조작을 막는다
 @Composable
 fun PlaceImportScreen(
     sourceUrl: String,
     onClose: () -> Unit,
+    onSessionExpired: () -> Unit,
     // 링크가 바뀌면 새 세션이 되도록 sourceUrl 로 ViewModel 을 구분한다
     viewModel: PlaceImportViewModel = hiltViewModel(key = sourceUrl),
 ) {
@@ -72,6 +78,7 @@ fun PlaceImportScreen(
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             PlaceImportSideEffect.Dismiss -> onClose()
+            PlaceImportSideEffect.SessionExpired -> onSessionExpired()
         }
     }
     LaunchedEffect(sourceUrl) { viewModel.onIntent(PlaceImportIntent.Start(sourceUrl)) }
@@ -90,6 +97,8 @@ fun PlaceImportScreen(
                 .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Colors.commonWhite)
+                // 짧은 화면(가로·큰 글꼴)에서도 저장 버튼에 닿도록 카드 내부를 스크롤 가능하게 한다
+                .verticalScroll(rememberScrollState())
                 .padding(top = 32.dp, start = 24.dp, end = 24.dp, bottom = 24.dp),
         ) {
             when (state.phase) {
@@ -212,7 +221,7 @@ private fun CandidatesPager(
     val pagerState = rememberPagerState(pageCount = { pages.size })
 
     Column(modifier = modifier.fillMaxWidth()) {
-        HorizontalPager(state = pagerState) { page ->
+        HorizontalPager(state = pagerState, modifier = Modifier.height(CANDIDATES_PAGE_HEIGHT)) { page ->
             val items = pages[page]
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items.forEach { candidate ->

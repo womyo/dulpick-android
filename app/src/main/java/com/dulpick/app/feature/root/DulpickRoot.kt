@@ -164,6 +164,10 @@ private fun DulpickNavHost(
         PlaceImportScreen(
             sourceUrl = importUrl,
             onClose = { pendingImportUrl = null },
+            onSessionExpired = {
+                pendingImportUrl = null
+                navController.navigateToAuth()
+            },
         )
     }
 }

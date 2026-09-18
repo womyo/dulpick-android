@@ -1,5 +1,7 @@
 package com.dulpick.app.domain.placeimport
 
+import com.dulpick.app.domain.place.PlaceCategory
+
 // 추출된 장소 후보 하나. place 가 있으면 카카오와 매칭된 실장소다 (iOS ImportCandidate 대응)
 data class ImportCandidate(
     val candidateId: Long,
@@ -23,8 +25,8 @@ data class ImportPlace(
     val roadAddress: String,
     val latitude: Double,
     val longitude: Double,
-    val category: String,
-    val categoryName: String,
+    // 서버 categoryCode/categoryName 을 도메인 카테고리로 매핑한 결과
+    val category: PlaceCategory,
     val savedByMe: Boolean,
     val thumbnailUrl: String?,
     val imageUrls: List<String>,

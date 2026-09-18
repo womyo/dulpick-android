@@ -4,6 +4,7 @@ import com.dulpick.app.data.placeimport.remote.dto.ImportCandidateDto
 import com.dulpick.app.data.placeimport.remote.dto.ImportContentDto
 import com.dulpick.app.data.placeimport.remote.dto.ImportPlaceDto
 import com.dulpick.app.data.placeimport.remote.dto.PlaceImportConfirmRequestDto
+import com.dulpick.app.data.place.mapper.PlaceCategoryMapper
 import com.dulpick.app.data.placeimport.remote.dto.PlaceImportResponseDto
 import com.dulpick.app.data.placeimport.remote.dto.PlaceImportStartRequestDto
 import com.dulpick.app.domain.placeimport.ImportAuthor
@@ -66,8 +67,7 @@ object PlaceImportDtoMapper {
         roadAddress = dto.roadAddress,
         latitude = dto.latitude,
         longitude = dto.longitude,
-        category = dto.category,
-        categoryName = dto.categoryName,
+        category = PlaceCategoryMapper.fromCodeOrName(dto.category, dto.categoryName),
         savedByMe = dto.savedByMe,
         thumbnailUrl = dto.thumbnailUrl,
         imageUrls = dto.imageUrls,

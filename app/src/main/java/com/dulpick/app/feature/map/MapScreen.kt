@@ -41,7 +41,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
-import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.feature.map.component.CATEGORY_ORDER
@@ -51,6 +50,7 @@ import com.dulpick.app.feature.map.component.FilterDropdown
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.pinRes
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -68,6 +68,9 @@ private const val SHEET_PEEK_FRACTION = 0.5f
 private const val SHEET_EXPANDED_FRACTION = 0.9f
 private val SHEET_CORNER_RADIUS = 32.dp
 
+// 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다
+private data class MapToast(val message: String, val isError: Boolean)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
@@ -77,50 +80,62 @@ fun MapScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             MapSideEffect.SessionExpired -> onSessionExpired()
+            is MapSideEffect.ShowToast -> toast = MapToast(effect.message, effect.isError)
         }
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
 
-    BottomSheetScaffold(
-        scaffoldState = rememberBottomSheetScaffoldState(),
-        sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
-        sheetContainerColor = Colors.commonWhite,
-        // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
-        sheetTonalElevation = 0.dp,
-        sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
-        sheetContent = {
-            MapSheetContent(
-                state = state,
-                onOwnershipSelected = { viewModel.onIntent(MapIntent.OwnershipSelected(it)) },
-                onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
-                height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
-            )
-        },
-    ) {
-        // 지도는 시트 뒤 전체를 채운다(시트 인셋 무시). 딤 없이 지도가 그대로 조작된다
-        Box(modifier = Modifier.fillMaxSize()) {
-            KakaoMapView(
-                modifier = Modifier.fillMaxSize(),
-                onMapReady = { map ->
-                    map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
-                    kakaoMap = map
-                },
-            )
-            // 지도 위에 떠 있는 카테고리 칩바
-            CategoryChipBar(
-                selected = state.selectedCategory,
-                onSelect = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp),
-            )
+    Box(modifier = Modifier.fillMaxSize()) {
+        BottomSheetScaffold(
+            scaffoldState = rememberBottomSheetScaffoldState(),
+            sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+            sheetContainerColor = Colors.commonWhite,
+            // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
+            sheetTonalElevation = 0.dp,
+            sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
+            sheetContent = {
+                MapSheetContent(
+                    state = state,
+                    onIntent = viewModel::onIntent,
+                    // TODO: 별칭 편집 화면은 다음 단계에서 연결한다
+                    onEditPlace = {},
+                    height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
+                )
+            },
+        ) {
+            // 지도는 시트 뒤 전체를 채운다(시트 인셋 무시). 딤 없이 지도가 그대로 조작된다
+            Box(modifier = Modifier.fillMaxSize()) {
+                KakaoMapView(
+                    modifier = Modifier.fillMaxSize(),
+                    onMapReady = { map ->
+                        map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
+                        kakaoMap = map
+                    },
+                )
+                // 지도 위에 떠 있는 카테고리 칩바
+                CategoryChipBar(
+                    selected = state.selectedCategory,
+                    onSelect = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(top = 8.dp),
+                )
+            }
         }
+
+        AppToast(
+            message = toast?.message,
+            onDismiss = { toast = null },
+            bottomInset = 16,
+            iconRes = if (toast?.isError == true) R.drawable.error else null,
+        )
     }
 
     // 지도 준비/필터 변경 시 라벨 레이어를 다시 그린다
@@ -132,8 +147,8 @@ fun MapScreen(
 @Composable
 private fun MapSheetContent(
     state: MapState,
-    onOwnershipSelected: (PlaceOwnership) -> Unit,
-    onCategorySelected: (PlaceCategory?) -> Unit,
+    onIntent: (MapIntent) -> Unit,
+    onEditPlace: (String) -> Unit,
     height: Dp,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
@@ -151,7 +166,7 @@ private fun MapSheetContent(
                         isActive = state.selectedOwnership != PlaceOwnership.TOGETHER,
                         options = OWNERSHIP_ORDER.map { it.displayName() },
                         selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
-                        onSelect = { onOwnershipSelected(OWNERSHIP_ORDER[it]) },
+                        onSelect = { onIntent(MapIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
                     )
                 }
                 FilterDropdown(
@@ -159,7 +174,7 @@ private fun MapSheetContent(
                     isActive = state.selectedCategory != null,
                     options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
                     selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
-                    onSelect = { onCategorySelected(if (it == 0) null else CATEGORY_ORDER[it - 1]) },
+                    onSelect = { onIntent(MapIntent.CategorySelected(if (it == 0) null else CATEGORY_ORDER[it - 1])) },
                 )
             }
         }
@@ -171,7 +186,12 @@ private fun MapSheetContent(
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 items(state.filteredPlaces, key = { it.id }) { place ->
-                    PlaceListRow(place = place, onMenuClick = {}, onClick = {})
+                    PlaceListRow(
+                        place = place,
+                        onEditClick = { onEditPlace(place.id) },
+                        onDeleteClick = { onIntent(MapIntent.DeleteClicked(place.id)) },
+                        onClick = {},
+                    )
                 }
             }
         }

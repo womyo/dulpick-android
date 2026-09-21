@@ -36,8 +36,11 @@ sealed interface MapIntent : UiIntent {
     data class OwnershipSelected(val ownership: PlaceOwnership) : MapIntent
     // null 이면 전체
     data class CategorySelected(val category: PlaceCategory?) : MapIntent
+    data class DeleteClicked(val id: String) : MapIntent
 }
 
 sealed interface MapSideEffect : UiSideEffect {
     data object SessionExpired : MapSideEffect
+    // isError 면 에러 아이콘이 붙은 토스트로 띄운다 (iOS ToastState.error 대응)
+    data class ShowToast(val message: String, val isError: Boolean) : MapSideEffect
 }

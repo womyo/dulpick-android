@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
+import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.feature.map.component.CATEGORY_ORDER
@@ -52,14 +57,16 @@ import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
 import com.dulpick.app.feature.map.component.FilterDropdown
 import com.dulpick.app.feature.map.component.MapSearchBar
-import com.dulpick.app.feature.placedetail.MapDetailArg
+import com.dulpick.app.feature.placedetail.MapSearchReturnArg
 import com.dulpick.app.feature.placedetail.PlaceDetailSheet
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.feature.map.component.displayName
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.component.iconRes
 import com.dulpick.app.ui.component.pinRes
+import androidx.compose.ui.text.style.TextOverflow
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 import com.kakao.vectormap.KakaoMap
@@ -88,9 +95,11 @@ private data class MapToast(val message: String, val isError: Boolean)
 fun MapScreen(
     onSessionExpired: () -> Unit,
     onOpenSearch: () -> Unit,
-    // 검색 결과 탭으로 넘어온 상세 대상(place+query JSON). 검색이 pop 되며 지도로 전달된다
-    pendingDetailArg: String? = null,
-    onDetailConsumed: () -> Unit = {},
+    // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
+    pendingSearchArg: String? = null,
+    onSearchConsumed: () -> Unit = {},
+    // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 검색 화면을 다시 연다
+    onReopenSearch: (String) -> Unit = {},
     viewModel: MapViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -107,17 +116,26 @@ fun MapScreen(
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
 
-    // 검색에서 넘어온 상세 대상(JSON)을 디코드해 지도 상태로 올린다. 검색 장소는 카카오+검색어 조회(serverPlaceId=null)
-    LaunchedEffect(pendingDetailArg) {
-        val arg = pendingDetailArg?.let(MapDetailArg::decode) ?: return@LaunchedEffect
+    // 검색에서 넘어온 결과를 검색 결과 모드로 올린다. selectedIndex 있으면 상세도 연다
+    ConsumeSearchArg(pendingSearchArg, onSearchConsumed) { arg ->
         viewModel.onIntent(
-            MapIntent.OpenDetail(DetailTarget(arg.place.toPlace(), arg.query, serverPlaceId = null)),
+            MapIntent.EnterSearchResult(
+                searchQuery = arg.searchQuery,
+                displayQuery = arg.displayQuery,
+                places = arg.places.map { it.toPlace() },
+                selectedIndex = arg.selectedIndex,
+            ),
         )
-        onDetailConsumed()
     }
 
-    // 상세가 열려 있으면 뒤로가기는 상세만 닫는다(지도로 복귀)
-    BackHandler(enabled = state.detail != null) { viewModel.onIntent(MapIntent.CloseDetail) }
+    // 뒤로가기: 상세가 열려 있으면 상세만 닫고(검색 결과 리스트로), 검색 결과 모드면 저장 모드로 돌아간다
+    BackHandler(enabled = state.detail != null || state.searchResult != null) {
+        if (state.detail != null) {
+            viewModel.onIntent(MapIntent.CloseDetail)
+        } else {
+            viewModel.onIntent(MapIntent.ClearSearch)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         BottomSheetScaffold(
@@ -128,29 +146,28 @@ fun MapScreen(
             sheetTonalElevation = 0.dp,
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
-                val detail = state.detail
-                if (detail != null) {
-                    PlaceDetailSheet(
-                        target = detail.place,
-                        query = detail.query,
-                        serverPlaceId = detail.serverPlaceId,
-                        onClose = { viewModel.onIntent(MapIntent.CloseDetail) },
-                        onSessionExpired = onSessionExpired,
-                        modifier = Modifier.height((screenHeight * SHEET_DETAIL_EXPANDED_FRACTION).dp),
-                    )
-                } else {
-                    MapSheetContent(
-                        state = state,
-                        onIntent = viewModel::onIntent,
-                        height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
-                    )
-                }
+                MapSheet(
+                    state = state,
+                    screenHeight = screenHeight,
+                    onIntent = viewModel::onIntent,
+                    onSessionExpired = onSessionExpired,
+                )
             },
         ) {
             MapBody(
+                searchQuery = state.searchResult?.displayQuery,
                 selectedCategory = state.selectedCategory,
-                onOpenSearch = onOpenSearch,
-                onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                actions = MapTopBarActions(
+                    onOpenSearch = onOpenSearch,
+                    // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
+                    // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
+                    onReopenSearch = {
+                        state.searchResult?.let { onReopenSearch(it.searchQuery) }
+                        viewModel.onIntent(MapIntent.ClearSearch)
+                    },
+                    onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
+                    onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                ),
                 onMapReady = { kakaoMap = it },
             )
         }
@@ -179,38 +196,95 @@ fun MapScreen(
         }
     }
 
-    // 상세가 열리면 그 장소만 핀으로 찍고 카메라를 그 자리로 옮긴다(iOS content([place]) 모드).
-    // 상세가 없으면 저장 장소 전체를 찍는다. 지도 준비·필터·상세 변경 때마다 다시 그린다
-    LaunchedEffect(kakaoMap, state.filteredPlaces, state.detail) {
+    // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다. 지도 준비·저장목록·검색결과·상세 변경마다 다시 그린다
+    LaunchedEffect(kakaoMap, state.filteredPlaces, state.searchResult, state.detail) {
         renderMap(context, kakaoMap ?: return@LaunchedEffect, state)
     }
 }
 
-// 상세 여부에 따라 핀과 카메라를 맞춘다. 상세면 그 장소 하나만, 아니면 저장 장소 전체를 첫 장소로 맞춰 보여준다
+// 상세면 그 장소 하나, 검색결과면 결과 장소들, 아니면 저장 장소 전체를 찍고 첫 장소로 카메라를 맞춘다
 private fun renderMap(context: Context, map: KakaoMap, state: MapState) {
     val detail = state.detail
-    if (detail != null) {
-        val coord = detail.place.coordinate
-        renderPins(context, map, listOf(MapPin(coord, detail.place.category)))
+    val searchResult = state.searchResult
+    val pins = when {
+        detail != null -> listOf(MapPin(detail.place.coordinate, detail.place.category))
+        searchResult != null -> searchResult.places.map { MapPin(it.coordinate, it.category) }
+        else -> state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
+    }
+    renderPins(context, map, pins)
+    pins.firstOrNull()?.coordinate?.let { first ->
         map.moveCamera(
-            CameraUpdateFactory.newCenterPosition(LatLng.from(coord.latitude, coord.longitude), DEFAULT_ZOOM_LEVEL),
+            CameraUpdateFactory.newCenterPosition(LatLng.from(first.latitude, first.longitude), DEFAULT_ZOOM_LEVEL),
         )
-    } else {
-        renderPins(context, map, state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) })
-        state.filteredPlaces.firstOrNull()?.place?.coordinate?.let { first ->
-            map.moveCamera(
-                CameraUpdateFactory.newCenterPosition(LatLng.from(first.latitude, first.longitude), DEFAULT_ZOOM_LEVEL),
-            )
-        }
     }
 }
 
-// 지도 + 상단 컨트롤(검색바·카테고리 칩바). 시트 뒤 전체를 채운다
+// 검색 화면에서 되돌아온 결과(JSON)를 한 번만 처리한다.
+// savedStateHandle 은 상태라 재전달될 수 있어 nonce 로 같은 결과를 걸러낸다(방어)
+@Composable
+private fun ConsumeSearchArg(
+    pendingSearchArg: String?,
+    onConsumed: () -> Unit,
+    onEnter: (MapSearchReturnArg) -> Unit,
+) {
+    var consumedNonce by rememberSaveable { mutableStateOf(0L) }
+    LaunchedEffect(pendingSearchArg) {
+        val arg = pendingSearchArg?.let(MapSearchReturnArg::decode) ?: return@LaunchedEffect
+        if (arg.nonce == consumedNonce) return@LaunchedEffect
+        consumedNonce = arg.nonce
+        onEnter(arg)
+        onConsumed()
+    }
+}
+
+// 상단 검색바·필터 콜백 묶음 (파라미터 수 축소)
+private class MapTopBarActions(
+    val onOpenSearch: () -> Unit,
+    val onReopenSearch: () -> Unit,
+    val onClearSearch: () -> Unit,
+    val onCategorySelected: (PlaceCategory?) -> Unit,
+)
+
+// 시트 콘텐츠 전환. 상세 > 검색결과 > 저장목록 순
+@Composable
+private fun MapSheet(
+    state: MapState,
+    screenHeight: Int,
+    onIntent: (MapIntent) -> Unit,
+    onSessionExpired: () -> Unit,
+) {
+    val detail = state.detail
+    val searchResult = state.searchResult
+    when {
+        detail != null -> PlaceDetailSheet(
+            target = detail.place,
+            query = detail.query,
+            serverPlaceId = detail.serverPlaceId,
+            onClose = { onIntent(MapIntent.CloseDetail) },
+            onSessionExpired = onSessionExpired,
+            modifier = Modifier.height((screenHeight * SHEET_DETAIL_EXPANDED_FRACTION).dp),
+        )
+        searchResult != null -> SearchResultSheet(
+            result = searchResult,
+            state = state,
+            onIntent = onIntent,
+            height = (screenHeight * SHEET_DETAIL_EXPANDED_FRACTION).dp,
+        )
+        else -> MapSheetContent(
+            state = state,
+            onIntent = onIntent,
+            height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
+        )
+    }
+}
+
+// 지도 + 상단 컨트롤(검색바·카테고리 칩바). 시트 뒤 전체를 채운다.
+// 검색 결과 모드(searchQuery != null)면 검색바가 [뒤로][검색어 X]로 바뀌고 카테고리 칩은 감춘다
 @Composable
 private fun MapBody(
+    searchQuery: String?,
     selectedCategory: PlaceCategory?,
-    onOpenSearch: () -> Unit,
-    onCategorySelected: (PlaceCategory?) -> Unit,
+    actions: MapTopBarActions,
     onMapReady: (KakaoMap) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -228,8 +302,17 @@ private fun MapBody(
                 .padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            MapSearchBar(onTap = onOpenSearch, modifier = Modifier.padding(horizontal = 20.dp))
-            CategoryChipBar(selected = selectedCategory, onSelect = onCategorySelected)
+            MapSearchBar(
+                onTap = actions.onOpenSearch,
+                query = searchQuery,
+                onBack = actions.onReopenSearch,
+                onClear = actions.onClearSearch,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+            // 검색 결과 모드에선 카테고리 필터 칩을 감춘다 (iOS 동일)
+            if (searchQuery == null) {
+                CategoryChipBar(selected = selectedCategory, onSelect = actions.onCategorySelected)
+            }
         }
     }
 }
@@ -283,6 +366,91 @@ private fun MapSheetContent(
                     )
                 }
             }
+        }
+    }
+}
+
+// 검색 결과 모드 시트. 헤더·필터 없이 결과 리스트만 보인다 (iOS searchResultList 대응)
+@Composable
+private fun SearchResultSheet(
+    result: SearchResult,
+    state: MapState,
+    onIntent: (MapIntent) -> Unit,
+    height: Dp,
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .padding(top = 8.dp),
+    ) {
+        items(result.places, key = { it.id }) { place ->
+            SearchResultRow(
+                place = place,
+                isBookmarked = state.isBookmarked(place),
+                showsDivider = place.id != result.places.last().id,
+                onClick = { onIntent(MapIntent.SearchRowClicked(place)) },
+                onBookmark = { onIntent(MapIntent.SearchBookmarkClicked(place)) },
+            )
+        }
+    }
+}
+
+// 검색 결과 한 줄: 아이콘 + 이름 + 주소 + 우측 북마크 + 하단 구분선 (iOS PlaceListRow 검색 변형 대응)
+@Composable
+private fun SearchResultRow(
+    place: Place,
+    isBookmarked: Boolean,
+    showsDivider: Boolean,
+    onClick: () -> Unit,
+    onBookmark: () -> Unit,
+) {
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Image(
+                painter = painterResource(place.category.iconRes()),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = place.name,
+                    style = Typography.body1SB,
+                    color = Colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = place.roadAddress.ifEmpty { place.address },
+                    style = Typography.caption1R,
+                    color = Colors.textTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            val bookmarkRes = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke
+            Image(
+                painter = painterResource(bookmarkRes),
+                contentDescription = if (isBookmarked) "저장 취소" else "저장",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClick = onBookmark),
+            )
+        }
+        if (showsDivider) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Colors.borderWeak),
+            )
         }
     }
 }

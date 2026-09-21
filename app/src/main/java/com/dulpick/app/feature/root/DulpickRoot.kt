@@ -47,8 +47,7 @@ import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
-import com.dulpick.app.domain.place.Place
-import com.dulpick.app.feature.placedetail.MapDetailArg
+import com.dulpick.app.feature.placedetail.MapSearchReturnArg
 import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -178,13 +177,17 @@ private fun DulpickNavHost(
 // 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
 private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     composable(RootRoute.MAIN.route) { entry ->
-        // 지도 검색(push)에서 결과 탭 시 이 자리로 상세 대상(Place JSON)을 되돌려준다. 지도가 읽어 상세 시트를 띄운다
-        val pendingDetailJson by entry.savedStateHandle
-            .getStateFlow<String?>(KEY_MAP_DETAIL, null)
+        // 지도 검색(push)에서 결과를 이 자리로 되돌려준다. 지도가 읽어 검색 결과 모드에 들어간다
+        val pendingSearchJson by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_MAP_SEARCH, null)
             .collectAsStateWithLifecycle()
         MainTabScreen(
-            pendingMapDetailArg = pendingDetailJson,
-            onMapDetailConsumed = { entry.savedStateHandle[KEY_MAP_DETAIL] = null },
+            pendingMapSearchArg = pendingSearchJson,
+            onMapSearchConsumed = { entry.savedStateHandle[KEY_MAP_SEARCH] = null },
+            // 검색 결과 모드에서 검색바 뒤로 → 같은 검색어로 지도 검색을 다시 연다
+            onReopenMapSearch = { query ->
+                navController.navigate("$MAIN_MAP_SEARCH_ROUTE?query=${Uri.encode(query)}")
+            },
             // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
             onLoggedOut = {
                 navController.navigate(RootRoute.AUTH.route) {
@@ -318,35 +321,47 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
     }
 }
 
-// 지도 전용 장소 검색(push). 결과 탭 시 검색을 pop 하고 지도(MAIN)로 상세 대상을 되돌려준다
+// 지도 전용 장소 검색(push). 결과 제출/행탭 시 검색을 pop 하고 지도(MAIN)를 검색 결과 모드로 만든다.
+// query 를 넘기면(검색바 뒤로로 재진입) 그 검색어로 곧장 검색해 결과를 복원한다
 private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     composable(
-        route = MAIN_MAP_SEARCH_ROUTE,
+        route = "$MAIN_MAP_SEARCH_ROUTE?query={$ARG_MAP_SEARCH_QUERY}",
+        arguments = listOf(
+            navArgument(ARG_MAP_SEARCH_QUERY) {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
+        ),
         enterTransition = { slideInHorizontally { it } },
         exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
-    ) {
+    ) { entry ->
         MapSearchScreen(
+            initialQuery = entry.arguments?.getString(ARG_MAP_SEARCH_QUERY),
             onBack = { navController.popBackStack() },
-            // TODO: 검색 결과 전체의 지도 반영(핀)은 다음 단계에서 배선한다
-            onSearchConfirmed = { _, _ -> navController.popBackStack() },
-            // 검색 결과 탭 → pop + 지도로 상세 대상 전달 (iOS pathChanged([]) + presentDetail 대응)
+            // 검색 제출 → 전체 결과를 지도 검색 결과 모드로 (iOS searchConfirmed 대응)
+            onSearchConfirmed = { query, places ->
+                navController.returnSearchResult(MapSearchReturnArg.confirming(query, places))
+            },
+            // 결과 행 탭 → 그 장소만 남기고 상세를 연다 (iOS placeSelected 대응)
             onPlaceSelected = { query, place ->
-                navController.previousBackStackEntry?.savedStateHandle?.set(KEY_MAP_DETAIL, detailArgJson(place, query))
-                navController.popBackStack()
+                navController.returnSearchResult(MapSearchReturnArg.selecting(place, query))
             },
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
 }
 
-// 지도 검색 결과 탭 → 지도(MAIN)로 상세 대상을 되돌려줄 때 쓰는 savedStateHandle 키
-private const val KEY_MAP_DETAIL = "map_detail"
+// 검색 결과를 MAIN 의 savedStateHandle 로 되돌리고 검색 화면을 pop 한다
+private fun NavHostController.returnSearchResult(arg: MapSearchReturnArg) {
+    previousBackStackEntry?.savedStateHandle?.set(KEY_MAP_SEARCH, arg.encode())
+    popBackStack()
+}
 
-// 상세 대상을 place+query JSON 으로 인코딩(savedStateHandle 로 전달)
-private fun detailArgJson(place: Place, query: String): String =
-    MapDetailArg.of(place, query).encode()
+// 지도 검색 결과 → 지도(MAIN)로 되돌려줄 때 쓰는 savedStateHandle 키
+private const val KEY_MAP_SEARCH = "map_search"
 
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
@@ -354,6 +369,8 @@ private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 private const val MAIN_SEARCH_ROUTE = "main/search"
 private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
+// 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
+private const val ARG_MAP_SEARCH_QUERY = "query"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다

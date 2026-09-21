@@ -39,9 +39,11 @@ import com.dulpick.app.ui.theme.Typography
 fun MainTabScreen(
     onLoggedOut: () -> Unit,
     actions: MainTabActions,
-    // 지도 검색에서 되돌아온 상세 대상(JSON). 지도 탭이 읽어 상세 시트를 띄운다
-    pendingMapDetailArg: String? = null,
-    onMapDetailConsumed: () -> Unit = {},
+    // 지도 검색에서 되돌아온 검색 결과(JSON). 지도 탭이 읽어 검색 결과 모드에 들어간다
+    pendingMapSearchArg: String? = null,
+    onMapSearchConsumed: () -> Unit = {},
+    // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 지도 검색을 다시 연다
+    onReopenMapSearch: (String) -> Unit = {},
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
@@ -121,8 +123,9 @@ fun MainTabScreen(
                         MainTab.MAP -> MapScreen(
                             onSessionExpired = onLoggedOut,
                             onOpenSearch = actions.onOpenMapSearch,
-                            pendingDetailArg = pendingMapDetailArg,
-                            onDetailConsumed = onMapDetailConsumed,
+                            pendingSearchArg = pendingMapSearchArg,
+                            onSearchConsumed = onMapSearchConsumed,
+                            onReopenSearch = onReopenMapSearch,
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }

@@ -49,18 +49,42 @@ data class PlaceArg(
     }
 }
 
-// 지도 검색 결과 → 지도로 상세 대상을 되돌려줄 때 쓰는 인자(장소 + 검색어)
+// 지도 검색 화면 → 지도로 검색 결과를 되돌려줄 때 쓰는 인자.
+// 지도는 이걸로 "검색 결과 모드"에 들어간다(iOS searchResult 모드). selectedIndex 가 있으면 그 장소 상세를 바로 연다
 @kotlinx.serialization.Serializable
-data class MapDetailArg(
-    val place: PlaceArg,
-    val query: String,
+data class MapSearchReturnArg(
+    // 원본 검색어. 상세 카카오 조회에 쓴다
+    val searchQuery: String,
+    // 검색바에 표시할 텍스트(장소 선택 시 장소명, 제출 시 검색어)
+    val displayQuery: String,
+    val places: List<PlaceArg>,
+    // non-null 이면 그 장소 상세를 바로 연다(장소 행 탭). null 이면 결과 리스트만(검색 제출)
+    val selectedIndex: Int?,
+    // 반환마다 고유한 값. savedStateHandle 재전달로 같은 결과가 두 번 처리(상세 재오픈)되는 걸 막는 일회성 토큰
+    val nonce: Long,
 ) {
     fun encode(): String = Json.encodeToString(this)
 
     companion object {
-        fun of(place: Place, query: String): MapDetailArg = MapDetailArg(PlaceArg.from(place), query)
+        // 검색 결과에서 장소 하나를 탭 → 그 장소만 리스트에 두고 상세를 연다
+        fun selecting(place: Place, searchQuery: String): MapSearchReturnArg = MapSearchReturnArg(
+            searchQuery = searchQuery,
+            displayQuery = place.name,
+            places = listOf(PlaceArg.from(place)),
+            selectedIndex = 0,
+            nonce = System.nanoTime(),
+        )
 
-        fun decode(raw: String): MapDetailArg? =
-            runCatching { Json.decodeFromString<MapDetailArg>(raw) }.getOrNull()
+        // 검색 제출 → 전체 결과를 리스트로 보여준다(상세 없음)
+        fun confirming(query: String, places: List<Place>): MapSearchReturnArg = MapSearchReturnArg(
+            searchQuery = query,
+            displayQuery = query,
+            places = places.map(PlaceArg::from),
+            selectedIndex = null,
+            nonce = System.nanoTime(),
+        )
+
+        fun decode(raw: String): MapSearchReturnArg? =
+            runCatching { Json.decodeFromString<MapSearchReturnArg>(raw) }.getOrNull()
     }
 }

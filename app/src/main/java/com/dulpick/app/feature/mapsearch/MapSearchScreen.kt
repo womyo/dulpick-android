@@ -59,6 +59,8 @@ fun MapSearchScreen(
     onSearchConfirmed: (query: String, places: List<Place>) -> Unit,
     onPlaceSelected: (query: String, place: Place) -> Unit,
     onSessionExpired: () -> Unit,
+    // 상세에서 뒤로가기로 재진입할 때 넘어온 검색어. 있으면 그 검색어로 곧장 검색해 결과를 복원한다
+    initialQuery: String? = null,
     viewModel: MapSearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -71,7 +73,10 @@ fun MapSearchScreen(
             MapSearchSideEffect.SessionExpired -> onSessionExpired()
         }
     }
-    LaunchedEffect(Unit) { viewModel.onIntent(MapSearchIntent.OnAppear) }
+    LaunchedEffect(Unit) {
+        viewModel.onIntent(MapSearchIntent.OnAppear)
+        if (!initialQuery.isNullOrBlank()) viewModel.onIntent(MapSearchIntent.QueryChanged(initialQuery))
+    }
 
     Column(
         modifier = Modifier

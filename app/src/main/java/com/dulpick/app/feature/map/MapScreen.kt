@@ -82,7 +82,7 @@ import com.kakao.vectormap.label.LabelStyles
 private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
-// 접힘 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
+// 접힘(기본) 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
 // 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
@@ -220,14 +220,15 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState) {
     }
 }
 
-// 아래로 드래그해도 닫히지 않는 시트 상태. 접힘/펼침 두 단계만 오가고 Hidden 으로는 안 간다.
-// skipHiddenState 만으로는 세게 드래그하면 사라지므로 confirmValueChange 로 Hidden 을 거부한다
+// 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
+// 절대 사라지지 않는다. Hidden 앵커는 살려 아래 움직임을 허용하고(skipHiddenState=false),
+// confirmValueChange 로 Hidden 안착만 거부해 복귀시킨다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun rememberNonDismissibleScaffoldState() = rememberBottomSheetScaffoldState(
     bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
-        skipHiddenState = true,
+        skipHiddenState = false,
         confirmValueChange = { it != SheetValue.Hidden },
     ),
 )

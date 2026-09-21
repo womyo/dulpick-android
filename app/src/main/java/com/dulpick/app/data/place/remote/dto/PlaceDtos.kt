@@ -22,6 +22,14 @@ data class PlaceSearchItemDto(
     val imageUrls: List<String> = emptyList(),
 )
 
+// 장소 저장 요청 (POST /api/v1/places) (iOS PlaceSaveRequestDTO 대응)
+@Serializable
+data class PlaceSaveRequestDto(
+    val kakaoPlaceId: String,
+    val query: String,
+    val alias: String? = null,
+)
+
 // 별칭 수정 요청 (PATCH /api/v1/places/{id}/alias)
 @Serializable
 data class PlaceAliasRequestDto(

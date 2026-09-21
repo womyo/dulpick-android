@@ -31,6 +31,14 @@ class PlaceRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun savePlace(kakaoPlaceId: String, query: String, alias: String?): SavedPlace {
+        try {
+            return PlaceDtoMapper.toSavedPlace(placeRemote.savePlace(kakaoPlaceId, query, alias))
+        } catch (error: Throwable) {
+            throw PlaceErrorMapper.map(error)
+        }
+    }
+
     override suspend fun removePlace(placeId: Long) {
         try {
             placeRemote.removePlace(placeId)

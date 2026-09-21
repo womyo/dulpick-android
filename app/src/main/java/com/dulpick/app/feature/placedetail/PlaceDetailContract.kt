@@ -24,9 +24,9 @@ data class PlaceDetailState(
 ) : UiState {
     val title: String get() = detail?.place?.name.orEmpty()
 
-    // 서버 ID 가 있어야 게시물을 부른다. 있고, 결과가 있거나 로딩·실패면 섹션을 보인다(0건이면 숨김)
+    // 서버가 아는 장소여야 게시물을 부른다. 있고, 결과가 있거나 로딩·실패면 섹션을 보인다(0건이면 숨김)
     val showsRelatedSection: Boolean
-        get() = detail?.place?.id?.toLongOrNull() != null &&
+        get() = detail?.serverPlaceId != null &&
             (contents.isNotEmpty() || contentsLoad != ContentsLoad.LOADED)
 }
 

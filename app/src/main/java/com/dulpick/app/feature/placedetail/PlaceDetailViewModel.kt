@@ -72,9 +72,10 @@ class PlaceDetailViewModel @Inject constructor(
                         bookmarkCount = detail.savedMemberCount,
                     )
                 }
-                // 서버 ID 가 있으면 저장 목록의 삭제 경로에 쓰고, 관련 게시물도 이어서 부른다
-                serverPlaceId = detail.place.id.toLongOrNull()
-                savedServerId = serverPlaceId?.toString()
+                // 서버가 아는 장소일 때만(응답 placeId 존재) 삭제 경로·게시물 조회에 서버 ID 를 쓴다.
+                // 미저장 검색 장소는 placeId 가 없어 게시물 섹션을 숨긴다 (iOS serverPlaceID 대응)
+                serverPlaceId = detail.serverPlaceId
+                savedServerId = detail.serverPlaceId?.toString()
                 if (serverPlaceId != null) loadContents()
             } catch (error: CancellationException) {
                 throw error

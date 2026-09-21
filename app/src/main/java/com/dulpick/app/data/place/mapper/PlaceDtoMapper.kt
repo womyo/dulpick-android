@@ -32,6 +32,8 @@ object PlaceDtoMapper {
             roadAddress = dto.roadAddress.orEmpty(),
             coordinate = Coordinate(dto.latitude ?: 0.0, dto.longitude ?: 0.0),
         ),
+        // 서버가 준 placeId 그대로. 미저장 장소는 null → 게시물·삭제에서 서버 ID 로 쓰지 않는다
+        serverPlaceId = dto.placeId,
         savedByMe = dto.savedByMe,
         savedMemberCount = dto.savedMemberCount,
         ownership = dto.ownershipStatus?.let(::ownership),

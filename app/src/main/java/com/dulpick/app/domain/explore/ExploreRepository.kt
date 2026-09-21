@@ -7,4 +7,7 @@ interface ExploreRepository {
 
     // 태그/검색어로 게시물 검색 (페이지네이션)
     suspend fun searchContents(query: String, page: Int, size: Int): ContentPage
+
+    // 특정 장소와 관련된 게시물 (장소 상세, 페이지네이션)
+    suspend fun placeContents(placeId: Long, page: Int, size: Int): ContentPage
 }

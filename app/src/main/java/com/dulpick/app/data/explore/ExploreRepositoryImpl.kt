@@ -28,4 +28,12 @@ class ExploreRepositoryImpl @Inject constructor(
             throw ExploreErrorMapper.map(error)
         }
     }
+
+    override suspend fun placeContents(placeId: Long, page: Int, size: Int): ContentPage {
+        try {
+            return ContentDtoMapper.toDomain(exploreRemote.placeContents(placeId, page, size))
+        } catch (error: Throwable) {
+            throw ExploreErrorMapper.map(error)
+        }
+    }
 }

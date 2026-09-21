@@ -49,6 +49,7 @@ import com.dulpick.app.feature.map.component.CATEGORY_ORDER
 import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
 import com.dulpick.app.feature.map.component.FilterDropdown
+import com.dulpick.app.feature.map.component.MapSearchBar
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
@@ -79,6 +80,7 @@ private data class MapToast(val message: String, val isError: Boolean)
 @Composable
 fun MapScreen(
     onSessionExpired: () -> Unit,
+    onOpenSearch: () -> Unit,
     viewModel: MapViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -120,15 +122,23 @@ fun MapScreen(
                         kakaoMap = map
                     },
                 )
-                // 지도 위에 떠 있는 카테고리 칩바
-                CategoryChipBar(
-                    selected = state.selectedCategory,
-                    onSelect = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                // 지도 위 상단 컨트롤: 검색바 + 카테고리 칩바
+                Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .statusBarsPadding()
                         .padding(top = 8.dp),
-                )
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    MapSearchBar(
+                        onTap = onOpenSearch,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+                    CategoryChipBar(
+                        selected = state.selectedCategory,
+                        onSelect = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                    )
+                }
             }
         }
 

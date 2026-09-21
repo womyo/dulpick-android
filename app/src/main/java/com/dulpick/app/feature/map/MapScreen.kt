@@ -86,6 +86,8 @@ private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 private const val RENDER_MAX_TRIES = 10
 private const val RENDER_VERIFY_MS = 300L
 private const val CAMERA_EPSILON = 1e-4
+// 선택 마커가 카테고리 배지(기본 rank 0) 위에 항상 오도록 하는 rank (iOS selected rank 1 대응)
+private const val SELECTED_MARKER_RANK = 1L
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
 // 접힘(기본) 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
@@ -554,14 +556,17 @@ private fun renderPins(context: Context, map: KakaoMap, pins: List<MapPin>, sele
         )
     }
 
-    // 선택 마커는 기존 핀 위에 마지막으로 얹는다. 아래 뾰족한 끝이 좌표를 가리키도록 하단 중앙 앵커 (iOS selected 대응)
+    // 선택 마커는 기존 핀 위에 얹는다. 아래 뾰족한 끝이 좌표를 가리키도록 하단 중앙 앵커,
+    // rank 를 배지(기본 0)보다 높여 항상 배지 위에 그려진다 (iOS selected rank 대응)
     if (selected != null) {
         val bitmap = drawableToBitmap(context, R.drawable.map_pin_selected)
         val styles = manager.addLabelStyles(
             LabelStyles.from(LabelStyle.from(bitmap).setAnchorPoint(0.5f, 1.0f)),
         )
         layer.addLabel(
-            LabelOptions.from(LatLng.from(selected.latitude, selected.longitude)).setStyles(styles),
+            LabelOptions.from(LatLng.from(selected.latitude, selected.longitude))
+                .setStyles(styles)
+                .setRank(SELECTED_MARKER_RANK),
         )
     }
 }

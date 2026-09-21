@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
+import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
@@ -19,6 +20,8 @@ data class MapState(
     val selectedCategory: PlaceCategory? = null,
     // null 이 아니면 별칭 편집 시트를 띄운다
     val aliasEdit: AliasEdit? = null,
+    // null 이 아니면 지도 위 저장목록 시트 대신 이 장소의 상세 시트를 띄운다 (iOS mode=.content 대응)
+    val detail: DetailTarget? = null,
 ) : UiState {
     // 지도 핀과 시트 목록이 함께 보는 하나의 배열. 소유자·카테고리 필터를 적용한다
     val filteredPlaces: List<SavedPlace>
@@ -32,6 +35,13 @@ data class MapState(
     // 다 불러온 뒤 보일 게 없다(필터 결과 포함)
     val isEmpty: Boolean get() = !isLoading && filteredPlaces.isEmpty()
 }
+
+// 지도 위에 띄우는 장소 상세 대상. 검색 결과는 카카오+검색어, 저장/핀 장소는 서버 placeId 로 조회한다
+data class DetailTarget(
+    val place: Place,
+    val query: String,
+    val serverPlaceId: Long?,
+)
 
 // 별칭 편집 시트 상태 (iOS PlaceAliasFeature.State 대응)
 data class AliasEdit(
@@ -56,6 +66,11 @@ sealed interface MapIntent : UiIntent {
     data class EditClicked(val id: String) : MapIntent
     data class AliasSaveClicked(val alias: String) : MapIntent
     data object AliasEditDismissed : MapIntent
+    // 검색 결과 등에서 넘어온 상세 대상. 저장목록 시트 대신 상세 시트를 띄운다
+    data class OpenDetail(val target: DetailTarget) : MapIntent
+    // 저장 장소 목록 행/핀 탭 → 서버 placeId 로 상세
+    data class OpenSavedDetail(val place: SavedPlace) : MapIntent
+    data object CloseDetail : MapIntent
 }
 
 sealed interface MapSideEffect : UiSideEffect {

@@ -49,8 +49,18 @@ data class PlaceArg(
     }
 }
 
-// nav 인자로 실어 나르기 위한 JSON 인코딩. 라우트 쿼리 값으로 들어가므로 호출부에서 URL 인코딩한다
-fun Place.toDetailArg(): String = Json.encodeToString(PlaceArg.from(this))
+// 지도 검색 결과 → 지도로 상세 대상을 되돌려줄 때 쓰는 인자(장소 + 검색어)
+@kotlinx.serialization.Serializable
+data class MapDetailArg(
+    val place: PlaceArg,
+    val query: String,
+) {
+    fun encode(): String = Json.encodeToString(this)
 
-fun decodePlaceArg(raw: String): Place? =
-    runCatching { Json.decodeFromString<PlaceArg>(raw).toPlace() }.getOrNull()
+    companion object {
+        fun of(place: Place, query: String): MapDetailArg = MapDetailArg(PlaceArg.from(place), query)
+
+        fun decode(raw: String): MapDetailArg? =
+            runCatching { Json.decodeFromString<MapDetailArg>(raw) }.getOrNull()
+    }
+}

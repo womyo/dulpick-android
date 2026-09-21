@@ -6,6 +6,7 @@ import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.explore.Content
 import com.dulpick.app.domain.place.Place
 
+
 // 관련 게시물 로드 상태
 enum class ContentsLoad { LOADING, LOADED, FAILED }
 
@@ -39,7 +40,8 @@ data class PlaceDetailState(
 }
 
 sealed interface PlaceDetailIntent : UiIntent {
-    data object OnAppear : PlaceDetailIntent
+    // 진입 시 넘겨받은 장소로 초기화. serverPlaceId 가 있으면(저장/게시글 장소) 서버 조회, 없으면 카카오+검색어
+    data class Start(val place: Place, val query: String, val serverPlaceId: Long?) : PlaceDetailIntent
     data object AddressToggled : PlaceDetailIntent
     data object MapClicked : PlaceDetailIntent
     data object CloseClicked : PlaceDetailIntent

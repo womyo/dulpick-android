@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,18 +14,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,24 +50,27 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.ContentCard
-import com.dulpick.app.ui.component.ContentCardSkeleton
+import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
-private val PHOTO_SIZE = 140.dp
+private val PHOTO_SIZE = 160.dp
 
-// 장소 상세 화면. 검색 결과 등에서 push 되어 뒤로가면 이전 목록으로 돌아온다.
-// 4c: 조회·헤더·주소·지도 버튼·사진. 관련 게시물·북마크는 다음 단계
+// 장소 상세 시트 내용. 지도 위 바텀시트로 얹힌다 (iOS PlaceDetailView 대응).
+// 넘겨받은 장소(target)로 즉시 그리고, 상세 API 는 부가정보만 덧입힌다. target 별로 VM 을 새로 만든다
 @Composable
-fun PlaceDetailScreen(
+fun PlaceDetailSheet(
+    target: Place,
+    query: String,
+    serverPlaceId: Long?,
     onClose: () -> Unit,
     onSessionExpired: () -> Unit,
-    viewModel: PlaceDetailViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier,
+    viewModel: PlaceDetailViewModel = hiltViewModel(key = "detail-${target.id}"),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    BackHandler { onClose() }
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             PlaceDetailSideEffect.Close -> onClose()
@@ -80,20 +80,13 @@ fun PlaceDetailScreen(
             is PlaceDetailSideEffect.OpenContent -> Unit
         }
     }
-    LaunchedEffect(Unit) { viewModel.onIntent(PlaceDetailIntent.OnAppear) }
+    LaunchedEffect(target.id) {
+        viewModel.onIntent(PlaceDetailIntent.Start(target, query, serverPlaceId))
+    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Colors.commonWhite)
-            .statusBarsPadding(),
-    ) {
-        val place = state.place
-        if (place == null) {
-            CenteredLoading(Modifier.fillMaxSize())
-        } else {
-            DetailContent(place = place, state = state, onIntent = viewModel::onIntent)
-        }
+    val place = state.place ?: target
+    Column(modifier = modifier.fillMaxWidth().background(Colors.commonWhite)) {
+        DetailContent(place = place, state = state, onIntent = viewModel::onIntent)
     }
 }
 
@@ -108,7 +101,8 @@ private fun DetailContent(place: Place, state: PlaceDetailState, onIntent: (Plac
             onIntent = onIntent,
         )
         if (place.thumbnailUrls.isNotEmpty()) {
-            PhotoStrip(urls = place.thumbnailUrls, modifier = Modifier.padding(bottom = 12.dp))
+            // 지도 버튼과 사진 사이 16 (iOS PlacePhotoStrip 상단 패딩), 사진 아래 12
+            PhotoStrip(urls = place.thumbnailUrls, modifier = Modifier.padding(top = 16.dp, bottom = 12.dp))
         }
         // 사진 줄이 없으면 주소 위에 20 만큼 띄운다 (iOS 동일)
         val addressTop = if (place.thumbnailUrls.isEmpty()) 20.dp else 0.dp
@@ -149,7 +143,7 @@ private fun ContentsGrid(state: PlaceDetailState, onIntent: (PlaceDetailIntent) 
     // 스크롤은 바깥 Column 이 맡는다. 여기선 2열로 직접 배치한다(LazyGrid 중첩 회피)
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         state.contents.chunked(2).forEach { rowItems ->
-            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 rowItems.forEach { content ->
                     ContentCard(
                         content = content,
@@ -172,16 +166,26 @@ private fun ContentsGrid(state: PlaceDetailState, onIntent: (PlaceDetailIntent) 
     }
 }
 
+// iOS contentsSkeleton 대응. 카드 네 장 자리를 3:4 쉬머 블록으로만 채운다(제목 줄 없이)
 @Composable
 private fun ContentsSkeleton() {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         repeat(2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                ContentCardSkeleton(modifier = Modifier.weight(1f))
-                ContentCardSkeleton(modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ContentsSkeletonCell(modifier = Modifier.weight(1f))
+                ContentsSkeletonCell(modifier = Modifier.weight(1f))
             }
         }
     }
+}
+
+@Composable
+private fun ContentsSkeletonCell(modifier: Modifier = Modifier) {
+    ShimmerBox(
+        modifier = modifier
+            .aspectRatio(3f / 4f)
+            .clip(RoundedCornerShape(8.dp)),
+    )
 }
 
 @Composable
@@ -214,7 +218,7 @@ private fun MoreButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier
         style = Typography.caption1M,
         color = Colors.textSecondary,
         modifier = modifier
-            .width(80.dp)
+            .width(66.dp)
             .height(32.dp)
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, Colors.gray200, RoundedCornerShape(8.dp))
@@ -235,7 +239,7 @@ private fun Header(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 20.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -285,12 +289,14 @@ private fun HeaderIcon(res: Int, description: String, onClick: () -> Unit) {
 @Composable
 private fun MapButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val contentColor = if (enabled) Colors.textSecondary else Colors.textDisabled
+    val borderColor = if (enabled) Colors.gray200 else Colors.gray100
     Row(
         modifier = modifier
-            .width(64.dp)
+            .width(75.dp)
             .height(32.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Colors.commonWhite)
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .then(
                 Modifier.clickable(enabled = enabled, onClick = onClick),
             )
@@ -315,7 +321,7 @@ private fun PhotoStrip(urls: List<String>, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         urls.forEach { url ->
             AsyncImage(
@@ -371,13 +377,6 @@ private fun AddressRow(
                 modifier = Modifier.padding(start = 28.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun CenteredLoading(modifier: Modifier = Modifier) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Colors.primaryPink)
     }
 }
 

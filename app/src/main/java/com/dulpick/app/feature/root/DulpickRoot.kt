@@ -48,11 +48,7 @@ import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
 import com.dulpick.app.domain.place.Place
-import com.dulpick.app.feature.placedetail.ARG_DETAIL_PLACE
-import com.dulpick.app.feature.placedetail.ARG_DETAIL_PLACE_ID
-import com.dulpick.app.feature.placedetail.ARG_DETAIL_QUERY
-import com.dulpick.app.feature.placedetail.PlaceDetailScreen
-import com.dulpick.app.feature.placedetail.toDetailArg
+import com.dulpick.app.feature.placedetail.MapDetailArg
 import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -181,8 +177,14 @@ private fun DulpickNavHost(
 
 // 로그인 후: 메인 탭 + 탭 밖 전체화면 상세(연결 관리·데이트 유형) 라우트
 private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
-    composable(RootRoute.MAIN.route) {
+    composable(RootRoute.MAIN.route) { entry ->
+        // 지도 검색(push)에서 결과 탭 시 이 자리로 상세 대상(Place JSON)을 되돌려준다. 지도가 읽어 상세 시트를 띄운다
+        val pendingDetailJson by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_MAP_DETAIL, null)
+            .collectAsStateWithLifecycle()
         MainTabScreen(
+            pendingMapDetailArg = pendingDetailJson,
+            onMapDetailConsumed = { entry.savedStateHandle[KEY_MAP_DETAIL] = null },
             // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
             onLoggedOut = {
                 navController.navigate(RootRoute.AUTH.route) {
@@ -221,25 +223,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
-    composable(
-        route = MAIN_MAP_SEARCH_ROUTE,
-        enterTransition = { slideInHorizontally { it } },
-        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
-        popExitTransition = { slideOutHorizontally { it } },
-    ) {
-        MapSearchScreen(
-            onBack = { navController.popBackStack() },
-            // TODO: 검색 결과 전체의 지도 반영(핀·시트)은 다음 단계에서 배선한다
-            onSearchConfirmed = { _, _ -> navController.popBackStack() },
-            // 검색 결과 탭 → 장소 상세(장소 통째로 전달 + 검색어). 뒤로가면 검색 리스트로 돌아온다
-            onPlaceSelected = { query, place ->
-                navController.navigate(searchPlaceDetailRoute(place, query))
-            },
-            onSessionExpired = { navController.navigateToAuth() },
-        )
-    }
-    placeDetailRoute(navController)
+    mapSearchRoute(navController)
     coupleConnectRoute(navController)
     composable(
         route = MAIN_CONNECTION_ROUTE,
@@ -334,36 +318,35 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
     }
 }
 
-// 장소 상세 (여러 진입점 공용: 검색·저장장소·핀·홈). 장소를 통째로 넘겨 상세 API 실패해도 그 값으로 그린다.
-// 검색은 검색어로 카카오 조회, 저장/게시글 장소는 서버 placeId 로 조회한다
-private fun NavGraphBuilder.placeDetailRoute(navController: NavHostController) {
+// 지도 전용 장소 검색(push). 결과 탭 시 검색을 pop 하고 지도(MAIN)로 상세 대상을 되돌려준다
+private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_PLACE_DETAIL_ROUTE?" +
-            "$ARG_DETAIL_PLACE={$ARG_DETAIL_PLACE}" +
-            "&$ARG_DETAIL_PLACE_ID={$ARG_DETAIL_PLACE_ID}" +
-            "&$ARG_DETAIL_QUERY={$ARG_DETAIL_QUERY}",
-        arguments = listOf(
-            navArgument(ARG_DETAIL_PLACE) { type = NavType.StringType; defaultValue = "" },
-            navArgument(ARG_DETAIL_PLACE_ID) { type = NavType.LongType; defaultValue = 0L },
-            navArgument(ARG_DETAIL_QUERY) { type = NavType.StringType; defaultValue = "" },
-        ),
+        route = MAIN_MAP_SEARCH_ROUTE,
         enterTransition = { slideInHorizontally { it } },
         exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
     ) {
-        PlaceDetailScreen(
-            onClose = { navController.popBackStack() },
+        MapSearchScreen(
+            onBack = { navController.popBackStack() },
+            // TODO: 검색 결과 전체의 지도 반영(핀)은 다음 단계에서 배선한다
+            onSearchConfirmed = { _, _ -> navController.popBackStack() },
+            // 검색 결과 탭 → pop + 지도로 상세 대상 전달 (iOS pathChanged([]) + presentDetail 대응)
+            onPlaceSelected = { query, place ->
+                navController.previousBackStackEntry?.savedStateHandle?.set(KEY_MAP_DETAIL, detailArgJson(place, query))
+                navController.popBackStack()
+            },
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
 }
 
-// 검색 결과(장소 통째로 + 검색어)로 장소 상세를 여는 경로
-private fun searchPlaceDetailRoute(place: Place, query: String): String {
-    val placeArg = Uri.encode(place.toDetailArg())
-    return "$MAIN_PLACE_DETAIL_ROUTE?$ARG_DETAIL_PLACE=$placeArg&$ARG_DETAIL_QUERY=${Uri.encode(query)}"
-}
+// 지도 검색 결과 탭 → 지도(MAIN)로 상세 대상을 되돌려줄 때 쓰는 savedStateHandle 키
+private const val KEY_MAP_DETAIL = "map_detail"
+
+// 상세 대상을 place+query JSON 으로 인코딩(savedStateHandle 로 전달)
+private fun detailArgJson(place: Place, query: String): String =
+    MapDetailArg.of(place, query).encode()
 
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
@@ -372,7 +355,6 @@ private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 private const val MAIN_SEARCH_ROUTE = "main/search"
 private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
-private const val MAIN_PLACE_DETAIL_ROUTE = "main/place-detail"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
 private const val ARG_COUPLE_ORIGIN = "origin"

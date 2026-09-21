@@ -30,7 +30,16 @@ class MapViewModel @Inject constructor(
             is MapIntent.EditClicked -> openAliasEdit(intent.id)
             is MapIntent.AliasSaveClicked -> saveAlias(intent.alias)
             MapIntent.AliasEditDismissed -> setState { copy(aliasEdit = null) }
+            is MapIntent.OpenDetail -> setState { copy(detail = intent.target) }
+            is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
+            MapIntent.CloseDetail -> setState { copy(detail = null) }
         }
+    }
+
+    // 저장 장소는 서버 placeId 로 조회한다(검색어 불필요)
+    private fun openSavedDetail(place: SavedPlace) {
+        val serverPlaceId = place.place.id.toLongOrNull()
+        setState { copy(detail = DetailTarget(place.place, query = "", serverPlaceId = serverPlaceId)) }
     }
 
     // 별칭 편집 시트를 연다. 초기값은 기존 별칭 없으면 장소명 (iOS PlaceAliasFeature.init 대응)

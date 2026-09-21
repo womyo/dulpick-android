@@ -1,6 +1,5 @@
 package com.dulpick.app.feature.placedetail
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
@@ -17,24 +16,17 @@ import javax.inject.Inject
 
 private const val CONTENTS_PAGE_SIZE = 4
 
-// nav 인자: place 는 진입 시 넘겨받는 장소(JSON). 검색은 kakaoId+검색어로, 저장/게시글 장소는 서버 placeId 로 조회
-const val ARG_DETAIL_PLACE = "place"
-const val ARG_DETAIL_PLACE_ID = "placeId"
-const val ARG_DETAIL_QUERY = "query"
-
 @HiltViewModel
 @Suppress("TooGenericExceptionCaught")
 class PlaceDetailViewModel @Inject constructor(
     private val placeRepository: PlaceRepository,
     private val exploreRepository: ExploreRepository,
-    savedStateHandle: SavedStateHandle,
 ) : MviViewModel<PlaceDetailState, PlaceDetailIntent, PlaceDetailSideEffect>(PlaceDetailState()) {
 
-    // 진입 시 넘겨받은 장소. 상세 API 가 실패해도 이 값으로 화면을 그린다 (iOS init(place:) 대응)
-    private val initialPlace: Place? =
-        savedStateHandle.get<String>(ARG_DETAIL_PLACE)?.let(::decodePlaceArg)
-    private val placeIdArg: Long = savedStateHandle.get<Long>(ARG_DETAIL_PLACE_ID) ?: 0L
-    private val query: String = savedStateHandle.get<String>(ARG_DETAIL_QUERY).orEmpty()
+    // 진입 시 넘겨받은 장소·소스. Start 로 세팅한다 (iOS init(place:) 대응)
+    private var initialPlace: Place? = null
+    private var placeIdArg: Long = 0L
+    private var query: String = ""
 
     private var started = false
     private var contentsPage = 0
@@ -42,24 +34,9 @@ class PlaceDetailViewModel @Inject constructor(
     private var bookmarkToggled = false
     private var bookmarkJob: Job? = null
 
-    init {
-        // 넘겨받은 장소가 있으면 즉시 그린다. 서버 ID 를 알면(저장/게시글 진입) 게시물 조회에도 쓴다
-        if (initialPlace != null) {
-            savedServerId = placeIdArg.takeIf { it > 0 }?.toString()
-            setState {
-                copy(
-                    place = initialPlace,
-                    isLoading = false,
-                    serverPlaceId = placeIdArg.takeIf { it > 0 },
-                    bookmarkCount = initialPlace.bookmarkCount,
-                )
-            }
-        }
-    }
-
     override fun onIntent(intent: PlaceDetailIntent) {
         when (intent) {
-            PlaceDetailIntent.OnAppear -> load()
+            is PlaceDetailIntent.Start -> start(intent.place, intent.query, intent.serverPlaceId)
             PlaceDetailIntent.AddressToggled -> setState { copy(isAddressExpanded = !isAddressExpanded) }
             PlaceDetailIntent.MapClicked -> openKakaoMap()
             PlaceDetailIntent.CloseClicked -> postSideEffect(PlaceDetailSideEffect.Close)
@@ -70,9 +47,26 @@ class PlaceDetailViewModel @Inject constructor(
         }
     }
 
-    private fun load() {
+    // 넘겨받은 장소로 즉시 그린 뒤 상세 API 로 부가정보를 덧입힌다
+    private fun start(place: Place, query: String, serverPlaceId: Long?) {
         if (started) return
         started = true
+        initialPlace = place
+        this.query = query
+        placeIdArg = serverPlaceId ?: 0L
+        savedServerId = serverPlaceId?.takeIf { it > 0 }?.toString()
+        setState {
+            copy(
+                place = place,
+                isLoading = false,
+                serverPlaceId = serverPlaceId?.takeIf { it > 0 },
+                bookmarkCount = place.bookmarkCount,
+            )
+        }
+        load()
+    }
+
+    private fun load() {
         viewModelScope.launch {
             val detail = try {
                 if (placeIdArg > 0) placeRepository.placeDetail(placeIdArg)

@@ -67,8 +67,9 @@ import com.kakao.vectormap.label.LabelStyles
 // 지도 탭. 저장 장소를 지도에 핀으로 찍고, 아래 바텀시트에 목록으로 보여준다 (iOS MapView 대응)
 private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 private const val DEFAULT_ZOOM_LEVEL = 15
-private const val SHEET_PEEK_FRACTION = 0.5f
-private const val SHEET_EXPANDED_FRACTION = 0.9f
+// 접힘 높이 = 화면 높이의 45% (iOS collapsedScreenRatio 0.45). 펼침은 거의 전체
+private const val SHEET_PEEK_FRACTION = 0.45f
+private const val SHEET_EXPANDED_FRACTION = 0.92f
 private val SHEET_CORNER_RADIUS = 32.dp
 
 // 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다

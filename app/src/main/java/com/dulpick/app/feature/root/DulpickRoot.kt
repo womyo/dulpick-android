@@ -47,10 +47,12 @@ import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
-import com.dulpick.app.feature.placedetail.ARG_DETAIL_KAKAO_ID
+import com.dulpick.app.domain.place.Place
+import com.dulpick.app.feature.placedetail.ARG_DETAIL_PLACE
 import com.dulpick.app.feature.placedetail.ARG_DETAIL_PLACE_ID
 import com.dulpick.app.feature.placedetail.ARG_DETAIL_QUERY
 import com.dulpick.app.feature.placedetail.PlaceDetailScreen
+import com.dulpick.app.feature.placedetail.toDetailArg
 import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -230,9 +232,9 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             // TODO: 검색 결과 전체의 지도 반영(핀·시트)은 다음 단계에서 배선한다
             onSearchConfirmed = { _, _ -> navController.popBackStack() },
-            // 검색 결과 탭 → 장소 상세(카카오 ID + 검색어). 뒤로가면 검색 리스트로 돌아온다
+            // 검색 결과 탭 → 장소 상세(장소 통째로 전달 + 검색어). 뒤로가면 검색 리스트로 돌아온다
             onPlaceSelected = { query, place ->
-                navController.navigate(kakaoPlaceDetailRoute(place.kakaoPlaceId.orEmpty(), query))
+                navController.navigate(searchPlaceDetailRoute(place, query))
             },
             onSessionExpired = { navController.navigateToAuth() },
         )
@@ -332,16 +334,17 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
     }
 }
 
-// 장소 상세 (여러 진입점 공용: 검색·저장장소·핀·홈). 서버 placeId 또는 카카오 ID+검색어로 조회한다
+// 장소 상세 (여러 진입점 공용: 검색·저장장소·핀·홈). 장소를 통째로 넘겨 상세 API 실패해도 그 값으로 그린다.
+// 검색은 검색어로 카카오 조회, 저장/게시글 장소는 서버 placeId 로 조회한다
 private fun NavGraphBuilder.placeDetailRoute(navController: NavHostController) {
     composable(
         route = "$MAIN_PLACE_DETAIL_ROUTE?" +
-            "$ARG_DETAIL_PLACE_ID={$ARG_DETAIL_PLACE_ID}" +
-            "&$ARG_DETAIL_KAKAO_ID={$ARG_DETAIL_KAKAO_ID}" +
+            "$ARG_DETAIL_PLACE={$ARG_DETAIL_PLACE}" +
+            "&$ARG_DETAIL_PLACE_ID={$ARG_DETAIL_PLACE_ID}" +
             "&$ARG_DETAIL_QUERY={$ARG_DETAIL_QUERY}",
         arguments = listOf(
+            navArgument(ARG_DETAIL_PLACE) { type = NavType.StringType; defaultValue = "" },
             navArgument(ARG_DETAIL_PLACE_ID) { type = NavType.LongType; defaultValue = 0L },
-            navArgument(ARG_DETAIL_KAKAO_ID) { type = NavType.StringType; defaultValue = "" },
             navArgument(ARG_DETAIL_QUERY) { type = NavType.StringType; defaultValue = "" },
         ),
         enterTransition = { slideInHorizontally { it } },
@@ -356,9 +359,11 @@ private fun NavGraphBuilder.placeDetailRoute(navController: NavHostController) {
     }
 }
 
-// 검색 결과(카카오 ID + 검색어)로 장소 상세를 여는 경로
-private fun kakaoPlaceDetailRoute(kakaoPlaceId: String, query: String): String =
-    "$MAIN_PLACE_DETAIL_ROUTE?$ARG_DETAIL_KAKAO_ID=${Uri.encode(kakaoPlaceId)}&$ARG_DETAIL_QUERY=${Uri.encode(query)}"
+// 검색 결과(장소 통째로 + 검색어)로 장소 상세를 여는 경로
+private fun searchPlaceDetailRoute(place: Place, query: String): String {
+    val placeArg = Uri.encode(place.toDetailArg())
+    return "$MAIN_PLACE_DETAIL_ROUTE?$ARG_DETAIL_PLACE=$placeArg&$ARG_DETAIL_QUERY=${Uri.encode(query)}"
+}
 
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"

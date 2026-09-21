@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
 import com.dulpick.app.domain.explore.ExploreRepository
+import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
@@ -16,9 +17,9 @@ import javax.inject.Inject
 
 private const val CONTENTS_PAGE_SIZE = 4
 
-// nav 인자: 검색 결과는 카카오 ID + 검색어, 저장/게시글 장소는 서버 placeId
+// nav 인자: place 는 진입 시 넘겨받는 장소(JSON). 검색은 kakaoId+검색어로, 저장/게시글 장소는 서버 placeId 로 조회
+const val ARG_DETAIL_PLACE = "place"
 const val ARG_DETAIL_PLACE_ID = "placeId"
-const val ARG_DETAIL_KAKAO_ID = "kakaoPlaceId"
 const val ARG_DETAIL_QUERY = "query"
 
 @HiltViewModel
@@ -29,16 +30,32 @@ class PlaceDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<PlaceDetailState, PlaceDetailIntent, PlaceDetailSideEffect>(PlaceDetailState()) {
 
-    private val placeId: Long = savedStateHandle.get<Long>(ARG_DETAIL_PLACE_ID) ?: 0L
-    private val kakaoPlaceId: String = savedStateHandle.get<String>(ARG_DETAIL_KAKAO_ID).orEmpty()
+    // 진입 시 넘겨받은 장소. 상세 API 가 실패해도 이 값으로 화면을 그린다 (iOS init(place:) 대응)
+    private val initialPlace: Place? =
+        savedStateHandle.get<String>(ARG_DETAIL_PLACE)?.let(::decodePlaceArg)
+    private val placeIdArg: Long = savedStateHandle.get<Long>(ARG_DETAIL_PLACE_ID) ?: 0L
     private val query: String = savedStateHandle.get<String>(ARG_DETAIL_QUERY).orEmpty()
+
     private var started = false
-    // 게시물 조회에 쓰는 서버 장소 ID(있을 때만 게시물이 보인다), 다음 페이지 번호
-    private var serverPlaceId: Long? = null
     private var contentsPage = 0
-    // 저장 응답이 준 서버 placeId. 검색 장소는 place.id 가 kakaoId 라 삭제엔 이걸 쓴다
     private var savedServerId: String? = null
+    private var bookmarkToggled = false
     private var bookmarkJob: Job? = null
+
+    init {
+        // 넘겨받은 장소가 있으면 즉시 그린다. 서버 ID 를 알면(저장/게시글 진입) 게시물 조회에도 쓴다
+        if (initialPlace != null) {
+            savedServerId = placeIdArg.takeIf { it > 0 }?.toString()
+            setState {
+                copy(
+                    place = initialPlace,
+                    isLoading = false,
+                    serverPlaceId = placeIdArg.takeIf { it > 0 },
+                    bookmarkCount = initialPlace.bookmarkCount,
+                )
+            }
+        }
+    }
 
     override fun onIntent(intent: PlaceDetailIntent) {
         when (intent) {
@@ -57,38 +74,43 @@ class PlaceDetailViewModel @Inject constructor(
         if (started) return
         started = true
         viewModelScope.launch {
-            try {
-                val detail = if (placeId > 0) {
-                    placeRepository.placeDetail(placeId)
-                } else {
-                    placeRepository.kakaoPlaceDetail(kakaoPlaceId, query)
-                }
-                setState {
-                    copy(
-                        isLoading = false,
-                        isFailed = false,
-                        detail = detail,
-                        isBookmarked = detail.savedByMe,
-                        bookmarkCount = detail.savedMemberCount,
-                    )
-                }
-                // 서버가 아는 장소일 때만(응답 placeId 존재) 삭제 경로·게시물 조회에 서버 ID 를 쓴다.
-                // 미저장 검색 장소는 placeId 가 없어 게시물 섹션을 숨긴다 (iOS serverPlaceID 대응)
-                serverPlaceId = detail.serverPlaceId
-                savedServerId = detail.serverPlaceId?.toString()
-                if (serverPlaceId != null) loadContents()
+            val detail = try {
+                if (placeIdArg > 0) placeRepository.placeDetail(placeIdArg)
+                else placeRepository.kakaoPlaceDetail(initialPlace?.kakaoPlaceId.orEmpty(), query)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                setState { copy(isLoading = false, isFailed = true) }
+                // iOS 처럼 실패를 사용자에게 알리지 않는다. 넘겨받은 장소로 계속 보여준다.
+                // 서버 ID 를 이미 알면(저장/게시글 진입) 게시물은 그래도 시도한다
                 if (error == PlaceError.Unauthorized) postSideEffect(PlaceDetailSideEffect.SessionExpired)
+                if (initialPlace == null) setState { copy(isLoading = false) }
+                if (currentState.serverPlaceId != null) loadContents()
+                return@launch
             }
+            applyDetail(detail)
         }
+    }
+
+    // 상세 응답으로 장소·부가정보를 덧입힌다. 서버 ID 를 알면 게시물을 잇는다
+    private fun applyDetail(detail: PlaceDetail) {
+        savedServerId = detail.serverPlaceId?.toString() ?: savedServerId
+        setState {
+            copy(
+                place = detail.place,
+                isLoading = false,
+                serverPlaceId = detail.serverPlaceId ?: serverPlaceId,
+                kakaoPlaceUrl = detail.kakaoPlaceUrl,
+                bookmarkCount = detail.savedMemberCount,
+                // 조회 중 북마크를 눌렀으면 응답의 savedByMe 는 낡은 값이라 덮지 않는다
+                isBookmarked = if (bookmarkToggled) isBookmarked else detail.savedByMe,
+            )
+        }
+        if (currentState.serverPlaceId != null) loadContents()
     }
 
     // 관련 게시물 다음 페이지. 로딩 중이면 무시한다
     private fun loadContents() {
-        val id = serverPlaceId ?: return
+        val id = currentState.serverPlaceId ?: return
         if (currentState.contentsLoad == ContentsLoad.LOADING && currentState.contents.isNotEmpty()) return
         setState { copy(contentsLoad = ContentsLoad.LOADING) }
         val page = contentsPage
@@ -107,7 +129,6 @@ class PlaceDetailViewModel @Inject constructor(
                 throw error
             } catch (error: Throwable) {
                 setState { copy(contentsLoad = ContentsLoad.FAILED) }
-                // 게시물 조회는 Explore 계층이라 ExploreError 로 온다
                 if (error == ExploreError.Unauthorized) postSideEffect(PlaceDetailSideEffect.SessionExpired)
             }
         }
@@ -115,12 +136,11 @@ class PlaceDetailViewModel @Inject constructor(
 
     // 저장 버튼. 표시를 먼저 뒤집고 서버를 부른 뒤, 실패하면 되돌린다 (iOS toggleBookmark 대응)
     private fun toggleBookmark() {
-        val detail = currentState.detail ?: return
+        val place = currentState.place ?: return
         val wasBookmarked = currentState.isBookmarked
-        // 저장하려는데 카카오 식별자가 없으면 부를 수 없다
-        if (!wasBookmarked && detail.place.kakaoPlaceId == null) return
+        if (!wasBookmarked && place.kakaoPlaceId == null) return
 
-        // 낙관적으로 표시·카운트를 뒤집는다(0 에서 끄면 음수가 안 되게 막는다)
+        bookmarkToggled = true
         setState {
             copy(
                 isBookmarked = !wasBookmarked,
@@ -130,7 +150,7 @@ class PlaceDetailViewModel @Inject constructor(
         bookmarkJob?.cancel()
         bookmarkJob = viewModelScope.launch {
             try {
-                if (wasBookmarked) removeBookmark(detail) else addBookmark(detail)
+                if (wasBookmarked) removeBookmark(place) else addBookmark(place)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -140,18 +160,17 @@ class PlaceDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun removeBookmark(detail: PlaceDetail) {
+    private suspend fun removeBookmark(place: Place) {
         // 삭제엔 서버 placeId 를 쓴다. 없으면 place.id (검색 장소는 kakaoId 일 수 있음)
-        val removeId = (savedServerId ?: detail.place.id).toLongOrNull() ?: return
+        val removeId = (savedServerId ?: place.id).toLongOrNull() ?: return
         placeRepository.removePlace(removeId)
     }
 
-    private suspend fun addBookmark(detail: PlaceDetail) {
-        val kakaoId = detail.place.kakaoPlaceId ?: return
-        savedServerId = placeRepository.savePlace(kakaoId, detail.place.name, null).place.id
+    private suspend fun addBookmark(place: Place) {
+        val kakaoId = place.kakaoPlaceId ?: return
+        savedServerId = placeRepository.savePlace(kakaoId, place.name, null).place.id
     }
 
-    // 서버 실패 시 표시·카운트를 원래대로 되돌린다
     private fun rollbackBookmark(wasBookmarked: Boolean) {
         setState {
             copy(
@@ -163,14 +182,11 @@ class PlaceDetailViewModel @Inject constructor(
 
     // 카카오맵 앱(kakaomap://) 우선, 없으면 웹. 웹은 서버가 준 kakaoPlaceUrl 이 먼저 (iOS 로직 대응)
     private fun openKakaoMap() {
-        val detail = currentState.detail ?: return
-        val appUri = detail.place.kakaoPlaceId?.let { "kakaomap://place?id=$it" }
-        val webUrl = detail.kakaoPlaceUrl
-            ?: detail.place.kakaoPlaceId?.let { "https://place.map.kakao.com/$it" }
+        val place = currentState.place ?: return
+        val appUri = place.kakaoPlaceId?.let { "kakaomap://place?id=$it" }
+        val webUrl = currentState.kakaoPlaceUrl
+            ?: place.kakaoPlaceId?.let { "https://place.map.kakao.com/$it" }
         if (appUri == null && webUrl == null) return
         postSideEffect(PlaceDetailSideEffect.OpenKakaoMap(appUri, webUrl))
     }
 }
-
-// 앱/웹 어느 쪽이든 열 곳이 있는지 (지도 버튼 활성 판단)
-fun PlaceDetail.canOpenKakaoMap(): Boolean = place.kakaoPlaceId != null || kakaoPlaceUrl != null

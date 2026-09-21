@@ -47,7 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
-import com.dulpick.app.domain.place.PlaceDetail
+import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
@@ -88,31 +88,32 @@ fun PlaceDetailScreen(
             .background(Colors.commonWhite)
             .statusBarsPadding(),
     ) {
-        when {
-            state.isLoading -> CenteredLoading(Modifier.fillMaxSize())
-            state.detail != null -> DetailContent(state = state, onIntent = viewModel::onIntent)
-            else -> FailedContent(onClose = { viewModel.onIntent(PlaceDetailIntent.CloseClicked) })
+        val place = state.place
+        if (place == null) {
+            CenteredLoading(Modifier.fillMaxSize())
+        } else {
+            DetailContent(place = place, state = state, onIntent = viewModel::onIntent)
         }
     }
 }
 
 @Composable
-private fun DetailContent(state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
-    val detail = state.detail ?: return
+private fun DetailContent(place: Place, state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         Header(
-            detail = detail,
+            place = place,
+            canOpenMap = state.canOpenKakaoMap,
             isBookmarked = state.isBookmarked,
             bookmarkCount = state.bookmarkCount,
             onIntent = onIntent,
         )
-        if (detail.place.thumbnailUrls.isNotEmpty()) {
-            PhotoStrip(urls = detail.place.thumbnailUrls, modifier = Modifier.padding(bottom = 12.dp))
+        if (place.thumbnailUrls.isNotEmpty()) {
+            PhotoStrip(urls = place.thumbnailUrls, modifier = Modifier.padding(bottom = 12.dp))
         }
         // 사진 줄이 없으면 주소 위에 20 만큼 띄운다 (iOS 동일)
-        val addressTop = if (detail.place.thumbnailUrls.isEmpty()) 20.dp else 0.dp
+        val addressTop = if (place.thumbnailUrls.isEmpty()) 20.dp else 0.dp
         AddressRow(
-            detail = detail,
+            place = place,
             isExpanded = state.isAddressExpanded,
             onToggle = { onIntent(PlaceDetailIntent.AddressToggled) },
             modifier = Modifier.padding(top = addressTop, bottom = 16.dp),
@@ -224,7 +225,8 @@ private fun MoreButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier
 
 @Composable
 private fun Header(
-    detail: PlaceDetail,
+    place: Place,
+    canOpenMap: Boolean,
     isBookmarked: Boolean,
     bookmarkCount: Int,
     onIntent: (PlaceDetailIntent) -> Unit,
@@ -237,8 +239,8 @@ private fun Header(
             verticalAlignment = Alignment.Top,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = detail.place.name, style = Typography.title3SB, color = Colors.textPrimary)
-                Subtitle(category = detail.place.category, bookmarkCount = bookmarkCount)
+                Text(text = place.name, style = Typography.title3SB, color = Colors.textPrimary)
+                Subtitle(category = place.category, bookmarkCount = bookmarkCount)
             }
             HeaderIcon(
                 res = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
@@ -248,7 +250,7 @@ private fun Header(
             HeaderIcon(res = R.drawable.x, description = "닫기", onClick = { onIntent(PlaceDetailIntent.CloseClicked) })
         }
         MapButton(
-            enabled = detail.canOpenKakaoMap(),
+            enabled = canOpenMap,
             onClick = { onIntent(PlaceDetailIntent.MapClicked) },
             modifier = Modifier.padding(start = 20.dp),
         )
@@ -331,7 +333,7 @@ private fun PhotoStrip(urls: List<String>, modifier: Modifier = Modifier) {
 
 @Composable
 private fun AddressRow(
-    detail: PlaceDetail,
+    place: Place,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
@@ -349,7 +351,7 @@ private fun AddressRow(
                 modifier = Modifier.size(20.dp),
             )
             Text(
-                text = detail.place.roadAddress,
+                text = place.roadAddress,
                 style = Typography.body2M,
                 color = Colors.textSecondary,
                 modifier = Modifier.weight(1f, fill = false),
@@ -363,30 +365,12 @@ private fun AddressRow(
         }
         if (isExpanded) {
             Text(
-                text = "[지번] ${detail.place.address}",
+                text = "[지번] ${place.address}",
                 style = Typography.caption1R,
                 color = Colors.textTertiary,
                 modifier = Modifier.padding(start = 28.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun FailedContent(onClose: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(text = "장소를 불러오지 못했어요", style = Typography.title3SB, color = Colors.textPrimary)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "닫기",
-            style = Typography.body1SB,
-            color = Colors.textTertiary,
-            modifier = Modifier.clickable(onClick = onClose),
-        )
     }
 }
 

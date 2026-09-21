@@ -2,6 +2,7 @@ package com.dulpick.app.data.place
 
 import com.dulpick.app.data.explore.mapper.ExploreErrorMapper
 import com.dulpick.app.data.place.mapper.PlaceDtoMapper
+import com.dulpick.app.data.place.mapper.PlaceErrorMapper
 import com.dulpick.app.data.place.remote.PlaceRemoteDataSource
 import com.dulpick.app.domain.place.PlacePage
 import com.dulpick.app.domain.place.PlaceRepository
@@ -26,7 +27,7 @@ class PlaceRepositoryImpl @Inject constructor(
         try {
             return PlaceDtoMapper.toSavedPlaces(placeRemote.savedPlaces())
         } catch (error: Throwable) {
-            throw ExploreErrorMapper.map(error)
+            throw PlaceErrorMapper.map(error)
         }
     }
 
@@ -34,7 +35,8 @@ class PlaceRepositoryImpl @Inject constructor(
         try {
             placeRemote.removePlace(placeId)
         } catch (error: Throwable) {
-            throw ExploreErrorMapper.map(error)
+            // 상대가 저장한 장소 등은 서버가 404 → NotFound 로 구분한다
+            throw PlaceErrorMapper.map(error)
         }
     }
 
@@ -42,7 +44,7 @@ class PlaceRepositoryImpl @Inject constructor(
         try {
             return PlaceDtoMapper.toSavedPlace(placeRemote.updateAlias(placeId, alias))
         } catch (error: Throwable) {
-            throw ExploreErrorMapper.map(error)
+            throw PlaceErrorMapper.map(error)
         }
     }
 }

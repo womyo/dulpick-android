@@ -2,12 +2,10 @@ package com.dulpick.app.data.search
 
 import com.dulpick.app.data.search.local.RecentSearchLocalDataSource
 import com.dulpick.app.domain.search.RecentSearchRepository
-import javax.inject.Inject
-import javax.inject.Singleton
 
-// 최근 검색어 정책만 담당한다. 저장/조회 I/O 는 LocalDataSource 에 위임한다
-@Singleton
-class RecentSearchRepositoryImpl @Inject constructor(
+// 최근 검색어 정책만 담당한다. 저장/조회 I/O 는 LocalDataSource 에 위임한다.
+// 저장소는 DI 에서 용도별(탐색·지도)로 다른 파일을 주입한다
+class RecentSearchRepositoryImpl(
     private val local: RecentSearchLocalDataSource,
 ) : RecentSearchRepository {
 

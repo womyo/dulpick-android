@@ -5,6 +5,7 @@ import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
 import com.dulpick.app.domain.explore.ExploreRepository
 import com.dulpick.app.domain.place.PlaceRepository
+import com.dulpick.app.di.ExploreRecentSearch
 import com.dulpick.app.domain.search.RecentSearchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -21,7 +22,7 @@ private const val DEBOUNCE_MS = 300L
 class SearchViewModel @Inject constructor(
     private val exploreRepository: ExploreRepository,
     private val placeRepository: PlaceRepository,
-    private val recentSearchRepository: RecentSearchRepository,
+    @ExploreRecentSearch private val recentSearchRepository: RecentSearchRepository,
 ) : MviViewModel<SearchState, SearchIntent, SearchSideEffect>(SearchState()) {
 
     private var debounceJob: Job? = null

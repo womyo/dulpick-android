@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -47,6 +49,11 @@ import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceCategory
+import com.dulpick.app.ui.component.AppButton
+import com.dulpick.app.ui.component.AppButtonSize
+import com.dulpick.app.ui.component.AppButtonVariant
+import com.dulpick.app.ui.component.ContentCard
+import com.dulpick.app.ui.component.ContentCardSkeleton
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -69,6 +76,8 @@ fun PlaceDetailScreen(
             PlaceDetailSideEffect.Close -> onClose()
             PlaceDetailSideEffect.SessionExpired -> onSessionExpired()
             is PlaceDetailSideEffect.OpenKakaoMap -> context.openKakaoMap(effect.appUri, effect.webUrl)
+            // TODO: 게시물 상세는 게시물 상세 화면 구현 시 연결한다
+            is PlaceDetailSideEffect.OpenContent -> Unit
         }
     }
     LaunchedEffect(Unit) { viewModel.onIntent(PlaceDetailIntent.OnAppear) }
@@ -81,22 +90,15 @@ fun PlaceDetailScreen(
     ) {
         when {
             state.isLoading -> CenteredLoading(Modifier.fillMaxSize())
-            state.detail != null -> DetailContent(
-                detail = state.detail!!,
-                isAddressExpanded = state.isAddressExpanded,
-                onIntent = viewModel::onIntent,
-            )
+            state.detail != null -> DetailContent(state = state, onIntent = viewModel::onIntent)
             else -> FailedContent(onClose = { viewModel.onIntent(PlaceDetailIntent.CloseClicked) })
         }
     }
 }
 
 @Composable
-private fun DetailContent(
-    detail: PlaceDetail,
-    isAddressExpanded: Boolean,
-    onIntent: (PlaceDetailIntent) -> Unit,
-) {
+private fun DetailContent(state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
+    val detail = state.detail ?: return
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         Header(detail = detail, onIntent = onIntent)
         if (detail.place.thumbnailUrls.isNotEmpty()) {
@@ -106,12 +108,113 @@ private fun DetailContent(
         val addressTop = if (detail.place.thumbnailUrls.isEmpty()) 20.dp else 0.dp
         AddressRow(
             detail = detail,
-            isExpanded = isAddressExpanded,
+            isExpanded = state.isAddressExpanded,
             onToggle = { onIntent(PlaceDetailIntent.AddressToggled) },
             modifier = Modifier.padding(top = addressTop, bottom = 16.dp),
         )
+        if (state.showsRelatedSection) {
+            RelatedContentsSection(state = state, onIntent = onIntent)
+        }
         Spacer(modifier = Modifier.height(32.dp))
     }
+}
+
+@Composable
+private fun RelatedContentsSection(state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
+        Text(
+            text = "장소와 관련된 게시물",
+            style = Typography.headline,
+            color = Colors.textPrimary,
+            modifier = Modifier.padding(bottom = 16.dp),
+        )
+        when {
+            state.contents.isNotEmpty() -> ContentsGrid(state = state, onIntent = onIntent)
+            state.contentsLoad == ContentsLoad.LOADING -> ContentsSkeleton()
+            state.contentsLoad == ContentsLoad.FAILED ->
+                ContentsFailure(onRetry = { onIntent(PlaceDetailIntent.RetryContentsClicked) })
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun ContentsGrid(state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
+    // 스크롤은 바깥 Column 이 맡는다. 여기선 2열로 직접 배치한다(LazyGrid 중첩 회피)
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        state.contents.chunked(2).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                rowItems.forEach { content ->
+                    ContentCard(
+                        content = content,
+                        onClick = { onIntent(PlaceDetailIntent.ContentClicked(content.id)) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+        if (state.hasNextContents) {
+            MoreButton(
+                enabled = state.contentsLoad != ContentsLoad.LOADING,
+                onClick = { onIntent(PlaceDetailIntent.MoreContentsClicked) },
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContentsSkeleton() {
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        repeat(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                ContentCardSkeleton(modifier = Modifier.weight(1f))
+                ContentCardSkeleton(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContentsFailure(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Image(
+            painter = painterResource(R.drawable.placeempty),
+            contentDescription = null,
+            modifier = Modifier.size(120.dp),
+        )
+        Text(text = "게시물을 불러오지 못했어요", style = Typography.headline, color = Colors.textPrimary)
+        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body2M, color = Colors.textTertiary)
+        AppButton(
+            text = "다시 시도",
+            onClick = onRetry,
+            variant = AppButtonVariant.OUTLINED,
+            size = AppButtonSize.MD,
+        )
+    }
+}
+
+@Composable
+private fun MoreButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Text(
+        text = "더보기",
+        style = Typography.caption1M,
+        color = Colors.textSecondary,
+        modifier = modifier
+            .width(80.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, Colors.gray200, RoundedCornerShape(8.dp))
+            .then(Modifier.clickable(enabled = enabled, onClick = onClick))
+            .wrapContentSize(),
+    )
 }
 
 @Composable

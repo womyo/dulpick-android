@@ -25,9 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,9 +82,10 @@ import com.kakao.vectormap.label.LabelStyles
 private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
-// 접힘 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위). 펼침은 거의 전체
+// 접힘 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
+// 펼침은 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
-private const val SHEET_EXPANDED_FRACTION = 0.92f
+private const val SHEET_EXPANDED_FRACTION = 0.72f
 private val SHEET_CORNER_RADIUS = 32.dp
 // 상세 시트는 저장목록보다 낮게 편다. 펼쳐도 검색바 아래에 머물러 지도가 넉넉히 보인다(iOS belowSearchBar)
 private const val SHEET_DETAIL_EXPANDED_FRACTION = 0.75f
@@ -139,7 +142,7 @@ fun MapScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         BottomSheetScaffold(
-            scaffoldState = rememberBottomSheetScaffoldState(),
+            scaffoldState = rememberNonDismissibleScaffoldState(),
             sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
             sheetContainerColor = Colors.commonWhite,
             // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
@@ -218,6 +221,16 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState) {
         )
     }
 }
+
+// 아래로 드래그해도 닫히지 않는 시트 상태. skipHiddenState=true 라 접힘/펼침 두 단계만 오간다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun rememberNonDismissibleScaffoldState() = rememberBottomSheetScaffoldState(
+    bottomSheetState = rememberStandardBottomSheetState(
+        initialValue = SheetValue.PartiallyExpanded,
+        skipHiddenState = true,
+    ),
+)
 
 // 검색 화면에서 되돌아온 결과(JSON)를 한 번만 처리한다.
 // savedStateHandle 은 상태라 재전달될 수 있어 nonce 로 같은 결과를 걸러낸다(방어)

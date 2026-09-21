@@ -17,6 +17,8 @@ data class MapState(
     val selectedOwnership: PlaceOwnership = PlaceOwnership.TOGETHER,
     // null 이면 전체 카테고리
     val selectedCategory: PlaceCategory? = null,
+    // null 이 아니면 별칭 편집 시트를 띄운다
+    val aliasEdit: AliasEdit? = null,
 ) : UiState {
     // 지도 핀과 시트 목록이 함께 보는 하나의 배열. 소유자·카테고리 필터를 적용한다
     val filteredPlaces: List<SavedPlace>
@@ -31,12 +33,29 @@ data class MapState(
     val isEmpty: Boolean get() = !isLoading && filteredPlaces.isEmpty()
 }
 
+// 별칭 편집 시트 상태 (iOS PlaceAliasFeature.State 대응)
+data class AliasEdit(
+    val placeId: String,
+    val placeName: String,
+    val address: String,
+    val initialAlias: String,
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
+) {
+    companion object {
+        const val MAX_ALIAS_LENGTH = 15
+    }
+}
+
 sealed interface MapIntent : UiIntent {
     data object OnAppear : MapIntent
     data class OwnershipSelected(val ownership: PlaceOwnership) : MapIntent
     // null 이면 전체
     data class CategorySelected(val category: PlaceCategory?) : MapIntent
     data class DeleteClicked(val id: String) : MapIntent
+    data class EditClicked(val id: String) : MapIntent
+    data class AliasSaveClicked(val alias: String) : MapIntent
+    data object AliasEditDismissed : MapIntent
 }
 
 sealed interface MapSideEffect : UiSideEffect {

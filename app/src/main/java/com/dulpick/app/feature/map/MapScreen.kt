@@ -20,8 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
 import com.dulpick.app.feature.map.component.FilterDropdown
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
+import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.feature.map.component.displayName
 import com.dulpick.app.ui.component.AppToast
@@ -103,8 +106,6 @@ fun MapScreen(
                 MapSheetContent(
                     state = state,
                     onIntent = viewModel::onIntent,
-                    // TODO: 별칭 편집 화면은 다음 단계에서 연결한다
-                    onEditPlace = {},
                     height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
                 )
             },
@@ -138,6 +139,22 @@ fun MapScreen(
         )
     }
 
+    state.aliasEdit?.let { edit ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.onIntent(MapIntent.AliasEditDismissed) },
+            sheetState = sheetState,
+            containerColor = Colors.commonWhite,
+            // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 회색으로 뜨므로 끈다
+            tonalElevation = 0.dp,
+        ) {
+            PlaceAliasSheet(
+                edit = edit,
+                onSave = { viewModel.onIntent(MapIntent.AliasSaveClicked(it)) },
+            )
+        }
+    }
+
     // 지도 준비/필터 변경 시 라벨 레이어를 다시 그린다
     LaunchedEffect(kakaoMap, state.filteredPlaces) {
         renderPlacePins(context, kakaoMap ?: return@LaunchedEffect, state.filteredPlaces)
@@ -148,7 +165,6 @@ fun MapScreen(
 private fun MapSheetContent(
     state: MapState,
     onIntent: (MapIntent) -> Unit,
-    onEditPlace: (String) -> Unit,
     height: Dp,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
@@ -188,7 +204,7 @@ private fun MapSheetContent(
                 items(state.filteredPlaces, key = { it.id }) { place ->
                     PlaceListRow(
                         place = place,
-                        onEditClick = { onEditPlace(place.id) },
+                        onEditClick = { onIntent(MapIntent.EditClicked(place.id)) },
                         onDeleteClick = { onIntent(MapIntent.DeleteClicked(place.id)) },
                         onClick = {},
                     )

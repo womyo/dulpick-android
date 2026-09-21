@@ -3,7 +3,7 @@ package com.dulpick.app.feature.map
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
-import com.dulpick.app.domain.explore.ExploreError
+import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
 import com.dulpick.app.domain.place.SavedPlace
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +27,66 @@ class MapViewModel @Inject constructor(
             is MapIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
             is MapIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
             is MapIntent.DeleteClicked -> delete(intent.id)
+            is MapIntent.EditClicked -> openAliasEdit(intent.id)
+            is MapIntent.AliasSaveClicked -> saveAlias(intent.alias)
+            MapIntent.AliasEditDismissed -> setState { copy(aliasEdit = null) }
+        }
+    }
+
+    // 별칭 편집 시트를 연다. 초기값은 기존 별칭 없으면 장소명 (iOS PlaceAliasFeature.init 대응)
+    private fun openAliasEdit(id: String) {
+        val place = currentState.places.firstOrNull { it.id == id } ?: return
+        setState {
+            copy(
+                aliasEdit = AliasEdit(
+                    placeId = place.place.id,
+                    placeName = place.place.name,
+                    address = place.place.roadAddress,
+                    initialAlias = place.alias ?: place.place.name,
+                ),
+            )
+        }
+    }
+
+    // 별칭 저장. 성공하면 목록 원소를 갈아 끼우고 시트를 닫으며 토스트, 실패하면 시트에 문구를 띄운다
+    private fun saveAlias(alias: String) {
+        val edit = currentState.aliasEdit ?: return
+        val trimmed = alias.trim()
+        if (trimmed.isEmpty() || edit.isSaving) return
+        val placeId = edit.placeId.toLongOrNull() ?: run {
+            setState { copy(aliasEdit = aliasEdit?.copy(errorMessage = "저장한 장소가 아니에요")) }
+            return
+        }
+        setState { copy(aliasEdit = aliasEdit?.copy(isSaving = true, errorMessage = null)) }
+        viewModelScope.launch {
+            try {
+                val saved = placeRepository.updateAlias(placeId, trimmed)
+                setState {
+                    copy(
+                        aliasEdit = null,
+                        places = places.map { if (it.id == saved.id) saved else it },
+                    )
+                }
+                postSideEffect(MapSideEffect.ShowToast("별칭을 저장했어요", isError = false))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                handleAliasFailure(error)
+            }
+        }
+    }
+
+    // iOS PlaceAliasFeature 대응: 401 은 세션 만료, 404 는 저장 대상 아님, 그 외는 재시도 안내
+    private fun handleAliasFailure(error: Throwable) {
+        when (error) {
+            PlaceError.Unauthorized -> {
+                setState { copy(aliasEdit = null) }
+                postSideEffect(MapSideEffect.SessionExpired)
+            }
+            PlaceError.NotFound ->
+                setState { copy(aliasEdit = aliasEdit?.copy(isSaving = false, errorMessage = "저장한 장소가 아니에요")) }
+            else ->
+                setState { copy(aliasEdit = aliasEdit?.copy(isSaving = false, errorMessage = "잠시 뒤 다시 시도해주세요")) }
         }
     }
 
@@ -46,7 +106,7 @@ class MapViewModel @Inject constructor(
                 throw error
             } catch (error: Throwable) {
                 rollbackDelete(id)
-                if (error == ExploreError.Unauthorized) {
+                if (error == PlaceError.Unauthorized) {
                     postSideEffect(MapSideEffect.SessionExpired)
                 } else {
                     postSideEffect(MapSideEffect.ShowToast("저장을 취소하지 못했어요", isError = true))
@@ -81,7 +141,7 @@ class MapViewModel @Inject constructor(
                 throw error
             } catch (error: Throwable) {
                 setState { copy(isLoading = false) }
-                if (error == ExploreError.Unauthorized) postSideEffect(MapSideEffect.SessionExpired)
+                if (error == PlaceError.Unauthorized) postSideEffect(MapSideEffect.SessionExpired)
             }
         }
     }

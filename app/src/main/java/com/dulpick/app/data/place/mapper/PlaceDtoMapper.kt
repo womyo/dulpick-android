@@ -50,6 +50,8 @@ object PlaceDtoMapper {
             bookmarkCount = 0,
             thumbnailUrls = dto.imageUrls,
             kakaoPlaceId = dto.kakaoPlaceId,
+            address = dto.address,
+            roadAddress = dto.roadAddress.orEmpty(),
             coordinate = Coordinate(dto.latitude, dto.longitude),
         )
 

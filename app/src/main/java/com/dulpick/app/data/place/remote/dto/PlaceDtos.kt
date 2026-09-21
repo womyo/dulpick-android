@@ -14,11 +14,14 @@ data class PlaceSearchItemDto(
     val placeId: Long? = null,
     val kakaoPlaceId: String? = null,
     val name: String = "",
+    val address: String = "",
+    val roadAddress: String? = null,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     // 검색 응답엔 ASCII 코드가 실려 온다. 한글 이름보다 이쪽을 먼저 본다
     val categoryCode: String? = null,
     val categoryName: String = "",
+    val thumbnailUrl: String? = null,
     val imageUrls: List<String> = emptyList(),
 )
 

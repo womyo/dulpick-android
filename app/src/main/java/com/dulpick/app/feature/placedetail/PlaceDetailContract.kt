@@ -18,6 +18,9 @@ data class PlaceDetailState(
     val contents: List<Content> = emptyList(),
     val hasNextContents: Boolean = true,
     val contentsLoad: ContentsLoad = ContentsLoad.LOADING,
+    // 상세 응답의 savedByMe 를 토글로 덮어쓰는 표시값. 헤더 북마크 아이콘·카운트가 이걸 본다
+    val isBookmarked: Boolean = false,
+    val bookmarkCount: Int = 0,
 ) : UiState {
     val title: String get() = detail?.place?.name.orEmpty()
 
@@ -35,6 +38,7 @@ sealed interface PlaceDetailIntent : UiIntent {
     data object MoreContentsClicked : PlaceDetailIntent
     data object RetryContentsClicked : PlaceDetailIntent
     data class ContentClicked(val id: String) : PlaceDetailIntent
+    data object BookmarkClicked : PlaceDetailIntent
 }
 
 sealed interface PlaceDetailSideEffect : UiSideEffect {

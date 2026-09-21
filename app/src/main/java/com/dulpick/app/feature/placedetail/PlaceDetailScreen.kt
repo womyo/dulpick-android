@@ -100,7 +100,12 @@ fun PlaceDetailScreen(
 private fun DetailContent(state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
     val detail = state.detail ?: return
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        Header(detail = detail, onIntent = onIntent)
+        Header(
+            detail = detail,
+            isBookmarked = state.isBookmarked,
+            bookmarkCount = state.bookmarkCount,
+            onIntent = onIntent,
+        )
         if (detail.place.thumbnailUrls.isNotEmpty()) {
             PhotoStrip(urls = detail.place.thumbnailUrls, modifier = Modifier.padding(bottom = 12.dp))
         }
@@ -218,7 +223,12 @@ private fun MoreButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier
 }
 
 @Composable
-private fun Header(detail: PlaceDetail, onIntent: (PlaceDetailIntent) -> Unit) {
+private fun Header(
+    detail: PlaceDetail,
+    isBookmarked: Boolean,
+    bookmarkCount: Int,
+    onIntent: (PlaceDetailIntent) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier
@@ -228,13 +238,12 @@ private fun Header(detail: PlaceDetail, onIntent: (PlaceDetailIntent) -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = detail.place.name, style = Typography.title3SB, color = Colors.textPrimary)
-                Subtitle(detail = detail)
+                Subtitle(category = detail.place.category, bookmarkCount = bookmarkCount)
             }
-            // 북마크는 다음 단계. 지금은 표시만
             HeaderIcon(
-                res = if (detail.savedByMe) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
+                res = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
                 description = "저장",
-                onClick = {},
+                onClick = { onIntent(PlaceDetailIntent.BookmarkClicked) },
             )
             HeaderIcon(res = R.drawable.x, description = "닫기", onClick = { onIntent(PlaceDetailIntent.CloseClicked) })
         }
@@ -247,13 +256,13 @@ private fun Header(detail: PlaceDetail, onIntent: (PlaceDetailIntent) -> Unit) {
 }
 
 @Composable
-private fun Subtitle(detail: PlaceDetail) {
+private fun Subtitle(category: PlaceCategory, bookmarkCount: Int) {
     val text = buildAnnotatedString {
         withStyle(SpanStyle(color = Colors.textTertiary)) {
-            append("${detail.place.category.categoryName()} · 저장한 사람 ")
+            append("${category.categoryName()} · 저장한 사람 ")
         }
         withStyle(SpanStyle(color = Colors.brandPrimary)) {
-            append("${detail.savedMemberCount}")
+            append("$bookmarkCount")
         }
     }
     Text(text = text, style = Typography.body2M)

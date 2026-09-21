@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -48,7 +49,6 @@ import androidx.core.content.ContextCompat
 import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
@@ -77,9 +77,15 @@ import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
+import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 // 지도 탭. 저장 장소를 지도에 핀으로 찍고, 아래 바텀시트에 목록으로 보여준다 (iOS MapView 대응)
 private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
+// 카메라 도달 검증 재시도. 엔진 재개 직후엔 명령이 유실될 수 있어 앉을 때까지 다시 보낸다
+private const val RENDER_MAX_TRIES = 10
+private const val RENDER_VERIFY_MS = 300L
+private const val CAMERA_EPSILON = 1e-4
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
 // 접힘(기본) 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
@@ -94,6 +100,10 @@ private data class MapToast(val message: String, val isError: Boolean)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
+    // 탭 컨테이너가 상시 들고 있는 지도. 이 화면은 그 위에 시트·검색바 오버레이만 그린다
+    kakaoMap: KakaoMap?,
+    // 렌더링 재개 신호. pause 중에 그린 카메라·핀은 프레임을 못 잡아, 재개될 때마다 다시 그린다
+    mapRevision: Int = 0,
     onSessionExpired: () -> Unit,
     onOpenSearch: () -> Unit,
     // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
@@ -108,7 +118,6 @@ fun MapScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
 
@@ -149,6 +158,8 @@ fun MapScreen(
             scaffoldState = rememberNonDismissibleScaffoldState(),
             sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
             sheetContainerColor = Colors.commonWhite,
+            // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
+            containerColor = Color.Transparent,
             // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
             sheetTonalElevation = 0.dp,
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
@@ -175,7 +186,6 @@ fun MapScreen(
                     onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
                     onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
                 ),
-                onMapReady = { kakaoMap = it },
             )
         }
 
@@ -203,27 +213,44 @@ fun MapScreen(
         }
     }
 
-    // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다. 지도 준비·저장목록·검색결과·상세 변경마다 다시 그린다
-    LaunchedEffect(kakaoMap, state.filteredPlaces, state.searchResult, state.detail) {
-        renderMap(context, kakaoMap ?: return@LaunchedEffect, state)
+    // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다.
+    // 지도 준비·재개(mapRevision)·저장목록·검색결과·상세 변경마다 다시 그린다
+    LaunchedEffect(kakaoMap, mapRevision, state.filteredPlaces, state.searchResult, state.detail) {
+        renderMapUntilSettled(context, kakaoMap ?: return@LaunchedEffect, state)
     }
 }
 
-// 상세면 그 장소 하나, 검색결과면 결과 장소들, 아니면 저장 장소 전체를 찍고 첫 장소로 카메라를 맞춘다
-private fun renderMap(context: Context, map: KakaoMap, state: MapState) {
+// 엔진 준비·재개 직후에는 카메라·라벨 명령이 유실될 수 있다(카메라가 기본 위치에 남아 빈 지역만 보임).
+// 카메라가 목표에 앉은 걸 확인할 때까지 재시도한다
+private suspend fun renderMapUntilSettled(context: Context, map: KakaoMap, state: MapState) {
+    repeat(RENDER_MAX_TRIES) {
+        val target = renderMap(context, map, state)
+        delay(RENDER_VERIFY_MS)
+        val pos = map.cameraPosition?.position
+        val arrived = pos != null &&
+            abs(pos.latitude - target.latitude) < CAMERA_EPSILON &&
+            abs(pos.longitude - target.longitude) < CAMERA_EPSILON
+        if (arrived) return
+    }
+}
+
+// 기본 핀(검색결과면 결과 장소들, 아니면 저장 장소 전체)은 상세가 열려도 지우지 않고,
+// 상세가 열린 장소 위에 선택 마커만 얹는다(iOS markers 대응). 카메라는 상세면 그 장소, 아니면 첫 핀.
+// 목표 좌표를 되돌려 호출부가 도달을 검증한다
+private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng {
     val detail = state.detail
     val searchResult = state.searchResult
-    val pins = when {
-        detail != null -> listOf(MapPin(detail.place.coordinate, detail.place.category))
-        searchResult != null -> searchResult.places.map { MapPin(it.coordinate, it.category) }
-        else -> state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
+    val basePins = if (searchResult != null) {
+        searchResult.places.map { MapPin(it.coordinate, it.category) }
+    } else {
+        state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
     }
-    renderPins(context, map, pins)
-    pins.firstOrNull()?.coordinate?.let { first ->
-        map.moveCamera(
-            CameraUpdateFactory.newCenterPosition(LatLng.from(first.latitude, first.longitude), DEFAULT_ZOOM_LEVEL),
-        )
-    }
+    renderPins(context, map, basePins, selected = detail?.place?.coordinate)
+    // 카메라: 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
+    val focus = detail?.place?.coordinate ?: basePins.firstOrNull()?.coordinate
+    val center = focus?.let { LatLng.from(it.latitude, it.longitude) } ?: SEOUL_CITY_HALL
+    map.moveCamera(CameraUpdateFactory.newCenterPosition(center, DEFAULT_ZOOM_LEVEL))
+    return center
 }
 
 // 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
@@ -309,23 +336,15 @@ private fun MapSheet(
     }
 }
 
-// 지도 + 상단 컨트롤(검색바·카테고리 칩바). 시트 뒤 전체를 채운다.
+// 상단 컨트롤(검색바·카테고리 칩바) 오버레이. 지도는 탭 컨테이너가 아래층에 그린다.
 // 검색 결과 모드(searchQuery != null)면 검색바가 [뒤로][검색어 X]로 바뀌고 카테고리 칩은 감춘다
 @Composable
 private fun MapBody(
     searchQuery: String?,
     selectedCategory: PlaceCategory?,
     actions: MapTopBarActions,
-    onMapReady: (KakaoMap) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        KakaoMapView(
-            modifier = Modifier.fillMaxSize(),
-            onMapReady = { map ->
-                map.moveCamera(CameraUpdateFactory.newCenterPosition(SEOUL_CITY_HALL, DEFAULT_ZOOM_LEVEL))
-                onMapReady(map)
-            },
-        )
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -512,23 +531,37 @@ private fun MapEmptyState(hasNoSavedPlace: Boolean, modifier: Modifier = Modifie
 // 지도에 찍을 핀 하나. 좌표와 카테고리(아이콘)만 있으면 된다
 private data class MapPin(val coordinate: Coordinate, val category: PlaceCategory)
 
-// 핀 목록을 카테고리 아이콘으로 찍는다. 카메라 이동은 호출부가 맡는다.
+// 카테고리 핀을 찍고, selected 좌표가 있으면 그 위에 선택 마커(빨강 물방울)를 얹는다. 카메라는 호출부가 맡는다.
 // 카테고리 아이콘은 벡터라 카카오 라벨이 못 그리므로 비트맵으로 래스터화해 스타일로 준다
-private fun renderPins(context: Context, map: KakaoMap, pins: List<MapPin>) {
+private fun renderPins(context: Context, map: KakaoMap, pins: List<MapPin>, selected: Coordinate?) {
     val manager = map.labelManager ?: return
     val layer = manager.layer ?: return
     layer.removeAll()
 
-    // 카테고리별로 스타일을 한 번만 만들어 재사용한다
+    // 카테고리별로 스타일을 한 번만 만들어 재사용한다.
+    // SDK 기본 앵커는 하단 중앙(0.5, 1.0)이라 배지가 좌표 위에 뜬다. iOS 처럼 배지 중심을 좌표에 놓는다
     val stylesByCategory = pins.map { it.category }.distinct().associateWith { category ->
         val bitmap = drawableToBitmap(context, category.pinRes())
-        manager.addLabelStyles(LabelStyles.from(LabelStyle.from(bitmap)))
+        manager.addLabelStyles(
+            LabelStyles.from(LabelStyle.from(bitmap).setAnchorPoint(0.5f, 0.5f)),
+        )
     }
 
     pins.forEach { pin ->
         val styles = stylesByCategory[pin.category] ?: return@forEach
         layer.addLabel(
             LabelOptions.from(LatLng.from(pin.coordinate.latitude, pin.coordinate.longitude)).setStyles(styles),
+        )
+    }
+
+    // 선택 마커는 기존 핀 위에 마지막으로 얹는다. 아래 뾰족한 끝이 좌표를 가리키도록 하단 중앙 앵커 (iOS selected 대응)
+    if (selected != null) {
+        val bitmap = drawableToBitmap(context, R.drawable.map_pin_selected)
+        val styles = manager.addLabelStyles(
+            LabelStyles.from(LabelStyle.from(bitmap).setAnchorPoint(0.5f, 1.0f)),
+        )
+        layer.addLabel(
+            LabelOptions.from(LatLng.from(selected.latitude, selected.longitude)).setStyles(styles),
         )
     }
 }

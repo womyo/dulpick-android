@@ -9,6 +9,7 @@ import com.dulpick.app.domain.course.DateCourseSummary
 import com.dulpick.app.domain.home.DateSchedule
 import com.dulpick.app.domain.home.HomeSummary
 import com.dulpick.app.domain.home.PastDateCoursePage
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 
 object HomeDtoMapper {
@@ -52,10 +53,13 @@ object HomeDtoMapper {
         Place(
             id = dto.placeId.toString(),
             name = dto.name,
-            // 저장 목록엔 code 가 없어 한글 categoryName 으로 매핑한다
-            category = PlaceCategoryMapper.fromName(dto.categoryName),
+            category = PlaceCategoryMapper.fromCodeOrName(dto.category, dto.categoryName),
             bookmarkCount = 0,
             thumbnailUrls = dto.imageUrls,
+            kakaoPlaceId = dto.kakaoPlaceId,
+            address = dto.address,
+            roadAddress = dto.roadAddress.orEmpty(),
+            coordinate = Coordinate(dto.latitude, dto.longitude),
         )
 
     // "2026-08-16" → "26.08.16"

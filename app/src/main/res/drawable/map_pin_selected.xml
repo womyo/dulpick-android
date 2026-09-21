@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="32dp"
+    android:viewportWidth="28"
+    android:viewportHeight="32">
+  <!-- 빨강(brandPrimary) 물방울 + 흰 테두리 -->
+  <path
+      android:pathData="M14,1 C7.373,1 2,6.373 2,13 C2,17.5 5.5,22.5 14,31 C22.5,22.5 26,17.5 26,13 C26,6.373 20.627,1 14,1 Z"
+      android:fillColor="#F6465F"
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="1.5"/>
+  <!-- 머리 중앙 흰 원 -->
+  <path
+      android:pathData="M14,8.5 A4.5,4.5 0 1 0 14,17.5 A4.5,4.5 0 1 0 14,8.5 Z"
+      android:fillColor="#FFFFFF"/>
+</vector>

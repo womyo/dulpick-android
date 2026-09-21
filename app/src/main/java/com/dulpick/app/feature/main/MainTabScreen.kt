@@ -32,9 +32,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.home.HomeScreen
+import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
+import com.kakao.vectormap.KakaoMap
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -65,58 +67,106 @@ fun MainTabScreen(
         }
     }
 
+    // 지도 탭 여부. 지도는 이 값으로 재생/멈춤을 가른다
+    val isMapTab = currentDestination?.hierarchy?.any { it.route == MainTab.MAP.route } == true
+    // 상시 살아 있는 카카오 지도. 파괴 후 재시작이 안 되는 SDK 라 iOS 탭처럼 여기서 계속 들고 있는다
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    // 렌더링 재개 횟수. pause 중에 그린 내용은 프레임을 못 잡아, 재개될 때마다 지도 화면이 다시 그린다
+    var mapRevision by remember { mutableStateOf(0) }
+
     Scaffold(
         containerColor = Colors.bgDefault,
         // 상단(상태바) 인셋은 각 화면이 직접 처리한다. 그래야 화면 배경이 상태바 뒤까지 그려진다
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = { MainBottomBar(currentDestination = currentDestination, onSelect = navigateToTab) },
     ) { innerPadding ->
-        NavHost(
-            navController = tabNavController,
-            startDestination = MainTab.HOME.route,
-            modifier = Modifier.padding(innerPadding),
-            // 탭 전환은 기본 700ms 크로스페이드 대신 즉시 전환한다
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
-        ) {
+        Box(modifier = Modifier.padding(innerPadding)) {
+            // 지도는 NavHost 아래층에 상시 붙어 있다. 지도 탭이 아닐 땐 위 탭 화면(불투명)에 가려진다
+            KakaoMapView(
+                modifier = Modifier.fillMaxSize(),
+                isActive = isMapTab,
+                onMapReady = { kakaoMap = it },
+                onResumed = { mapRevision++ },
+            )
+            MainTabNavHost(
+                tabNavController = tabNavController,
+                kakaoMap = kakaoMap,
+                mapRevision = mapRevision,
+                onLoggedOut = onLoggedOut,
+                actions = actions,
+                navigateToTab = navigateToTab,
+                pendingMapSearchArg = pendingMapSearchArg,
+                onMapSearchConsumed = onMapSearchConsumed,
+                onReopenMapSearch = onReopenMapSearch,
+                pendingMapPlace = pendingMapPlace,
+                onMapPlaceChange = { pendingMapPlace = it },
+            )
+        }
+    }
+}
+
+// 탭별 목적지. 지도 탭은 상시 지도 위에 오버레이(시트·검색바)만 그린다
+@Suppress("LongParameterList")
+@Composable
+private fun MainTabNavHost(
+    tabNavController: androidx.navigation.NavHostController,
+    kakaoMap: KakaoMap?,
+    mapRevision: Int,
+    onLoggedOut: () -> Unit,
+    actions: MainTabActions,
+    navigateToTab: (String) -> Unit,
+    pendingMapSearchArg: String?,
+    onMapSearchConsumed: () -> Unit,
+    onReopenMapSearch: (String) -> Unit,
+    pendingMapPlace: Place?,
+    onMapPlaceChange: (Place?) -> Unit,
+) {
+    NavHost(
+        navController = tabNavController,
+        startDestination = MainTab.HOME.route,
+        // 탭 전환은 기본 700ms 크로스페이드 대신 즉시 전환한다
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
+    ) {
             MainTab.entries.forEach { tab ->
-                composable(tab.route) {
-                    when (tab) {
-                        MainTab.HOME -> HomeScreen(
-                            onSessionExpired = onLoggedOut,
-                            onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
-                            onOpenPastDates = actions.onOpenPastDates,
-                            // 전체보기 → 지도 탭 이동만
-                            onOpenMap = { navigateToTab(MainTab.MAP.route) },
-                            // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
-                            onOpenPlaceOnMap = { place ->
-                                pendingMapPlace = place
-                                navigateToTab(MainTab.MAP.route)
-                            },
-                        )
-                        MainTab.MY -> MyPageScreen(
-                            onLoggedOut = onLoggedOut,
-                            onOpenDateType = actions.onOpenDateType,
-                            onOpenConnection = actions.onOpenConnection,
-                            onOpenCoupleConnect = actions.onOpenCoupleConnect,
-                        )
-                        MainTab.EXPLORE -> ExploreScreen(
-                            onSessionExpired = onLoggedOut,
-                            onOpenSearch = actions.onOpenSearch,
-                        )
-                        MainTab.MAP -> MapScreen(
-                            onSessionExpired = onLoggedOut,
-                            onOpenSearch = actions.onOpenMapSearch,
-                            pendingSearchArg = pendingMapSearchArg,
-                            onSearchConsumed = onMapSearchConsumed,
-                            onReopenSearch = onReopenMapSearch,
-                            pendingPlace = pendingMapPlace,
-                            onPlaceConsumed = { pendingMapPlace = null },
-                        )
-                        else -> TabPlaceholder(label = tab.label)
-                    }
+            composable(tab.route) {
+                when (tab) {
+                    MainTab.HOME -> HomeScreen(
+                        onSessionExpired = onLoggedOut,
+                        onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
+                        onOpenPastDates = actions.onOpenPastDates,
+                        // 전체보기 → 지도 탭 이동만
+                        onOpenMap = { navigateToTab(MainTab.MAP.route) },
+                        // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
+                        onOpenPlaceOnMap = { place ->
+                            onMapPlaceChange(place)
+                            navigateToTab(MainTab.MAP.route)
+                        },
+                    )
+                    MainTab.MY -> MyPageScreen(
+                        onLoggedOut = onLoggedOut,
+                        onOpenDateType = actions.onOpenDateType,
+                        onOpenConnection = actions.onOpenConnection,
+                        onOpenCoupleConnect = actions.onOpenCoupleConnect,
+                    )
+                    MainTab.EXPLORE -> ExploreScreen(
+                        onSessionExpired = onLoggedOut,
+                        onOpenSearch = actions.onOpenSearch,
+                    )
+                    MainTab.MAP -> MapScreen(
+                        kakaoMap = kakaoMap,
+                        mapRevision = mapRevision,
+                        onSessionExpired = onLoggedOut,
+                        onOpenSearch = actions.onOpenMapSearch,
+                        pendingSearchArg = pendingMapSearchArg,
+                        onSearchConsumed = onMapSearchConsumed,
+                        onReopenSearch = onReopenMapSearch,
+                        pendingPlace = pendingMapPlace,
+                        onPlaceConsumed = { onMapPlaceChange(null) },
+                    )
+                    else -> TabPlaceholder(label = tab.label)
                 }
             }
         }

@@ -101,6 +101,9 @@ fun MapScreen(
     onSearchConsumed: () -> Unit = {},
     // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 검색 화면을 다시 연다
     onReopenSearch: (String) -> Unit = {},
+    // 홈 등 다른 탭에서 넘어온 저장 장소. 지도 탭 진입 시 그 장소 상세를 연다
+    pendingPlace: Place? = null,
+    onPlaceConsumed: () -> Unit = {},
     viewModel: MapViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -116,6 +119,9 @@ fun MapScreen(
         }
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
+
+    // 홈 등에서 넘어온 저장 장소가 있으면 그 상세를 연다
+    ConsumePendingPlace(pendingPlace, onPlaceConsumed) { viewModel.onIntent(MapIntent.OpenPlaceDetail(it)) }
 
     // 검색에서 넘어온 결과를 검색 결과 모드로 올린다. selectedIndex 있으면 상세도 연다
     ConsumeSearchArg(pendingSearchArg, onSearchConsumed) { arg ->
@@ -232,6 +238,16 @@ private fun rememberNonDismissibleScaffoldState() = rememberBottomSheetScaffoldS
         confirmValueChange = { it != SheetValue.Hidden },
     ),
 )
+
+// 다른 탭(홈 등)에서 넘어온 저장 장소를 한 번 열고 소비 콜백을 부른다
+@Composable
+private fun ConsumePendingPlace(place: Place?, onConsumed: () -> Unit, onOpen: (Place) -> Unit) {
+    LaunchedEffect(place) {
+        val target = place ?: return@LaunchedEffect
+        onOpen(target)
+        onConsumed()
+    }
+}
 
 // 검색 화면에서 되돌아온 결과(JSON)를 한 번만 처리한다.
 // savedStateHandle 은 상태라 재전달될 수 있어 nonce 로 같은 결과를 걸러낸다(방어)

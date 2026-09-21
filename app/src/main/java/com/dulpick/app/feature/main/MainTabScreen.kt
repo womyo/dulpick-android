@@ -15,11 +15,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -28,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.home.HomeScreen
+import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.ui.theme.Colors
@@ -49,48 +54,22 @@ fun MainTabScreen(
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
 
+    // 홈에서 저장 장소 클릭 시 지도 탭이 읽어 상세를 여는 대상. 지도가 소비하면 비운다
+    var pendingMapPlace by remember { mutableStateOf<Place?>(null) }
+    // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
+    val navigateToTab: (String) -> Unit = { route ->
+        tabNavController.navigate(route) {
+            popUpTo(tabNavController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     Scaffold(
         containerColor = Colors.bgDefault,
         // 상단(상태바) 인셋은 각 화면이 직접 처리한다. 그래야 화면 배경이 상태바 뒤까지 그려진다
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            // 네이티브 Material3 탭바. containerColor 가 테마 surface(흰색)와 같으면 tonalElevation
-            // 톤 오버레이가 얹혀 틴트가 남으므로 elevation 을 0 으로 꺼 순백을 만든다
-            NavigationBar(
-                containerColor = Colors.commonWhite,
-                tonalElevation = 0.dp,
-            ) {
-                MainTab.entries.forEach { tab ->
-                    val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            // 같은 탭 재선택은 무시하고, 탭 전환 시 각 탭 스택 상태를 보존한다
-                            tabNavController.navigate(tab.route) {
-                                popUpTo(tabNavController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(tab.icon),
-                                contentDescription = tab.label,
-                            )
-                        },
-                        label = { Text(text = tab.label) },
-                        colors = NavigationBarItemDefaults.colors(
-                            // pill 없이 아이콘·글자만 핑크로. 인디케이터는 투명
-                            selectedIconColor = Colors.primaryPink,
-                            selectedTextColor = Colors.primaryPink,
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Colors.gray400,
-                            unselectedTextColor = Colors.gray400,
-                        ),
-                    )
-                }
-            }
-        },
+        bottomBar = { MainBottomBar(currentDestination = currentDestination, onSelect = navigateToTab) },
     ) { innerPadding ->
         NavHost(
             navController = tabNavController,
@@ -109,6 +88,13 @@ fun MainTabScreen(
                             onSessionExpired = onLoggedOut,
                             onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
                             onOpenPastDates = actions.onOpenPastDates,
+                            // 전체보기 → 지도 탭 이동만
+                            onOpenMap = { navigateToTab(MainTab.MAP.route) },
+                            // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
+                            onOpenPlaceOnMap = { place ->
+                                pendingMapPlace = place
+                                navigateToTab(MainTab.MAP.route)
+                            },
                         )
                         MainTab.MY -> MyPageScreen(
                             onLoggedOut = onLoggedOut,
@@ -126,11 +112,38 @@ fun MainTabScreen(
                             pendingSearchArg = pendingMapSearchArg,
                             onSearchConsumed = onMapSearchConsumed,
                             onReopenSearch = onReopenMapSearch,
+                            pendingPlace = pendingMapPlace,
+                            onPlaceConsumed = { pendingMapPlace = null },
                         )
                         else -> TabPlaceholder(label = tab.label)
                     }
                 }
             }
+        }
+    }
+}
+
+// 네이티브 Material3 탭바. containerColor 가 테마 surface(흰색)와 같으면 tonalElevation
+// 톤 오버레이가 얹혀 틴트가 남으므로 elevation 을 0 으로 꺼 순백을 만든다
+@Composable
+private fun MainBottomBar(currentDestination: NavDestination?, onSelect: (String) -> Unit) {
+    NavigationBar(containerColor = Colors.commonWhite, tonalElevation = 0.dp) {
+        MainTab.entries.forEach { tab ->
+            val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onSelect(tab.route) },
+                icon = { Icon(painter = painterResource(tab.icon), contentDescription = tab.label) },
+                label = { Text(text = tab.label) },
+                colors = NavigationBarItemDefaults.colors(
+                    // pill 없이 아이콘·글자만 핑크로. 인디케이터는 투명
+                    selectedIconColor = Colors.primaryPink,
+                    selectedTextColor = Colors.primaryPink,
+                    indicatorColor = Color.Transparent,
+                    unselectedIconColor = Colors.gray400,
+                    unselectedTextColor = Colors.gray400,
+                ),
+            )
         }
     }
 }

@@ -41,7 +41,9 @@ class HomeViewModel @Inject constructor(
             HomeIntent.BannerClicked -> openUpcomingCourse()
             is HomeIntent.RecommendationClicked -> postSideEffect(HomeSideEffect.OpenContentDetail(intent.id))
             is HomeIntent.PastScheduleClicked -> postSideEffect(HomeSideEffect.OpenPastSchedule(intent.id))
-            is HomeIntent.SavedPlaceClicked -> postSideEffect(HomeSideEffect.OpenPlaceDetail(intent.id))
+            is HomeIntent.SavedPlaceClicked ->
+                currentState.savedPlaces.firstOrNull { it.id == intent.id }
+                    ?.let { postSideEffect(HomeSideEffect.OpenPlaceDetail(it)) }
             HomeIntent.SavedPlacesSeeAllClicked -> postSideEffect(HomeSideEffect.OpenSavedPlacesAll)
             else -> Unit
         }

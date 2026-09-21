@@ -102,6 +102,8 @@ sealed interface MapIntent : UiIntent {
     data object ClearSearch : MapIntent
     // 저장 장소 목록 행/핀 탭 → 서버 placeId 로 상세
     data class OpenSavedDetail(val place: SavedPlace) : MapIntent
+    // 홈 등 다른 탭에서 넘어온 저장 장소 → 서버 placeId 로 상세(저장 모드, 검색 결과 아님)
+    data class OpenPlaceDetail(val place: Place) : MapIntent
     data object CloseDetail : MapIntent
 }
 

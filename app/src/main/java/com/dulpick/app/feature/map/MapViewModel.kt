@@ -37,9 +37,10 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    // 검색 결과 모드 관련 인텐트 (onIntent 복잡도 분리)
+    // 검색 결과·상세 진입 인텐트 (onIntent 복잡도 분리)
     private fun onSearchIntent(intent: MapIntent) {
         when (intent) {
+            is MapIntent.OpenPlaceDetail -> openPlaceDetail(intent.place)
             is MapIntent.EnterSearchResult -> enterSearchResult(intent)
             is MapIntent.SearchRowClicked -> openSearchDetail(intent.place)
             is MapIntent.SearchBookmarkClicked -> toggleSearchBookmark(intent.place)
@@ -102,6 +103,16 @@ class MapViewModel @Inject constructor(
     private fun openSavedDetail(place: SavedPlace) {
         val serverPlaceId = place.place.id.toLongOrNull()
         setState { copy(detail = DetailTarget(place.place, query = "", serverPlaceId = serverPlaceId)) }
+    }
+
+    // 홈 등에서 넘어온 저장 장소. 검색 결과 모드가 아니라 저장 모드에서 상세만 연다
+    private fun openPlaceDetail(place: Place) {
+        setState {
+            copy(
+                searchResult = null,
+                detail = DetailTarget(place, query = "", serverPlaceId = place.id.toLongOrNull()),
+            )
+        }
     }
 
     // 별칭 편집 시트를 연다. 초기값은 기존 별칭 없으면 장소명 (iOS PlaceAliasFeature.init 대응)

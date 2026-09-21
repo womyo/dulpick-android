@@ -1,10 +1,12 @@
 package com.dulpick.app.data.place.mapper
 
+import com.dulpick.app.data.place.remote.dto.PlaceDetailResponseDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchItemDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchResponseDto
 import com.dulpick.app.data.place.remote.dto.SavedPlaceResponseDto
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.PlacePage
 import com.dulpick.app.domain.place.SavedPlace
@@ -15,6 +17,27 @@ object PlaceDtoMapper {
 
     fun toSavedPlaces(dtos: List<SavedPlaceResponseDto>): List<SavedPlace> =
         dtos.map(::toSavedPlace)
+
+    fun toDetail(dto: PlaceDetailResponseDto): PlaceDetail = PlaceDetail(
+        place = Place(
+            // 상세 응답은 kakaoPlaceId 가 항상 있어 합성 폴백이 필요 없다
+            id = dto.placeId?.toString() ?: dto.kakaoPlaceId,
+            name = dto.name,
+            category = PlaceCategoryMapper.fromCodeOrName(dto.categoryCode, dto.categoryName),
+            // 상세 응답엔 북마크 수가 없다. 화면은 savedMemberCount 를 쓴다
+            bookmarkCount = 0,
+            thumbnailUrls = dto.imageUrls,
+            kakaoPlaceId = dto.kakaoPlaceId,
+            address = dto.address,
+            roadAddress = dto.roadAddress.orEmpty(),
+            coordinate = Coordinate(dto.latitude ?: 0.0, dto.longitude ?: 0.0),
+        ),
+        savedByMe = dto.savedByMe,
+        savedMemberCount = dto.savedMemberCount,
+        ownership = dto.ownershipStatus?.let(::ownership),
+        phone = dto.phone,
+        kakaoPlaceUrl = dto.kakaoPlaceUrl,
+    )
 
     private fun toPlace(dto: PlaceSearchItemDto): Place =
         Place(

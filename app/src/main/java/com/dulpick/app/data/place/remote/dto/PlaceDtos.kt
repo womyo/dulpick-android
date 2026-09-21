@@ -36,6 +36,29 @@ data class PlaceAliasRequestDto(
     val alias: String?,
 )
 
+// 장소 상세 (GET /places/{id}, GET /places/kakao/{kakaoId}) (iOS PlaceDetailResponseDTO 대응).
+// 좌표·category 는 명세상 nullable 이라 방어적으로 옵셔널·기본값을 둔다
+@Serializable
+data class PlaceDetailResponseDto(
+    val placeId: Long? = null,
+    val kakaoPlaceId: String = "",
+    val name: String = "",
+    val address: String = "",
+    val roadAddress: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val category: String? = null,
+    val categoryCode: String? = null,
+    val categoryName: String = "",
+    val phone: String? = null,
+    val kakaoPlaceUrl: String? = null,
+    val savedByMe: Boolean = false,
+    val ownershipStatus: String? = null,
+    val thumbnailUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
+    val savedMemberCount: Int = 0,
+)
+
 // 저장한 장소 (GET /api/v1/places) (iOS SavedPlaceResponseDTO 대응)
 @Serializable
 data class SavedPlaceResponseDto(

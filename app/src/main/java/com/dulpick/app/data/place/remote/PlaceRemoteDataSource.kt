@@ -3,6 +3,7 @@ package com.dulpick.app.data.place.remote
 import com.dulpick.app.core.network.Authed
 import com.dulpick.app.core.network.safeApiCall
 import com.dulpick.app.data.place.remote.dto.PlaceAliasRequestDto
+import com.dulpick.app.data.place.remote.dto.PlaceDetailResponseDto
 import com.dulpick.app.data.place.remote.dto.PlaceSaveRequestDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchResponseDto
 import com.dulpick.app.data.place.remote.dto.SavedPlaceResponseDto
@@ -19,6 +20,12 @@ class PlaceRemoteDataSource @Inject constructor(
 
     suspend fun savePlace(kakaoPlaceId: String, query: String, alias: String?): SavedPlaceResponseDto =
         safeApiCall { placeApi.savePlace(PlaceSaveRequestDto(kakaoPlaceId, query, alias)) }
+
+    suspend fun placeDetail(placeId: Long): PlaceDetailResponseDto =
+        safeApiCall { placeApi.placeDetail(placeId) }
+
+    suspend fun kakaoPlaceDetail(kakaoPlaceId: String, query: String): PlaceDetailResponseDto =
+        safeApiCall { placeApi.kakaoPlaceDetail(kakaoPlaceId, query) }
 
     suspend fun removePlace(placeId: Long): Unit =
         safeApiCall { placeApi.removePlace(placeId) }

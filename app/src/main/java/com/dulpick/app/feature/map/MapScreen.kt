@@ -83,12 +83,10 @@ private val SEOUL_CITY_HALL = LatLng.from(37.5666, 126.9784)
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
 // 접힘 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
-// 펼침은 화면을 다 덮지 않도록 상단(검색바)을 남긴다
+// 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
-private const val SHEET_EXPANDED_FRACTION = 0.72f
+private const val SHEET_EXPANDED_FRACTION = 0.74f
 private val SHEET_CORNER_RADIUS = 32.dp
-// 상세 시트는 저장목록보다 낮게 편다. 펼쳐도 검색바 아래에 머물러 지도가 넉넉히 보인다(iOS belowSearchBar)
-private const val SHEET_DETAIL_EXPANDED_FRACTION = 0.75f
 
 // 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다
 private data class MapToast(val message: String, val isError: Boolean)
@@ -222,13 +220,15 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState) {
     }
 }
 
-// 아래로 드래그해도 닫히지 않는 시트 상태. skipHiddenState=true 라 접힘/펼침 두 단계만 오간다
+// 아래로 드래그해도 닫히지 않는 시트 상태. 접힘/펼침 두 단계만 오가고 Hidden 으로는 안 간다.
+// skipHiddenState 만으로는 세게 드래그하면 사라지므로 confirmValueChange 로 Hidden 을 거부한다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun rememberNonDismissibleScaffoldState() = rememberBottomSheetScaffoldState(
     bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
         skipHiddenState = true,
+        confirmValueChange = { it != SheetValue.Hidden },
     ),
 )
 
@@ -268,6 +268,7 @@ private fun MapSheet(
 ) {
     val detail = state.detail
     val searchResult = state.searchResult
+    val sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp
     when {
         detail != null -> PlaceDetailSheet(
             target = detail.place,
@@ -275,18 +276,18 @@ private fun MapSheet(
             serverPlaceId = detail.serverPlaceId,
             onClose = { onIntent(MapIntent.CloseDetail) },
             onSessionExpired = onSessionExpired,
-            modifier = Modifier.height((screenHeight * SHEET_DETAIL_EXPANDED_FRACTION).dp),
+            modifier = Modifier.height(sheetHeight),
         )
         searchResult != null -> SearchResultSheet(
             result = searchResult,
             state = state,
             onIntent = onIntent,
-            height = (screenHeight * SHEET_DETAIL_EXPANDED_FRACTION).dp,
+            height = sheetHeight,
         )
         else -> MapSheetContent(
             state = state,
             onIntent = onIntent,
-            height = (screenHeight * SHEET_EXPANDED_FRACTION).dp,
+            height = sheetHeight,
         )
     }
 }

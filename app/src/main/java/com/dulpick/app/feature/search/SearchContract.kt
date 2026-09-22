@@ -57,8 +57,9 @@ sealed interface SearchIntent : UiIntent {
 }
 
 sealed interface SearchSideEffect : UiSideEffect {
-    // TODO: 게시물/장소 상세는 지도 단계에서
+    // TODO: 게시물 상세는 게시물 단계에서
     data class ShowContentDetail(val id: String) : SearchSideEffect
-    data class ShowPlaceDetail(val id: String) : SearchSideEffect
+    // 장소 결과 탭 → 지도 탭에서 그 장소 상세를 연다 (iOS showPlaceDetail(place, query) 대응)
+    data class ShowPlaceDetail(val place: Place, val query: String) : SearchSideEffect
     data object SessionExpired : SearchSideEffect
 }

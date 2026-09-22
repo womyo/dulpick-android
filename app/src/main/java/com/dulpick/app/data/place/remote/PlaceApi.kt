@@ -1,6 +1,7 @@
 package com.dulpick.app.data.place.remote
 
 import com.dulpick.app.data.place.remote.dto.PlaceAliasRequestDto
+import com.dulpick.app.data.place.remote.dto.PlaceDetailResponseDto
 import com.dulpick.app.data.place.remote.dto.PlaceSaveRequestDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchResponseDto
 import com.dulpick.app.data.place.remote.dto.SavedPlaceResponseDto
@@ -27,6 +28,17 @@ interface PlaceApi {
     // 장소 저장(북마크). 저장된 장소를 돌려준다
     @POST("/api/v1/places")
     suspend fun savePlace(@Body body: PlaceSaveRequestDto): SavedPlaceResponseDto
+
+    // 장소 상세(서버 ID). 저장 목록·게시글 장소가 쓴다
+    @GET("/api/v1/places/{placeId}")
+    suspend fun placeDetail(@Path("placeId") placeId: Long): PlaceDetailResponseDto
+
+    // 장소 상세(카카오 ID). 검색 결과가 쓴다. query 는 필수(빠지면 서버 500)
+    @GET("/api/v1/places/kakao/{kakaoPlaceId}")
+    suspend fun kakaoPlaceDetail(
+        @Path("kakaoPlaceId") kakaoPlaceId: String,
+        @Query("query") query: String,
+    ): PlaceDetailResponseDto
 
     // 저장 장소 삭제
     @DELETE("/api/v1/places/{placeId}")

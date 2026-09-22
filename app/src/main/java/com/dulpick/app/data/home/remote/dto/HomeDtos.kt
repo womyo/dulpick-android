@@ -27,12 +27,19 @@ data class PastDateCoursesResponseDto(
     val hasNext: Boolean = false,
 )
 
-// 최근 저장 장소 항목. 홈 행이 쓰는 이름·카테고리·썸네일만 선언한다
+// 최근 저장 장소 항목 (iOS SavedPlaceResponseDTO 대응).
+// 좌표·주소도 받는다. 빠뜨리면 홈에서 지도 상세로 넘긴 장소가 (0,0) 좌표가 돼 지도가 엉뚱한 곳을 본다
 @Serializable
 data class SavedPlaceItemDto(
     val placeId: Long,
     val kakaoPlaceId: String? = null,
     val name: String = "",
+    val address: String = "",
+    val roadAddress: String? = null,
+    // 기본값을 두지 않는다. 누락을 (0,0) 으로 바꾸면 지도가 아무 데도 아닌 좌표로 이동한다
+    val latitude: Double,
+    val longitude: Double,
+    val category: String? = null,
     val categoryName: String = "",
     val thumbnailUrl: String? = null,
     val imageUrls: List<String> = emptyList(),

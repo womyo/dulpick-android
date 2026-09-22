@@ -63,7 +63,9 @@ sealed interface HomeSideEffect : UiSideEffect {
     data class OpenUpcomingCourse(val id: String) : HomeSideEffect
     data class OpenContentDetail(val id: String) : HomeSideEffect
     data class OpenPastSchedule(val id: String) : HomeSideEffect
-    data class OpenPlaceDetail(val id: String) : HomeSideEffect
+    // 저장 장소 클릭 → 지도 탭으로 이동하며 그 장소 상세를 연다. 지도가 쓸 Place 를 통째로 넘긴다
+    data class OpenPlaceDetail(val place: Place) : HomeSideEffect
+    // 전체보기 → 지도 탭으로 이동만
     data object OpenSavedPlacesAll : HomeSideEffect
     data object SessionExpired : HomeSideEffect
 }

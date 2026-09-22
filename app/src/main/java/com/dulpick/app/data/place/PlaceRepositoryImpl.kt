@@ -4,6 +4,7 @@ import com.dulpick.app.data.explore.mapper.ExploreErrorMapper
 import com.dulpick.app.data.place.mapper.PlaceDtoMapper
 import com.dulpick.app.data.place.mapper.PlaceErrorMapper
 import com.dulpick.app.data.place.remote.PlaceRemoteDataSource
+import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlacePage
 import com.dulpick.app.domain.place.PlaceRepository
 import com.dulpick.app.domain.place.SavedPlace
@@ -34,6 +35,22 @@ class PlaceRepositoryImpl @Inject constructor(
     override suspend fun savePlace(kakaoPlaceId: String, query: String, alias: String?): SavedPlace {
         try {
             return PlaceDtoMapper.toSavedPlace(placeRemote.savePlace(kakaoPlaceId, query, alias))
+        } catch (error: Throwable) {
+            throw PlaceErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun placeDetail(placeId: Long): PlaceDetail {
+        try {
+            return PlaceDtoMapper.toDetail(placeRemote.placeDetail(placeId))
+        } catch (error: Throwable) {
+            throw PlaceErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun kakaoPlaceDetail(kakaoPlaceId: String, query: String): PlaceDetail {
+        try {
+            return PlaceDtoMapper.toDetail(placeRemote.kakaoPlaceDetail(kakaoPlaceId, query))
         } catch (error: Throwable) {
             throw PlaceErrorMapper.map(error)
         }

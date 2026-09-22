@@ -59,6 +59,10 @@ fun HomeScreen(
     onSessionExpired: () -> Unit,
     onOpenCoupleConnect: (myNickname: String) -> Unit,
     onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,
+    // 최근 저장 장소 전체보기 → 지도 탭으로 이동만
+    onOpenMap: () -> Unit = {},
+    // 저장 장소 클릭 → 지도 탭으로 이동하며 그 장소 상세를 연다
+    onOpenPlaceOnMap: (com.dulpick.app.domain.place.Place) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,13 +72,13 @@ fun HomeScreen(
             HomeSideEffect.SessionExpired -> onSessionExpired()
             HomeSideEffect.OpenConnectFlow -> onOpenCoupleConnect(state.nickname)
             is HomeSideEffect.OpenPastDates -> onOpenPastDates(effect.hasCurrentCourse)
-            // TODO: 코스·상세는 지도/코스 단계에서 연결한다
+            is HomeSideEffect.OpenPlaceDetail -> onOpenPlaceOnMap(effect.place)
+            HomeSideEffect.OpenSavedPlacesAll -> onOpenMap()
+            // TODO: 코스·게시물 상세는 코스/게시물 단계에서 연결한다
             HomeSideEffect.OpenCourseFlow -> Unit
             is HomeSideEffect.OpenUpcomingCourse -> Unit
             is HomeSideEffect.OpenContentDetail -> Unit
             is HomeSideEffect.OpenPastSchedule -> Unit
-            is HomeSideEffect.OpenPlaceDetail -> Unit
-            HomeSideEffect.OpenSavedPlacesAll -> Unit
         }
     }
 

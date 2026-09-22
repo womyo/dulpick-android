@@ -54,6 +54,9 @@ import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
 import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.AppButton
+import com.dulpick.app.ui.component.AppButtonSize
+import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.pinRes
 import com.dulpick.app.ui.theme.Colors
@@ -205,7 +208,12 @@ private fun MapSheetContent(
                 )
             }
         }
-        if (state.isEmpty) {
+        if (state.loadFailed) {
+            MapLoadFailed(
+                onRetry = { onIntent(MapIntent.RetryClicked) },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+        } else if (state.isEmpty) {
             MapEmptyState(
                 hasNoSavedPlace = state.hasNoSavedPlace,
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -222,6 +230,28 @@ private fun MapSheetContent(
                 }
             }
         }
+    }
+}
+
+// 조회 실패. 빈 목록과 구분해 다시 시도할 길을 준다 (iOS loadState.failed + '다시 시도' 대응)
+@Composable
+private fun MapLoadFailed(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(top = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "장소를 불러오지 못했어요",
+            style = Typography.title3SB,
+            color = Colors.textPrimary,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        AppButton(
+            text = "다시 시도",
+            onClick = onRetry,
+            variant = AppButtonVariant.OUTLINED,
+            size = AppButtonSize.MD,
+        )
     }
 }
 

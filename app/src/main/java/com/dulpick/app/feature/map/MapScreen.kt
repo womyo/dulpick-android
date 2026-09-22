@@ -32,6 +32,7 @@ import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -125,7 +126,9 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
-    // 탭바가 없는 화면(탐색에서 온 상세)에서 펼침 높이에 더해 줄 값.
+    // 상세 시트가 떠 있는지 위로 알린다. 탭 컨테이너가 이 값으로 탭바를 감춘다
+    onDetailVisibleChange: (Boolean) -> Unit = {},
+    // 탭바가 없는 화면(상세 시트가 뜬 지도)에서 펼침 높이에 더해 줄 값.
     // 탭바가 차지하던 만큼 더해야 시트가 탭바 있을 때와 같은 높이까지 펼쳐진다(접힘 높이는 그대로)
     sheetBottomInset: Dp = 0.dp,
     viewModel: MapViewModel = hiltViewModel(),
@@ -153,12 +156,10 @@ fun MapScreen(
         onIntent = viewModel::onIntent,
     )
 
-    // 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고, 아니면 상세만 내린다
-    val dismissDetail: (DetailTarget) -> Unit = { detail ->
-        viewModel.onIntent(MapIntent.CloseDetail)
-        if (detail.contentMode) onCloseContentDetail()
-    }
+    ReportDetailVisible(visible = state.detail != null, onChange = onDetailVisibleChange)
 
+    val dismissDetail: (DetailTarget) -> Unit =
+        { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
     // 뒤로가기: 상세가 열려 있으면 상세를 닫고, 검색 결과 모드면 저장 모드로 돌아간다
     BackHandler(enabled = state.detail != null || state.searchResult != null) {
         val detail = state.detail
@@ -297,6 +298,19 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
     var placed by remember { mutableStateOf(false) }
     LaunchedEffect(positioned) { if (positioned) placed = true }
     return if (placed) 1f else 0f
+}
+
+// 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고, 아니면 상세만 내린다
+private fun DetailTarget.dismiss(onIntent: (MapIntent) -> Unit, onCloseContentDetail: () -> Unit) {
+    onIntent(MapIntent.CloseDetail)
+    if (contentMode) onCloseContentDetail()
+}
+
+// 상세 시트 표시 여부를 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
+@Composable
+private fun ReportDetailVisible(visible: Boolean, onChange: (Boolean) -> Unit) {
+    LaunchedEffect(visible) { onChange(visible) }
+    DisposableEffect(Unit) { onDispose { onChange(false) } }
 }
 
 // 다른 화면(홈 탭·탐색 검색·지도 검색)에서 넘어온 것들을 한 번씩 열고 소비 콜백을 부른다

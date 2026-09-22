@@ -74,6 +74,8 @@ fun MainTabScreen(
     var pendingMapPlace by remember { mutableStateOf<Place?>(null) }
     // 탐색 검색에서 고른 장소. 지도가 상세 전용(content) 모드로 열고 비운다
     var pendingContentDetail by remember { mutableStateOf<DetailTarget?>(null) }
+    // 지도에 장소 상세 시트가 떠 있는지. 떠 있으면 탭바를 감춘다
+    var mapDetailOpen by remember { mutableStateOf(false) }
     // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
     val navigateToTab: (String) -> Unit = { route ->
         tabNavController.navigate(route) {
@@ -143,6 +145,8 @@ fun MainTabScreen(
             onReopenMapSearch = onReopenMapSearch,
             pendingContentDetail = pendingContentDetail,
             onContentDetailChange = { pendingContentDetail = it },
+            mapDetailOpen = mapDetailOpen,
+            onMapDetailOpenChange = { mapDetailOpen = it },
             pendingMapPlace = pendingMapPlace,
             onMapPlaceChange = { pendingMapPlace = it },
         )
@@ -168,6 +172,8 @@ private fun MainTabNavHost(
     mapSheetState: BottomSheetScaffoldState,
     pendingContentDetail: DetailTarget?,
     onContentDetailChange: (DetailTarget?) -> Unit,
+    mapDetailOpen: Boolean,
+    onMapDetailOpenChange: (Boolean) -> Unit,
     pendingMapPlace: Place?,
     onMapPlaceChange: (Place?) -> Unit,
 ) {
@@ -189,12 +195,14 @@ private fun MainTabNavHost(
                 popEnterTransition = { fromSearch { slideInHorizontally { -it / PARALLAX_DIVISOR } } },
                 popExitTransition = { toSearch { slideOutHorizontally { it } } },
             ) {
-                // 검색 위에 얹힌 지도(상세 전용)는 검색 화면과 마찬가지로 탭바 없는 전체 화면이다
+                // 장소 상세 시트가 뜬 지도에는 탭바가 없다. 검색 위에 얹힌 지도(상세 전용)는
+                // 상세가 올라오기 전에도 탭바가 보이지 않아야 해 백스택으로 미리 가린다
                 val overSearch = tabNavController.previousBackStackEntry
                     ?.destination?.route == EXPLORE_SEARCH_ROUTE
+                val hideBar = tab == MainTab.MAP && (overSearch || mapDetailOpen)
                 // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
                 TabWithBottomBar(
-                    showBar = !overSearch,
+                    showBar = !hideBar,
                     currentDestination = currentDestination,
                     onSelectTab = navigateToTab,
                 ) {
@@ -236,8 +244,9 @@ private fun MainTabNavHost(
                         // 상세 전용(content) 모드는 검색 화면 위에 얹힌 것이라, 닫으면 그대로 pop 한다.
                         // 검색 화면이 스택에 살아 있어 결과 리스트가 그 자리에 다시 보인다
                         onCloseContentDetail = { tabNavController.popBackStack() },
-                        // 탭바를 감췄으니 그만큼 시트를 키워, 탭바 있을 때와 같은 높이까지 올라오게 한다
-                        sheetBottomInset = if (overSearch) tabBarHeight else 0.dp,
+                        onDetailVisibleChange = onMapDetailOpenChange,
+                        // 탭바를 감췄으니 그만큼 시트를 키워, 탭바 있을 때와 같은 높이까지 펼쳐지게 한다
+                        sheetBottomInset = if (hideBar) tabBarHeight else 0.dp,
                         pendingPlace = pendingMapPlace,
                         onPlaceConsumed = { onMapPlaceChange(null) },
                     )

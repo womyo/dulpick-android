@@ -126,8 +126,9 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
-    // 상세 시트가 떠 있는지 위로 알린다. 탭 컨테이너가 이 값으로 탭바를 감춘다
-    onDetailVisibleChange: (Boolean) -> Unit = {},
+    // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 떠 있는지 위로 알린다.
+    // 탭 컨테이너가 이 값으로 탭바를 감춘다
+    onTabBarHiddenChange: (Boolean) -> Unit = {},
     // 탭바가 없는 화면(상세 시트가 뜬 지도)에서 펼침 높이에 더해 줄 값.
     // 탭바가 차지하던 만큼 더해야 시트가 탭바 있을 때와 같은 높이까지 펼쳐진다(접힘 높이는 그대로)
     sheetBottomInset: Dp = 0.dp,
@@ -156,7 +157,7 @@ fun MapScreen(
         onIntent = viewModel::onIntent,
     )
 
-    ReportDetailVisible(visible = state.detail != null, onChange = onDetailVisibleChange)
+    ReportTabBarHidden(state.detail != null || state.searchResult != null, onTabBarHiddenChange)
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
@@ -306,10 +307,10 @@ private fun DetailTarget.dismiss(onIntent: (MapIntent) -> Unit, onCloseContentDe
     if (contentMode) onCloseContentDetail()
 }
 
-// 상세 시트 표시 여부를 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
+// 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
 @Composable
-private fun ReportDetailVisible(visible: Boolean, onChange: (Boolean) -> Unit) {
-    LaunchedEffect(visible) { onChange(visible) }
+private fun ReportTabBarHidden(hidden: Boolean, onChange: (Boolean) -> Unit) {
+    LaunchedEffect(hidden) { onChange(hidden) }
     DisposableEffect(Unit) { onDispose { onChange(false) } }
 }
 

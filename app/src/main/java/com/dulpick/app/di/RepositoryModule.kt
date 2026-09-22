@@ -7,7 +7,6 @@ import com.dulpick.app.data.home.HomeRepositoryImpl
 import com.dulpick.app.data.placeimport.PlaceImportRepositoryImpl
 import com.dulpick.app.data.profile.ProfileRepositoryImpl
 import com.dulpick.app.data.place.PlaceRepositoryImpl
-import com.dulpick.app.data.search.RecentSearchRepositoryImpl
 import com.dulpick.app.domain.auth.AuthRepository
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.explore.ExploreRepository
@@ -15,7 +14,6 @@ import com.dulpick.app.domain.home.HomeRepository
 import com.dulpick.app.domain.place.PlaceRepository
 import com.dulpick.app.domain.placeimport.PlaceImportRepository
 import com.dulpick.app.domain.profile.ProfileRepository
-import com.dulpick.app.domain.search.RecentSearchRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -42,9 +40,7 @@ abstract class RepositoryModule {
     @Singleton
     abstract fun bindExploreRepository(impl: ExploreRepositoryImpl): ExploreRepository
 
-    @Binds
-    @Singleton
-    abstract fun bindRecentSearchRepository(impl: RecentSearchRepositoryImpl): RecentSearchRepository
+    // 최근검색은 용도별(탐색·지도) 저장소를 RecentSearchModule 에서 @Provides 로 제공한다
 
     @Binds
     @Singleton

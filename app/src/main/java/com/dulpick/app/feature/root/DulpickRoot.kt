@@ -46,6 +46,7 @@ import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
+import com.dulpick.app.feature.mapsearch.MapSearchScreen
 import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -195,6 +196,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
                 onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
+                onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },
@@ -210,6 +212,21 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     ) {
         SearchScreen(
             onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+        )
+    }
+    composable(
+        route = MAIN_MAP_SEARCH_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        MapSearchScreen(
+            onBack = { navController.popBackStack() },
+            // TODO: 검색 결과의 지도 반영(핀·시트)은 다음 단계에서 배선한다
+            onSearchConfirmed = { _, _ -> navController.popBackStack() },
+            onPlaceSelected = { _, _ -> navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
@@ -312,6 +329,7 @@ private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 private const val MAIN_SEARCH_ROUTE = "main/search"
+private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다

@@ -131,6 +131,10 @@ dependencies {
     // 소셜 로그인
     implementation(libs.kakao.user)
     implementation(libs.androidx.credentials)
+
+    // 카카오 지도
+    implementation(libs.kakao.map)
+
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)
 

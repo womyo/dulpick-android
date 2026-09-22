@@ -13,6 +13,8 @@ data class MapState(
     val places: List<SavedPlace> = emptyList(),
     // 저장 장소를 아직 못 불러온 초기 상태
     val isLoading: Boolean = true,
+    // 조회가 실패한 상태. 빈 목록("저장한 장소가 없어요")과 구분해 재시도를 보여준다
+    val loadFailed: Boolean = false,
     // 커플 연동 시에만 소유자 필터를 노출한다
     val isCoupleConnected: Boolean = false,
     val selectedOwnership: PlaceOwnership = PlaceOwnership.TOGETHER,
@@ -39,8 +41,8 @@ data class MapState(
     // 저장한 장소 자체가 없다(필터 때문에 빈 것과 문구가 다르다)
     val hasNoSavedPlace: Boolean get() = !isLoading && places.isEmpty()
 
-    // 다 불러온 뒤 보일 게 없다(필터 결과 포함)
-    val isEmpty: Boolean get() = !isLoading && filteredPlaces.isEmpty()
+    // 다 불러온 뒤 보일 게 없다(필터 결과 포함). 실패는 빈 목록이 아니라 실패로 보여준다
+    val isEmpty: Boolean get() = !isLoading && !loadFailed && filteredPlaces.isEmpty()
 
     // 검색 결과 장소의 저장 여부. 저장목록의 kakaoId 매칭 + 낙관적 오버라이드
     fun isBookmarked(place: Place): Boolean {
@@ -83,6 +85,7 @@ data class AliasEdit(
 
 sealed interface MapIntent : UiIntent {
     data object OnAppear : MapIntent
+    data object RetryClicked : MapIntent
     data class OwnershipSelected(val ownership: PlaceOwnership) : MapIntent
     // null 이면 전체
     data class CategorySelected(val category: PlaceCategory?) : MapIntent

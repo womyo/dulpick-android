@@ -25,15 +25,25 @@ class MapViewModel @Inject constructor(
     override fun onIntent(intent: MapIntent) {
         when (intent) {
             MapIntent.OnAppear -> load()
+            MapIntent.RetryClicked -> retryLoad()
             is MapIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
             is MapIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
             is MapIntent.DeleteClicked -> delete(intent.id)
+            is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
+            MapIntent.CloseDetail -> setState { copy(detail = null) }
+            is MapIntent.EditClicked, is MapIntent.AliasSaveClicked, MapIntent.AliasEditDismissed ->
+                onAliasIntent(intent)
+            else -> onSearchIntent(intent)
+        }
+    }
+
+    // 별칭 편집 인텐트 (onIntent 복잡도 분리)
+    private fun onAliasIntent(intent: MapIntent) {
+        when (intent) {
             is MapIntent.EditClicked -> openAliasEdit(intent.id)
             is MapIntent.AliasSaveClicked -> saveAlias(intent.alias)
             MapIntent.AliasEditDismissed -> setState { copy(aliasEdit = null) }
-            is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
-            MapIntent.CloseDetail -> setState { copy(detail = null) }
-            else -> onSearchIntent(intent)
+            else -> Unit
         }
     }
 
@@ -225,16 +235,28 @@ class MapViewModel @Inject constructor(
         loadCoupleConnection()
     }
 
+    // 실패를 다시 시도한다. 빈 목록으로 두지 않고 로딩부터 다시 보여준다
+    private fun retryLoad() {
+        setState { copy(isLoading = true, loadFailed = false) }
+        load()
+    }
+
     private fun loadPlaces() {
         viewModelScope.launch {
             try {
                 val places = placeRepository.savedPlaces()
-                setState { copy(places = places, isLoading = false) }
+                setState { copy(places = places, isLoading = false, loadFailed = false) }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                setState { copy(isLoading = false) }
-                if (error == PlaceError.Unauthorized) postSideEffect(MapSideEffect.SessionExpired)
+                // 실패를 빈 목록으로 보여주면 네트워크 장애가 '저장한 장소 없음'처럼 보인다.
+                // 전역 에러(인증 만료)만 위로 올리고, 나머지는 화면에 실패로 남긴다 (iOS loadState.failed 대응)
+                setState { copy(isLoading = false, loadFailed = true) }
+                if (error == PlaceError.Unauthorized) {
+                    postSideEffect(MapSideEffect.SessionExpired)
+                } else {
+                    postSideEffect(MapSideEffect.ShowToast("장소를 불러오지 못했어요", isError = true))
+                }
             }
         }
     }

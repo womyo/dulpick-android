@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -164,6 +165,7 @@ fun MapScreen(
     )
 
     ReportTabBarHidden(tabBarHidden, onTabBarHiddenChange)
+    HandlePinTaps(kakaoMap, state, viewModel::onIntent)
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
@@ -258,9 +260,10 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng 
     val searchResult = state.searchResult
     val basePins = when {
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
-        detail != null && detail.contentMode -> listOf(MapPin(detail.place.coordinate, detail.place.category))
-        searchResult != null -> searchResult.places.map { MapPin(it.coordinate, it.category) }
-        else -> state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
+        detail != null && detail.contentMode ->
+            listOf(MapPin(detail.place.id, detail.place.coordinate, detail.place.category))
+        searchResult != null -> searchResult.places.map { MapPin(it.id, it.coordinate, it.category) }
+        else -> state.filteredPlaces.map { MapPin(it.place.id, it.place.coordinate, it.place.category) }
     }
     renderPins(context, map, basePins, selected = detail?.place?.coordinate)
     // 카메라: 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
@@ -315,6 +318,33 @@ private fun AliasEditModal(edit: AliasEdit, onIntent: (MapIntent) -> Unit) {
         tonalElevation = 0.dp,
     ) {
         PlaceAliasSheet(edit = edit, onSave = { onIntent(MapIntent.AliasSaveClicked(it)) })
+    }
+}
+
+// 지도 핀 탭 → 그 장소 상세 (iOS markerTapped 대응).
+// 선택 마커(물방울)에는 태그가 없어 탭해도 무시된다 — 이미 상세가 열린 장소다
+@Composable
+private fun HandlePinTaps(kakaoMap: KakaoMap?, state: MapState, onIntent: (MapIntent) -> Unit) {
+    val current by rememberUpdatedState(state)
+    LaunchedEffect(kakaoMap) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        map.setOnLabelClickListener { _, _, label ->
+            val intent = current.pinTapIntent(label.tag as? String)
+            intent?.let(onIntent)
+            intent != null
+        }
+    }
+}
+
+// 탭한 핀의 장소 상세를 연다. 저장 목록·검색 결과 모드 모두 리스트 행 탭과 같은 길을 쓴다.
+// content 모드는 그 장소 상세가 이미 열려 있어 할 일이 없다 (iOS presentDetail(id) 대응)
+private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
+    if (placeId == null || detail?.contentMode == true) return null
+    val result = searchResult
+    return if (result != null) {
+        result.places.firstOrNull { it.id == placeId }?.let { MapIntent.SearchRowClicked(it) }
+    } else {
+        filteredPlaces.firstOrNull { it.id == placeId }?.let { MapIntent.OpenSavedDetail(it) }
     }
 }
 
@@ -639,13 +669,15 @@ private fun MapEmptyState(hasNoSavedPlace: Boolean, modifier: Modifier = Modifie
 }
 
 // 지도에 찍을 핀 하나. 좌표와 카테고리(아이콘)만 있으면 된다
-private data class MapPin(val coordinate: Coordinate, val category: PlaceCategory)
+// 지도에 찍는 핀. id 는 라벨 태그로 심어, 핀을 탭했을 때 어떤 장소인지 찾는다
+private data class MapPin(val id: String, val coordinate: Coordinate, val category: PlaceCategory)
 
 // 카테고리 핀을 찍고, selected 좌표가 있으면 그 위에 선택 마커(빨강 물방울)를 얹는다. 카메라는 호출부가 맡는다.
 // 카테고리 아이콘은 벡터라 카카오 라벨이 못 그리므로 비트맵으로 래스터화해 스타일로 준다
 private fun renderPins(context: Context, map: KakaoMap, pins: List<MapPin>, selected: Coordinate?) {
     val manager = map.labelManager ?: return
     val layer = manager.layer ?: return
+    layer.isClickable = true
     layer.removeAll()
 
     // 카테고리별로 스타일을 한 번만 만들어 재사용한다.
@@ -660,7 +692,11 @@ private fun renderPins(context: Context, map: KakaoMap, pins: List<MapPin>, sele
     pins.forEach { pin ->
         val styles = stylesByCategory[pin.category] ?: return@forEach
         layer.addLabel(
-            LabelOptions.from(LatLng.from(pin.coordinate.latitude, pin.coordinate.longitude)).setStyles(styles),
+            LabelOptions.from(LatLng.from(pin.coordinate.latitude, pin.coordinate.longitude))
+                .setStyles(styles)
+                // 태그로 어떤 장소의 핀인지 알아낸다. 선택 마커에는 태그를 달지 않아 탭해도 무시된다
+                .setTag(pin.id)
+                .setClickable(true),
         )
     }
 

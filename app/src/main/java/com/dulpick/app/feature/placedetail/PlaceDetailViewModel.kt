@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
 import com.dulpick.app.domain.explore.ExploreRepository
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceError
@@ -90,7 +91,7 @@ class PlaceDetailViewModel @Inject constructor(
         savedServerId = detail.serverPlaceId?.toString() ?: savedServerId
         setState {
             copy(
-                place = detail.place,
+                place = detail.place.withFallbackCoordinate(initialPlace?.coordinate),
                 isLoading = false,
                 serverPlaceId = detail.serverPlaceId ?: serverPlaceId,
                 kakaoPlaceUrl = detail.kakaoPlaceUrl,
@@ -128,6 +129,14 @@ class PlaceDetailViewModel @Inject constructor(
         }
     }
 
+    // 상세 응답의 좌표가 비어(0,0) 오면 넘겨받은 장소의 좌표를 지킨다.
+    // 그대로 덮으면 지도가 아무 데도 아닌 좌표로 이동한다(명세는 필수지만 nullable 로 온다)
+    private fun Place.withFallbackCoordinate(fallback: Coordinate?): Place {
+        val hasCoordinate = coordinate.latitude != 0.0 || coordinate.longitude != 0.0
+        if (hasCoordinate || fallback == null) return this
+        return copy(coordinate = fallback)
+    }
+
     // 저장 버튼. 표시를 먼저 뒤집고 서버를 부른 뒤, 실패하면 되돌린다 (iOS toggleBookmark 대응)
     private fun toggleBookmark() {
         val place = currentState.place ?: return
@@ -141,8 +150,11 @@ class PlaceDetailViewModel @Inject constructor(
                 bookmarkCount = (bookmarkCount + if (!wasBookmarked) 1 else -1).coerceAtLeast(0),
             )
         }
-        bookmarkJob?.cancel()
+        // 앞 요청을 취소하지 않고 기다린다. 저장을 취소해 버리면 서버 ID 를 못 받아,
+        // 곧바로 이어지는 해제가 카카오 ID 로 삭제를 부른다(엉뚱한 장소를 지울 수 있다)
+        val previous = bookmarkJob
         bookmarkJob = viewModelScope.launch {
+            previous?.join()
             try {
                 if (wasBookmarked) removeBookmark(place) else addBookmark(place)
             } catch (error: CancellationException) {
@@ -155,7 +167,7 @@ class PlaceDetailViewModel @Inject constructor(
     }
 
     private suspend fun removeBookmark(place: Place) {
-        // 삭제엔 서버 placeId 를 쓴다. 없으면 place.id (검색 장소는 kakaoId 일 수 있음)
+        // 삭제엔 서버 placeId 를 쓴다. 없으면 place.id (저장 목록·홈에서 온 장소는 서버 ID 다)
         val removeId = (savedServerId ?: place.id).toLongOrNull() ?: return
         placeRepository.removePlace(removeId)
     }

@@ -52,6 +52,9 @@ fun KakaoMapView(
     val currentActive by rememberUpdatedState(isActive)
     // 엔진 준비 여부. 준비 전에 pause 가 걸리면 초기화가 반쯤 멈춰 타일이 영영 안 그려진다
     var isReady by remember { mutableStateOf(false) }
+    // 앱이 전면으로 돌아올 때마다 올린다. 아래 재개 처리를 다시 타게 해, 복귀 경로에서도
+    // 재개 완료를 확인한 뒤 onResumed 를 부른다
+    var foregroundCount by remember { mutableStateOf(0) }
     val mapView = remember {
         MapView(context).also {
             // 기본값은 뷰가 window 에서 떨어질 때 SDK 가 스스로 finish 한다. 정리는 dispose 한 번만 한다
@@ -87,24 +90,30 @@ fun KakaoMapView(
 
     // 지도 탭 표시 여부에 따라 재생/멈춤. 엔진이 준비되기 전에 pause 를 걸면 초기화가 깨지므로
     // 준비 후에만 건다. resume 은 비동기라, 실제 재개를 확인한 뒤 onResumed 로 알린다
-    LaunchedEffect(isActive, isReady) {
+    LaunchedEffect(isActive, isReady, foregroundCount) {
         if (!isReady) return@LaunchedEffect
-        if (isActive) {
-            mapView.post { mapView.resume() }
-            withTimeoutOrNull(RESUME_WAIT_MS) {
-                while (!mapView.isResumed) delay(RESUME_POLL_MS)
-            }
+        if (!isActive) {
+            mapView.pause()
+            return@LaunchedEffect
+        }
+        mapView.post { mapView.resume() }
+        withTimeoutOrNull(RESUME_WAIT_MS) {
+            while (!mapView.isResumed) delay(RESUME_POLL_MS)
+        }
+        // 재개를 확인하지 못했으면 알리지 않는다. 멈춘 엔진에 카메라·라벨을 다시 보내도 프레임을 못 잡는다
+        if (mapView.isResumed) {
             currentOnResumed()
         } else {
-            mapView.pause()
+            Log.w(LOG_TAG, "지도 렌더링 재개를 확인하지 못했다 (${RESUME_WAIT_MS}ms)")
         }
     }
 
-    // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다
+    // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다.
+    // 복귀는 여기서 직접 resume 하지 않고 신호만 올려, 위의 재개 완료 확인·알림 경로를 함께 탄다
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> if (currentActive) mapView.post { mapView.resume() }
+                Lifecycle.Event.ON_RESUME -> if (currentActive) foregroundCount++
                 Lifecycle.Event.ON_PAUSE -> mapView.pause()
                 else -> Unit
             }

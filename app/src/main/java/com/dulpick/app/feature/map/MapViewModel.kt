@@ -41,6 +41,7 @@ class MapViewModel @Inject constructor(
     private fun onSearchIntent(intent: MapIntent) {
         when (intent) {
             is MapIntent.OpenPlaceDetail -> openPlaceDetail(intent.place)
+            is MapIntent.OpenContentDetail -> openContentDetail(intent.place, intent.query)
             is MapIntent.EnterSearchResult -> enterSearchResult(intent)
             is MapIntent.SearchRowClicked -> openSearchDetail(intent.place)
             is MapIntent.SearchBookmarkClicked -> toggleSearchBookmark(intent.place)
@@ -103,6 +104,16 @@ class MapViewModel @Inject constructor(
     private fun openSavedDetail(place: SavedPlace) {
         val serverPlaceId = place.place.id.toLongOrNull()
         setState { copy(detail = DetailTarget(place.place, query = "", serverPlaceId = serverPlaceId)) }
+    }
+
+    // 탐색 검색에서 온 장소. 상세 전용(content) 모드 — 검색바 없이 그 장소 핀+상세만 (iOS mode=.content 대응)
+    private fun openContentDetail(place: Place, query: String) {
+        setState {
+            copy(
+                searchResult = null,
+                detail = DetailTarget(place, query = query, serverPlaceId = null, contentMode = true),
+            )
+        }
     }
 
     // 홈 등에서 넘어온 저장 장소. 검색 결과 모드가 아니라 저장 모드에서 상세만 연다

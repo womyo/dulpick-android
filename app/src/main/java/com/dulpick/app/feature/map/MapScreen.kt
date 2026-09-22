@@ -120,6 +120,14 @@ fun MapScreen(
     // 홈 등 다른 탭에서 넘어온 저장 장소. 지도 탭 진입 시 그 장소 상세를 연다
     pendingPlace: Place? = null,
     onPlaceConsumed: () -> Unit = {},
+    // 탐색 검색에서 넘어온 장소. 검색바 없이 그 장소 핀과 상세만 보여준다
+    pendingContentDetail: DetailTarget? = null,
+    onContentDetailConsumed: () -> Unit = {},
+    // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
+    onCloseContentDetail: () -> Unit = {},
+    // 탭바가 없는 화면(탐색에서 온 상세)에서 펼침 높이에 더해 줄 값.
+    // 탭바가 차지하던 만큼 더해야 시트가 탭바 있을 때와 같은 높이까지 펼쳐진다(접힘 높이는 그대로)
+    sheetBottomInset: Dp = 0.dp,
     viewModel: MapViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -135,28 +143,26 @@ fun MapScreen(
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
 
-    // 홈 등에서 넘어온 저장 장소가 있으면 그 상세를 연다
-    ConsumePendingPlace(pendingPlace, onPlaceConsumed) { viewModel.onIntent(MapIntent.OpenPlaceDetail(it)) }
+    ConsumeExternalInputs(
+        pendingPlace = pendingPlace,
+        onPlaceConsumed = onPlaceConsumed,
+        pendingContentDetail = pendingContentDetail,
+        onContentDetailConsumed = onContentDetailConsumed,
+        pendingSearchArg = pendingSearchArg,
+        onSearchConsumed = onSearchConsumed,
+        onIntent = viewModel::onIntent,
+    )
 
-    // 검색에서 넘어온 결과를 검색 결과 모드로 올린다. selectedIndex 있으면 상세도 연다
-    ConsumeSearchArg(pendingSearchArg, onSearchConsumed) { arg ->
-        viewModel.onIntent(
-            MapIntent.EnterSearchResult(
-                searchQuery = arg.searchQuery,
-                displayQuery = arg.displayQuery,
-                places = arg.places.map { it.toPlace() },
-                selectedIndex = arg.selectedIndex,
-            ),
-        )
+    // 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고, 아니면 상세만 내린다
+    val dismissDetail: (DetailTarget) -> Unit = { detail ->
+        viewModel.onIntent(MapIntent.CloseDetail)
+        if (detail.contentMode) onCloseContentDetail()
     }
 
-    // 뒤로가기: 상세가 열려 있으면 상세만 닫고(검색 결과 리스트로), 검색 결과 모드면 저장 모드로 돌아간다
+    // 뒤로가기: 상세가 열려 있으면 상세를 닫고, 검색 결과 모드면 저장 모드로 돌아간다
     BackHandler(enabled = state.detail != null || state.searchResult != null) {
-        if (state.detail != null) {
-            viewModel.onIntent(MapIntent.CloseDetail)
-        } else {
-            viewModel.onIntent(MapIntent.ClearSearch)
-        }
+        val detail = state.detail
+        if (detail != null) dismissDetail(detail) else viewModel.onIntent(MapIntent.ClearSearch)
     }
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
@@ -175,14 +181,17 @@ fun MapScreen(
             sheetContent = {
                 MapSheet(
                     state = state,
-                    screenHeight = screenHeight,
+                    sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
                     onIntent = viewModel::onIntent,
                     onSessionExpired = onSessionExpired,
+                    onCloseDetail = dismissDetail,
                 )
             },
         ) {
             MapBody(
                 searchQuery = state.searchResult?.displayQuery,
+                // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
+                hideTopBar = state.detail?.contentMode == true,
                 selectedCategory = state.selectedCategory,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
@@ -249,10 +258,11 @@ private suspend fun renderMapUntilSettled(context: Context, map: KakaoMap, state
 private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng {
     val detail = state.detail
     val searchResult = state.searchResult
-    val basePins = if (searchResult != null) {
-        searchResult.places.map { MapPin(it.coordinate, it.category) }
-    } else {
-        state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
+    val basePins = when {
+        // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
+        detail != null && detail.contentMode -> listOf(MapPin(detail.place.coordinate, detail.place.category))
+        searchResult != null -> searchResult.places.map { MapPin(it.coordinate, it.category) }
+        else -> state.filteredPlaces.map { MapPin(it.place.coordinate, it.place.category) }
     }
     renderPins(context, map, basePins, selected = detail?.place?.coordinate)
     // 카메라: 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
@@ -262,8 +272,23 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng 
     return center
 }
 
+// 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
+// 절대 사라지지 않는다. Hidden 앵커는 살려 아래 움직임을 허용하고(skipHiddenState=false),
+// confirmValueChange 로 Hidden 안착만 거부해 복귀시킨다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun rememberMapSheetState(): BottomSheetScaffoldState {
+    return rememberBottomSheetScaffoldState(
+        bottomSheetState = rememberStandardBottomSheetState(
+            initialValue = SheetValue.PartiallyExpanded,
+            skipHiddenState = false,
+            confirmValueChange = { it != SheetValue.Hidden },
+        ),
+    )
+}
+
 // 시트는 첫 레이아웃 전까지 위치가 없어 화면 맨 위에 그려진다. 그 한 프레임만 감추고,
-// 위치가 정해진 뒤로는 계속 보여준다
+// 위치가 정해진 뒤로는(아래에서 올라오는 동안에도) 계속 보여준다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
@@ -274,18 +299,40 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
     return if (placed) 1f else 0f
 }
 
-// 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
-// 절대 사라지지 않는다. Hidden 앵커는 살려 아래 움직임을 허용하고(skipHiddenState=false),
-// confirmValueChange 로 Hidden 안착만 거부해 복귀시킨다
-@OptIn(ExperimentalMaterial3Api::class)
+// 다른 화면(홈 탭·탐색 검색·지도 검색)에서 넘어온 것들을 한 번씩 열고 소비 콜백을 부른다
+@Suppress("LongParameterList")
 @Composable
-fun rememberMapSheetState() = rememberBottomSheetScaffoldState(
-    bottomSheetState = rememberStandardBottomSheetState(
-        initialValue = SheetValue.PartiallyExpanded,
-        skipHiddenState = false,
-        confirmValueChange = { it != SheetValue.Hidden },
-    ),
-)
+private fun ConsumeExternalInputs(
+    pendingPlace: Place?,
+    onPlaceConsumed: () -> Unit,
+    pendingContentDetail: DetailTarget?,
+    onContentDetailConsumed: () -> Unit,
+    pendingSearchArg: String?,
+    onSearchConsumed: () -> Unit,
+    onIntent: (MapIntent) -> Unit,
+) {
+    // 홈 등에서 넘어온 저장 장소는 저장 모드에서 상세만 연다
+    ConsumePendingPlace(pendingPlace, onPlaceConsumed) { onIntent(MapIntent.OpenPlaceDetail(it)) }
+
+    // 탐색 검색에서 넘어온 장소는 검색바 없는 상세 전용(content) 모드로 연다
+    LaunchedEffect(pendingContentDetail) {
+        val target = pendingContentDetail ?: return@LaunchedEffect
+        onIntent(MapIntent.OpenContentDetail(target.place, target.query))
+        onContentDetailConsumed()
+    }
+
+    // 지도 검색에서 넘어온 결과는 검색 결과 모드로 올린다. selectedIndex 있으면 상세도 연다
+    ConsumeSearchArg(pendingSearchArg, onSearchConsumed) { arg ->
+        onIntent(
+            MapIntent.EnterSearchResult(
+                searchQuery = arg.searchQuery,
+                displayQuery = arg.displayQuery,
+                places = arg.places.map { it.toPlace() },
+                selectedIndex = arg.selectedIndex,
+            ),
+        )
+    }
+}
 
 // 다른 탭(홈 등)에서 넘어온 저장 장소를 한 번 열고 소비 콜백을 부른다
 @Composable
@@ -327,19 +374,19 @@ private class MapTopBarActions(
 @Composable
 private fun MapSheet(
     state: MapState,
-    screenHeight: Int,
+    sheetHeight: Dp,
     onIntent: (MapIntent) -> Unit,
     onSessionExpired: () -> Unit,
+    onCloseDetail: (DetailTarget) -> Unit,
 ) {
     val detail = state.detail
     val searchResult = state.searchResult
-    val sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp
     when {
         detail != null -> PlaceDetailSheet(
             target = detail.place,
             query = detail.query,
             serverPlaceId = detail.serverPlaceId,
-            onClose = { onIntent(MapIntent.CloseDetail) },
+            onClose = { onCloseDetail(detail) },
             onSessionExpired = onSessionExpired,
             modifier = Modifier.height(sheetHeight),
         )
@@ -362,9 +409,15 @@ private fun MapSheet(
 @Composable
 private fun MapBody(
     searchQuery: String?,
+    hideTopBar: Boolean,
     selectedCategory: PlaceCategory?,
     actions: MapTopBarActions,
 ) {
+    // content 모드(탐색 검색 상세)에선 검색바·칩을 아예 그리지 않는다 (iOS isContentMode 대응)
+    if (hideTopBar) {
+        Box(modifier = Modifier.fillMaxSize())
+        return
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier

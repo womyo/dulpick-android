@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
@@ -43,6 +44,7 @@ import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.feature.map.DetailTarget
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.feature.mypage.MyPageScreen
@@ -70,6 +72,8 @@ fun MainTabScreen(
 
     // 홈에서 저장 장소 클릭 시 지도 탭이 읽어 상세를 여는 대상. 지도가 소비하면 비운다
     var pendingMapPlace by remember { mutableStateOf<Place?>(null) }
+    // 탐색 검색에서 고른 장소. 지도가 상세 전용(content) 모드로 열고 비운다
+    var pendingContentDetail by remember { mutableStateOf<DetailTarget?>(null) }
     // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
     val navigateToTab: (String) -> Unit = { route ->
         tabNavController.navigate(route) {
@@ -133,9 +137,12 @@ fun MainTabScreen(
             actions = actions,
             navigateToTab = navigateToTab,
             currentDestination = currentDestination,
+            tabBarHeight = tabBarHeight,
             pendingMapSearchArg = pendingMapSearchArg,
             onMapSearchConsumed = onMapSearchConsumed,
             onReopenMapSearch = onReopenMapSearch,
+            pendingContentDetail = pendingContentDetail,
+            onContentDetailChange = { pendingContentDetail = it },
             pendingMapPlace = pendingMapPlace,
             onMapPlaceChange = { pendingMapPlace = it },
         )
@@ -154,10 +161,13 @@ private fun MainTabNavHost(
     actions: MainTabActions,
     navigateToTab: (String) -> Unit,
     currentDestination: NavDestination?,
+    tabBarHeight: Dp,
     pendingMapSearchArg: String?,
     onMapSearchConsumed: () -> Unit,
     onReopenMapSearch: (String) -> Unit,
     mapSheetState: BottomSheetScaffoldState,
+    pendingContentDetail: DetailTarget?,
+    onContentDetailChange: (DetailTarget?) -> Unit,
     pendingMapPlace: Place?,
     onMapPlaceChange: (Place?) -> Unit,
 ) {
@@ -179,8 +189,15 @@ private fun MainTabNavHost(
                 popEnterTransition = { fromSearch { slideInHorizontally { -it / PARALLAX_DIVISOR } } },
                 popExitTransition = { toSearch { slideOutHorizontally { it } } },
             ) {
+                // 검색 위에 얹힌 지도(상세 전용)는 검색 화면과 마찬가지로 탭바 없는 전체 화면이다
+                val overSearch = tabNavController.previousBackStackEntry
+                    ?.destination?.route == EXPLORE_SEARCH_ROUTE
                 // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
-                TabWithBottomBar(currentDestination = currentDestination, onSelectTab = navigateToTab) {
+                TabWithBottomBar(
+                    showBar = !overSearch,
+                    currentDestination = currentDestination,
+                    onSelectTab = navigateToTab,
+                ) {
                 when (tab) {
                     MainTab.HOME -> HomeScreen(
                         onSessionExpired = onLoggedOut,
@@ -214,6 +231,13 @@ private fun MainTabNavHost(
                         pendingSearchArg = pendingMapSearchArg,
                         onSearchConsumed = onMapSearchConsumed,
                         onReopenSearch = onReopenMapSearch,
+                        pendingContentDetail = pendingContentDetail,
+                        onContentDetailConsumed = { onContentDetailChange(null) },
+                        // 상세 전용(content) 모드는 검색 화면 위에 얹힌 것이라, 닫으면 그대로 pop 한다.
+                        // 검색 화면이 스택에 살아 있어 결과 리스트가 그 자리에 다시 보인다
+                        onCloseContentDetail = { tabNavController.popBackStack() },
+                        // 탭바를 감췄으니 그만큼 시트를 키워, 탭바 있을 때와 같은 높이까지 올라오게 한다
+                        sheetBottomInset = if (overSearch) tabBarHeight else 0.dp,
                         pendingPlace = pendingMapPlace,
                         onPlaceConsumed = { onMapPlaceChange(null) },
                     )
@@ -222,7 +246,9 @@ private fun MainTabNavHost(
                 }
             }
         }
-        // 탐색 검색. 탭바가 없는 전체 화면이라 다른 화면 push 와 똑같이 밀려 들어오고 밀려 나간다
+        // 탐색 검색. 장소 결과를 탭하면 이 화면을 남겨 둔 채 지도를 그 위에 올려 상세만 보여준다
+        // (iOS showPlaceDetail → presentSearchPlaceDetail 대응).
+        // 탭바가 없는 전체 화면이라 다른 화면 push 와 똑같이 밀려 들어오고 밀려 나간다
         composable(
             route = EXPLORE_SEARCH_ROUTE,
             enterTransition = { slideInHorizontally { it } },
@@ -233,6 +259,12 @@ private fun MainTabNavHost(
             SearchScreen(
                 onBack = { tabNavController.popBackStack() },
                 onSessionExpired = onLoggedOut,
+                onOpenPlaceOnMap = { query, place ->
+                    onContentDetailChange(
+                        DetailTarget(place, query = query, serverPlaceId = null, contentMode = true),
+                    )
+                    tabNavController.navigate(MainTab.MAP.route) { launchSingleTop = true }
+                },
             )
         }
     }
@@ -257,16 +289,20 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.toSearch(
 ): ExitTransition =
     if (targetState.destination.route == EXPLORE_SEARCH_ROUTE) transition() else ExitTransition.None
 
-// 탭 화면 + 그 아래 탭바. 탭바가 화면에 붙어 있어 검색 화면이 밀려 들어올 때 함께 밀린다
+// 탭 화면 + 그 아래 탭바. 탭바가 화면에 붙어 있어 검색 화면이 밀려 들어올 때 함께 밀린다.
+// showBar 가 false 면 탭바 없는 전체 화면(검색에서 올라온 장소 상세)
 @Composable
 private fun TabWithBottomBar(
+    showBar: Boolean,
     currentDestination: NavDestination?,
     onSelectTab: (String) -> Unit,
     content: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) { content() }
-        MainBottomBar(currentDestination = currentDestination, onSelect = onSelectTab)
+        if (showBar) {
+            MainBottomBar(currentDestination = currentDestination, onSelect = onSelectTab)
+        }
     }
 }
 

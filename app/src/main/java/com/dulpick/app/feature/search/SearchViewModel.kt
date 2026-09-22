@@ -34,14 +34,28 @@ class SearchViewModel @Inject constructor(
             SearchIntent.OnAppear -> loadRecent()
             is SearchIntent.QueryChanged -> onQueryChanged(intent.query)
             SearchIntent.SearchSubmitted -> onSubmit()
-            is SearchIntent.RecentTapped -> onRecentTapped(intent.term)
-            is SearchIntent.RecentDeleted -> updateRecent { recentSearchRepository.remove(intent.term) }
-            SearchIntent.ClearRecent -> clearRecent()
             SearchIntent.ReachedEnd -> loadMore()
             is SearchIntent.TabSelected -> setState { copy(selectedTab = intent.tab) }
             is SearchIntent.ContentClicked -> postSideEffect(SearchSideEffect.ShowContentDetail(intent.id))
-            is SearchIntent.PlaceClicked -> postSideEffect(SearchSideEffect.ShowPlaceDetail(intent.id))
+            is SearchIntent.PlaceClicked -> onPlaceClicked(intent.id)
+            else -> onRecentIntent(intent)
         }
+    }
+
+    // 최근 검색어 관련 인텐트 (onIntent 복잡도 분리)
+    private fun onRecentIntent(intent: SearchIntent) {
+        when (intent) {
+            is SearchIntent.RecentTapped -> onRecentTapped(intent.term)
+            is SearchIntent.RecentDeleted -> updateRecent { recentSearchRepository.remove(intent.term) }
+            SearchIntent.ClearRecent -> clearRecent()
+            else -> Unit
+        }
+    }
+
+    // 장소 결과 탭. 지도 탭에서 상세를 열도록 장소와 검색어를 상위에 올린다 (iOS placeTapped 대응)
+    private fun onPlaceClicked(id: String) {
+        val place = currentState.places.firstOrNull { it.id == id } ?: return
+        postSideEffect(SearchSideEffect.ShowPlaceDetail(place, currentState.query.trim()))
     }
 
     private fun loadRecent() {

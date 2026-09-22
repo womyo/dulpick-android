@@ -57,11 +57,14 @@ data class SearchResult(
     val places: List<Place>,
 )
 
-// 지도 위에 띄우는 장소 상세 대상. 검색 결과는 카카오+검색어, 저장/핀 장소는 서버 placeId 로 조회한다
+// 지도 위에 띄우는 장소 상세 대상. 검색 결과는 카카오+검색어, 저장/핀 장소는 서버 placeId 로 조회한다.
+// contentMode 면 지도를 상세 전용으로 쓴다(iOS mode=.content 대응): 검색바·칩을 숨기고 그 장소 핀만 찍으며,
+// 닫으면 온 곳(탐색 검색)으로 되돌린다
 data class DetailTarget(
     val place: Place,
     val query: String,
     val serverPlaceId: Long?,
+    val contentMode: Boolean = false,
 )
 
 // 별칭 편집 시트 상태 (iOS PlaceAliasFeature.State 대응)
@@ -104,6 +107,8 @@ sealed interface MapIntent : UiIntent {
     data class OpenSavedDetail(val place: SavedPlace) : MapIntent
     // 홈 등 다른 탭에서 넘어온 저장 장소 → 서버 placeId 로 상세(저장 모드, 검색 결과 아님)
     data class OpenPlaceDetail(val place: Place) : MapIntent
+    // 탐색 검색에서 온 장소 → 상세 전용(content) 모드로 연다. 검색바 없이 그 장소 핀+상세만
+    data class OpenContentDetail(val place: Place, val query: String) : MapIntent
     data object CloseDetail : MapIntent
 }
 

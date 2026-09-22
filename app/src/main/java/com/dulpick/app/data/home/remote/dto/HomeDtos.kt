@@ -36,8 +36,9 @@ data class SavedPlaceItemDto(
     val name: String = "",
     val address: String = "",
     val roadAddress: String? = null,
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
+    // 기본값을 두지 않는다. 누락을 (0,0) 으로 바꾸면 지도가 아무 데도 아닌 좌표로 이동한다
+    val latitude: Double,
+    val longitude: Double,
     val category: String? = null,
     val categoryName: String = "",
     val thumbnailUrl: String? = null,

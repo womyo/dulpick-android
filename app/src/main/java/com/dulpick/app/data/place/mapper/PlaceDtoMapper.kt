@@ -46,10 +46,12 @@ object PlaceDtoMapper {
             savedAt = dto.savedAt,
         )
 
+    // 아는 값만 그대로 옮긴다. 모르는 값을 together 로 두면 그 장소가 '내가 저장'·'상대가 저장'
+    // 필터에도 다 걸려 잘못 보인다. iOS 처럼 mine 으로 떨어뜨린다
     private fun ownership(raw: String): PlaceOwnership =
         when (raw.lowercase()) {
-            "mine" -> PlaceOwnership.MINE
             "partner" -> PlaceOwnership.PARTNER
-            else -> PlaceOwnership.TOGETHER
+            "together" -> PlaceOwnership.TOGETHER
+            else -> PlaceOwnership.MINE
         }
 }

@@ -8,7 +8,6 @@ data class MainTabActions(
     val onOpenCoupleConnect: (myNickname: String) -> Unit,
     // 홈에서 연결 → 완료 시 홈으로 되돌아와 갱신
     val onOpenCoupleConnectFromHome: (myNickname: String) -> Unit,
-    val onOpenSearch: () -> Unit,
     // 지도 검색바 → 지도 전용 장소 검색
     val onOpenMapSearch: () -> Unit,
     val onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,

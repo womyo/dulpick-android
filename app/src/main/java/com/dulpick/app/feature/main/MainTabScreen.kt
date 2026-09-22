@@ -1,19 +1,25 @@
 package com.dulpick.app.feature.main
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -36,6 +43,7 @@ import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
+import com.dulpick.app.feature.search.SearchScreen
 import com.kakao.vectormap.KakaoMap
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -69,39 +77,60 @@ fun MainTabScreen(
 
     // 지도 탭 여부. 지도는 이 값으로 재생/멈춤을 가른다
     val isMapTab = currentDestination?.hierarchy?.any { it.route == MainTab.MAP.route } == true
+
+    // 검색(지도)에서 장소를 골라 돌아오면 지도 탭으로 옮겨 소비하게 한다 (iOS selectedTab = .map 대응)
+    LaunchedEffect(pendingMapSearchArg) {
+        if (pendingMapSearchArg != null && !isMapTab) navigateToTab(MainTab.MAP.route)
+    }
     // 상시 살아 있는 카카오 지도. 파괴 후 재시작이 안 되는 SDK 라 iOS 탭처럼 여기서 계속 들고 있는다
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     // 렌더링 재개 횟수. pause 중에 그린 내용은 프레임을 못 잡아, 재개될 때마다 지도 화면이 다시 그린다
     var mapRevision by remember { mutableStateOf(0) }
+    // 탭바가 차지하는 높이 = Material 탭바 높이 + 시스템 내비게이션 인셋(탭바가 스스로 더한다)
+    val tabBarHeight = NAVIGATION_BAR_HEIGHT +
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    Scaffold(
-        containerColor = Colors.bgDefault,
-        // 상단(상태바) 인셋은 각 화면이 직접 처리한다. 그래야 화면 배경이 상태바 뒤까지 그려진다
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = { MainBottomBar(currentDestination = currentDestination, onSelect = navigateToTab) },
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            // 지도는 NavHost 아래층에 상시 붙어 있다. 지도 탭이 아닐 땐 위 탭 화면(불투명)에 가려진다
-            KakaoMapView(
-                modifier = Modifier.fillMaxSize(),
-                isActive = isMapTab,
-                onMapReady = { kakaoMap = it },
-                onResumed = { mapRevision++ },
-            )
-            MainTabNavHost(
-                tabNavController = tabNavController,
-                kakaoMap = kakaoMap,
-                mapRevision = mapRevision,
-                onLoggedOut = onLoggedOut,
-                actions = actions,
-                navigateToTab = navigateToTab,
-                pendingMapSearchArg = pendingMapSearchArg,
-                onMapSearchConsumed = onMapSearchConsumed,
-                onReopenMapSearch = onReopenMapSearch,
-                pendingMapPlace = pendingMapPlace,
-                onMapPlaceChange = { pendingMapPlace = it },
+    // 탭바는 Scaffold 가 아니라 각 탭 화면 안에 둔다. Scaffold 의 bottomBar 는 항상 맨 위층이라
+    // 검색 화면이 탭바까지 덮으며 밀려 들어오는(다른 화면 push 와 같은) 전환을 만들 수 없다
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Colors.bgDefault),
+    ) {
+        // 지도는 NavHost 아래층에 상시 붙어 있다. 지도 탭이 아닐 땐 위 탭 화면(불투명)에 가려진다.
+        // 탭바 높이를 미리 빼 둔다. 탭바가 측정된 뒤에 맞추면 지도 크기가 한 번 바뀌어,
+        // 크기 변경에 예민한 지도 엔진이 빈 화면을 그릴 수 있다
+        KakaoMapView(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = tabBarHeight),
+            isActive = isMapTab,
+            onMapReady = { kakaoMap = it },
+            onResumed = { mapRevision++ },
+        )
+        // 지도 탭이 아니면 지도를 덮어 둔다. 화면 전환 중 위 화면이 잠깐 비는 순간에도
+        // 아래층 지도가 비쳐 보이지 않게 한다
+        if (!isMapTab) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Colors.bgDefault),
             )
         }
+        MainTabNavHost(
+            tabNavController = tabNavController,
+            kakaoMap = kakaoMap,
+            mapRevision = mapRevision,
+            onLoggedOut = onLoggedOut,
+            actions = actions,
+            navigateToTab = navigateToTab,
+            currentDestination = currentDestination,
+            pendingMapSearchArg = pendingMapSearchArg,
+            onMapSearchConsumed = onMapSearchConsumed,
+            onReopenMapSearch = onReopenMapSearch,
+            pendingMapPlace = pendingMapPlace,
+            onMapPlaceChange = { pendingMapPlace = it },
+        )
     }
 }
 
@@ -115,6 +144,7 @@ private fun MainTabNavHost(
     onLoggedOut: () -> Unit,
     actions: MainTabActions,
     navigateToTab: (String) -> Unit,
+    currentDestination: NavDestination?,
     pendingMapSearchArg: String?,
     onMapSearchConsumed: () -> Unit,
     onReopenMapSearch: (String) -> Unit,
@@ -130,8 +160,17 @@ private fun MainTabNavHost(
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { ExitTransition.None },
     ) {
-            MainTab.entries.forEach { tab ->
-            composable(tab.route) {
+        MainTab.entries.forEach { tab ->
+            composable(
+                route = tab.route,
+                // 탭 전환은 즉시. 검색 화면과 주고받을 때만 다른 화면 push/pop 과 같은 전환을 쓴다
+                enterTransition = { fromSearch { slideInHorizontally { it } } },
+                exitTransition = { toSearch { slideOutHorizontally { -it / PARALLAX_DIVISOR } } },
+                popEnterTransition = { fromSearch { slideInHorizontally { -it / PARALLAX_DIVISOR } } },
+                popExitTransition = { toSearch { slideOutHorizontally { it } } },
+            ) {
+                // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
+                TabWithBottomBar(currentDestination = currentDestination, onSelectTab = navigateToTab) {
                 when (tab) {
                     MainTab.HOME -> HomeScreen(
                         onSessionExpired = onLoggedOut,
@@ -153,7 +192,8 @@ private fun MainTabNavHost(
                     )
                     MainTab.EXPLORE -> ExploreScreen(
                         onSessionExpired = onLoggedOut,
-                        onOpenSearch = actions.onOpenSearch,
+                        // 검색은 탭 안에 push 한다. 지도 상세를 보러 가도 이 화면이 스택에 그대로 남는다
+                        onOpenSearch = { tabNavController.navigate(EXPLORE_SEARCH_ROUTE) },
                     )
                     MainTab.MAP -> MapScreen(
                         kakaoMap = kakaoMap,
@@ -168,8 +208,54 @@ private fun MainTabNavHost(
                     )
                     else -> TabPlaceholder(label = tab.label)
                 }
+                }
             }
         }
+        // 탐색 검색. 탭바가 없는 전체 화면이라 다른 화면 push 와 똑같이 밀려 들어오고 밀려 나간다
+        composable(
+            route = EXPLORE_SEARCH_ROUTE,
+            enterTransition = { slideInHorizontally { it } },
+            exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+            popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+            popExitTransition = { slideOutHorizontally { it } },
+        ) {
+            SearchScreen(
+                onBack = { tabNavController.popBackStack() },
+                onSessionExpired = onLoggedOut,
+            )
+        }
+    }
+}
+
+// 탐색 탭 안의 검색 화면
+private const val EXPLORE_SEARCH_ROUTE = "main/explore/search"
+// 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4). 루트 화면 전환과 같은 값
+private const val PARALLAX_DIVISOR = 4
+// Material3 NavigationBar 의 높이(NavigationBarTokens.ContainerHeight). 시스템 인셋은 별도로 더한다
+private val NAVIGATION_BAR_HEIGHT = 80.dp
+
+// 검색 화면에서 들어오는 전환이면 주어진 애니메이션을, 탭 전환이면 즉시 전환을 쓴다
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.fromSearch(
+    transition: () -> EnterTransition,
+): EnterTransition =
+    if (initialState.destination.route == EXPLORE_SEARCH_ROUTE) transition() else EnterTransition.None
+
+// 검색 화면으로 나가는 전환이면 주어진 애니메이션을, 탭 전환이면 즉시 전환을 쓴다
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.toSearch(
+    transition: () -> ExitTransition,
+): ExitTransition =
+    if (targetState.destination.route == EXPLORE_SEARCH_ROUTE) transition() else ExitTransition.None
+
+// 탭 화면 + 그 아래 탭바. 탭바가 화면에 붙어 있어 검색 화면이 밀려 들어올 때 함께 밀린다
+@Composable
+private fun TabWithBottomBar(
+    currentDestination: NavDestination?,
+    onSelectTab: (String) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) { content() }
+        MainBottomBar(currentDestination = currentDestination, onSelect = onSelectTab)
     }
 }
 

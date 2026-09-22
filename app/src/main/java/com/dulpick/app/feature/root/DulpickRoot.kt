@@ -48,7 +48,6 @@ import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
 import com.dulpick.app.feature.placedetail.MapSearchReturnArg
-import com.dulpick.app.feature.search.SearchScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.dulpick.app.ui.component.AppButton
@@ -206,24 +205,11 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                 onOpenCoupleConnectFromHome = { nickname ->
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
-                onOpenSearch = { navController.navigate(MAIN_SEARCH_ROUTE) },
                 onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },
             ),
-        )
-    }
-    composable(
-        route = MAIN_SEARCH_ROUTE,
-        enterTransition = { slideInHorizontally { it } },
-        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
-        popExitTransition = { slideOutHorizontally { it } },
-    ) {
-        SearchScreen(
-            onBack = { navController.popBackStack() },
-            onSessionExpired = { navController.navigateToAuth() },
         )
     }
     mapSearchRoute(navController)
@@ -367,7 +353,6 @@ private const val KEY_MAP_SEARCH = "map_search"
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
 private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
-private const val MAIN_SEARCH_ROUTE = "main/search"
 private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 // 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
 private const val ARG_MAP_SEARCH_QUERY = "query"

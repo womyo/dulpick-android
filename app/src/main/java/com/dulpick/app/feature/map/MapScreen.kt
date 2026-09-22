@@ -79,6 +79,7 @@ import com.dulpick.app.ui.component.pinRes
 import androidx.compose.ui.text.style.TextOverflow
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
+import com.kakao.vectormap.GestureType
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.camera.CameraUpdateFactory
@@ -86,6 +87,7 @@ import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 // 지도 탭. 저장 장소를 지도에 핀으로 찍고, 아래 바텀시트에 목록으로 보여준다 (iOS MapView 대응)
@@ -234,19 +236,41 @@ fun MapScreen(
 
     state.aliasEdit?.let { edit -> AliasEditModal(edit = edit, onIntent = viewModel::onIntent) }
 
-    // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다.
-    // 지도 준비·재개(mapRevision)·저장목록·검색결과·상세 변경마다 다시 그린다
+    RenderMap(kakaoMap, mapRevision, state)
+}
+
+// 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다.
+// 지도 준비·재개(mapRevision)·저장목록·검색결과·상세 변경마다 다시 그린다
+@Composable
+private fun RenderMap(kakaoMap: KakaoMap?, mapRevision: Int, state: MapState) {
+    val context = LocalContext.current
+    // 사용자가 지도를 직접 움직였는지. 움직였으면 카메라 재시도를 멈춘다
+    val userMovedCamera = remember { AtomicBoolean(false) }
     LaunchedEffect(kakaoMap, mapRevision, state.filteredPlaces, state.searchResult, state.detail) {
-        renderMapUntilSettled(context, kakaoMap ?: return@LaunchedEffect, state)
+        val map = kakaoMap ?: return@LaunchedEffect
+        userMovedCamera.set(false)
+        // 제스처로 끝난 카메라 이동만 사용자 조작이다(코드가 옮기면 Unknown 으로 온다)
+        map.setOnCameraMoveEndListener { _, _, gestureType ->
+            if (gestureType != GestureType.Unknown) userMovedCamera.set(true)
+        }
+        renderMapUntilSettled(context, map, state, userMovedCamera)
     }
 }
 
 // 엔진 준비·재개 직후에는 카메라·라벨 명령이 유실될 수 있다(카메라가 기본 위치에 남아 빈 지역만 보임).
-// 카메라가 목표에 앉은 걸 확인할 때까지 재시도한다
-private suspend fun renderMapUntilSettled(context: Context, map: KakaoMap, state: MapState) {
+// 카메라가 목표에 앉은 걸 확인할 때까지 재시도한다.
+// 단 사용자가 지도를 움직인 뒤에는 멈춘다 — 안 그러면 방금 옮긴 화면을 목표로 되돌려 버린다
+private suspend fun renderMapUntilSettled(
+    context: Context,
+    map: KakaoMap,
+    state: MapState,
+    userMovedCamera: AtomicBoolean,
+) {
     repeat(RENDER_MAX_TRIES) {
+        if (userMovedCamera.get()) return
         val target = renderMap(context, map, state)
         delay(RENDER_VERIFY_MS)
+        if (userMovedCamera.get()) return
         val pos = map.cameraPosition?.position
         val arrived = pos != null &&
             abs(pos.latitude - target.latitude) < CAMERA_EPSILON &&

@@ -6,6 +6,7 @@ import android.util.Patterns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dulpick.app.feature.root.DulpickRoot
 import com.dulpick.app.ui.theme.DulpickTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -17,6 +18,8 @@ class MainActivity : ComponentActivity() {
     private val importUrl = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 런치스크린은 화면을 그리기 전에 설치해야 한다
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {

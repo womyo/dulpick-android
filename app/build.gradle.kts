@@ -95,6 +95,8 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // 앱이 뜨는 순간 보이는 런치스크린 (API 31 이전에도 같은 모양으로)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

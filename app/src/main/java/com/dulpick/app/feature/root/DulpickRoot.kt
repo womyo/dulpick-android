@@ -4,12 +4,15 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,10 +22,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.dulpick.app.R
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -362,6 +368,11 @@ private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 private const val ARG_COUPLE_ORIGIN = "origin"
 private const val COUPLE_ORIGIN_HOME = "home"
 private const val COUPLE_ORIGIN_MYPAGE = "mypage"
+// 스플래시 로고 묶음 크기와 위치 (iOS SplashMetric 과 동일)
+private val SPLASH_BUNDLE_WIDTH = 201.dp
+private val SPLASH_BUNDLE_HEIGHT = 164.dp
+private val SPLASH_BUNDLE_OFFSET = 36.dp
+
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4)
 private const val PARALLAX_DIVISOR = 4
 
@@ -386,11 +397,26 @@ private fun androidx.navigation.NavController.navigateToDateType() {
 
 @Composable
 private fun SplashScreen() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Colors.commonWhite),
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 배경은 브랜드 색 위에 곡선 장식이 얹힌 한 장이다. 시안 비율(393 × 852)과 화면 비율이
+        // 달라 잘라서 채운다 (iOS scaledToFill 대응)
+        Image(
+            painter = painterResource(R.drawable.splashbackground),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        // 로고와 문구를 한 장으로 내보낸 그림. 시안(393 × 852)에서 묶음 중심이 화면 중심보다 36 위다
+        // (iOS SplashView·SplashMetric 대응)
+        Image(
+            painter = painterResource(R.drawable.splashbundle),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = -SPLASH_BUNDLE_OFFSET)
+                .size(width = SPLASH_BUNDLE_WIDTH, height = SPLASH_BUNDLE_HEIGHT),
+        )
+    }
 }
 
 // 세션 읽기 등 일시적 오류. 로그아웃으로 넘기지 않고 재시도를 제공한다

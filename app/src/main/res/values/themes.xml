@@ -2,4 +2,12 @@
 <resources>
 
     <style name="Theme.Dulpick" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 앱이 뜨는 순간 보이는 화면. iOS LaunchScreen(브랜드 배경 + 로고)에 맞춘다.
+         안드로이드 런치스크린은 가운데 아이콘 한 개만 놓을 수 있어 문구는 앱 내 스플래시가 잇는다 -->
+    <style name="Theme.Dulpick.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Dulpick</item>
+    </style>
 </resources>

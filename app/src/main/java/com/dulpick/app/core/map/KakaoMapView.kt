@@ -1,5 +1,6 @@
 package com.dulpick.app.core.map
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +16,8 @@ import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
+
+private const val LOG_TAG = "KakaoMapView"
 
 // 카카오 MapView 를 Compose 로 감싼다. 화면은 이걸 통해서만 지도를 쓴다 (iOS KakaoMapView 대응).
 // 지도가 준비되면 KakaoMap 을 콜백으로 넘겨 카메라·마커 조작을 맡긴다
@@ -36,7 +39,12 @@ fun KakaoMapView(
             mapView.start(
                 object : MapLifeCycleCallback() {
                     override fun onMapDestroy() = Unit
+
+                    // 앱키가 틀리거나 만료되거나 할당량을 넘기면 여기로 온다. 화면이 할 수 있는 게
+                    // 없으니 사용자에게 알리지 않고 로그만 남긴다 (iOS authenticationFailed 와 동일).
+                    // 앱키 값은 남기지 않는다
                     override fun onMapError(error: Exception) {
+                        Log.e(LOG_TAG, "카카오 지도 오류", error)
                         currentOnError(error)
                     }
                 },

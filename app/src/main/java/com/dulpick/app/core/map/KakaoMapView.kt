@@ -27,10 +27,10 @@ private const val RESUME_WAIT_MS = 3_000L
 
 // 카카오 MapView 를 Compose 로 감싼다. 화면은 이걸 통해서만 지도를 쓴다 (iOS KakaoMapView 대응).
 //
-// 카카오 엔진은 finish 후 같은 프로세스에서 다시 start 하면 타일이 그려지지 않고,
-// 뷰를 window 에서 뗐다 다시 붙여도 표면이 살아나지 않는다. 그래서 iOS 탭처럼
-// 지도를 탭 컨테이너에 상시 붙여두고(다른 탭에선 가려짐+pause), 파괴하지 않는 구조를 전제로 한다.
-// isActive 가 지도 탭 표시 여부다. 꺼지면 렌더링만 멈춘다
+// 지도는 지도 화면의 바텀시트 본문 안에 둔다. 시트(Material Surface)가 터치를 흡수하므로
+// 시트 밖(아래층)에 두면 지도가 드래그·확대·핀 탭을 전혀 받지 못한다.
+// 그래서 지도 화면과 함께 만들어지고, 화면이 떠날 때 finish 로 정리한다.
+// isActive 를 끄면 파괴하지 않고 렌더링만 멈춘다
 @Composable
 fun KakaoMapView(
     modifier: Modifier = Modifier,

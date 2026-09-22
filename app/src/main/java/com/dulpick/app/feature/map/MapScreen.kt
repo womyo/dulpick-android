@@ -52,6 +52,7 @@ import androidx.core.content.ContextCompat
 import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
@@ -105,10 +106,9 @@ private data class MapToast(val message: String, val isError: Boolean)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    // 탭 컨테이너가 상시 들고 있는 지도. 이 화면은 그 위에 시트·검색바 오버레이만 그린다
-    kakaoMap: KakaoMap?,
-    // 렌더링 재개 신호. pause 중에 그린 카메라·핀은 프레임을 못 잡아, 재개될 때마다 다시 그린다
-    mapRevision: Int = 0,
+    // 탭바가 차지하는 높이. 탭바가 감춰져 화면이 길어진 만큼 지도 뷰가 아래를 비워,
+    // 시트가 바뀌어도 지도 뷰 크기가 변하지 않게 한다
+    tabBarHeight: Dp = 0.dp,
     // 탭 밖에서 들고 있는 시트 상태. 여기서 만들면 탭을 옮길 때마다 새로 만들어져 시트가 위에서 떨어진다
     sheetState: BottomSheetScaffoldState = rememberMapSheetState(),
     onSessionExpired: () -> Unit,
@@ -138,6 +138,12 @@ fun MapScreen(
     val context = LocalContext.current
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
+    // 지도 뷰는 시트 본문 안에 있어야 터치를 받는다(시트의 Material Surface 가 터치를 흡수한다).
+    // 그래서 이 화면이 지도를 들고 있고, 준 KakaoMap 과 재개 신호를 여기서 기억한다
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    var mapRevision by remember { mutableStateOf(0) }
+    // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
+    val tabBarHidden = state.detail != null || state.searchResult != null
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
@@ -157,7 +163,7 @@ fun MapScreen(
         onIntent = viewModel::onIntent,
     )
 
-    ReportTabBarHidden(state.detail != null || state.searchResult != null, onTabBarHiddenChange)
+    ReportTabBarHidden(tabBarHidden, onTabBarHiddenChange)
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
@@ -191,6 +197,10 @@ fun MapScreen(
             },
         ) {
             MapBody(
+                // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
+                mapBottomInset = if (tabBarHidden) tabBarHeight else 0.dp,
+                onMapReady = { kakaoMap = it },
+                onResumed = { mapRevision++ },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = state.detail?.contentMode == true,
@@ -217,21 +227,7 @@ fun MapScreen(
         )
     }
 
-    state.aliasEdit?.let { edit ->
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = { viewModel.onIntent(MapIntent.AliasEditDismissed) },
-            sheetState = sheetState,
-            containerColor = Colors.commonWhite,
-            // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 회색으로 뜨므로 끈다
-            tonalElevation = 0.dp,
-        ) {
-            PlaceAliasSheet(
-                edit = edit,
-                onSave = { viewModel.onIntent(MapIntent.AliasSaveClicked(it)) },
-            )
-        }
-    }
+    state.aliasEdit?.let { edit -> AliasEditModal(edit = edit, onIntent = viewModel::onIntent) }
 
     // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다.
     // 지도 준비·재개(mapRevision)·저장목록·검색결과·상세 변경마다 다시 그린다
@@ -305,6 +301,21 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
 private fun DetailTarget.dismiss(onIntent: (MapIntent) -> Unit, onCloseContentDetail: () -> Unit) {
     onIntent(MapIntent.CloseDetail)
     if (contentMode) onCloseContentDetail()
+}
+
+// 별칭 편집 모달 시트 (iOS PlaceAliasView 대응)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AliasEditModal(edit: AliasEdit, onIntent: (MapIntent) -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = { onIntent(MapIntent.AliasEditDismissed) },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Colors.commonWhite,
+        // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 회색으로 뜨므로 끈다
+        tonalElevation = 0.dp,
+    ) {
+        PlaceAliasSheet(edit = edit, onSave = { onIntent(MapIntent.AliasSaveClicked(it)) })
+    }
 }
 
 // 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
@@ -422,18 +433,28 @@ private fun MapSheet(
 // 상단 컨트롤(검색바·카테고리 칩바) 오버레이. 지도는 탭 컨테이너가 아래층에 그린다.
 // 검색 결과 모드(searchQuery != null)면 검색바가 [뒤로][검색어 X]로 바뀌고 카테고리 칩은 감춘다
 @Composable
+@Suppress("LongParameterList")
 private fun MapBody(
+    mapBottomInset: Dp,
+    onMapReady: (KakaoMap) -> Unit,
+    onResumed: () -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
     selectedCategory: PlaceCategory?,
     actions: MapTopBarActions,
 ) {
-    // content 모드(탐색 검색 상세)에선 검색바·칩을 아예 그리지 않는다 (iOS isContentMode 대응)
-    if (hideTopBar) {
-        Box(modifier = Modifier.fillMaxSize())
-        return
-    }
     Box(modifier = Modifier.fillMaxSize()) {
+        // 지도는 시트 본문 안에 둔다. 시트(Material Surface)가 터치를 흡수하므로,
+        // 밖에 두면 지도가 드래그·확대·핀 탭을 받지 못한다
+        KakaoMapView(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = mapBottomInset),
+            onMapReady = onMapReady,
+            onResumed = onResumed,
+        )
+        // content 모드(탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
+        if (hideTopBar) return@Box
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)

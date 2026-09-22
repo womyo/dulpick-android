@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,14 +41,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.home.HomeScreen
-import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.DetailTarget
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.feature.search.SearchScreen
-import com.kakao.vectormap.KakaoMap
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -92,10 +89,6 @@ fun MainTabScreen(
     LaunchedEffect(pendingMapSearchArg) {
         if (pendingMapSearchArg != null && !isMapTab) navigateToTab(MainTab.MAP.route)
     }
-    // 상시 살아 있는 카카오 지도. 파괴 후 재시작이 안 되는 SDK 라 iOS 탭처럼 여기서 계속 들고 있는다
-    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
-    // 렌더링 재개 횟수. pause 중에 그린 내용은 프레임을 못 잡아, 재개될 때마다 지도 화면이 다시 그린다
-    var mapRevision by remember { mutableStateOf(0) }
     // 지도 시트 상태를 탭 밖에 둔다. 지도 화면 안에 두면 탭을 옮길 때마다 새로 만들어지고,
     // 새 상태는 첫 레이아웃 전까지 위치가 없어 시트가 화면 맨 위에서 제자리로 떨어진다
     val mapSheetState = rememberMapSheetState()
@@ -110,30 +103,8 @@ fun MainTabScreen(
             .fillMaxSize()
             .background(Colors.bgDefault),
     ) {
-        // 지도는 NavHost 아래층에 상시 붙어 있다. 지도 탭이 아닐 땐 위 탭 화면(불투명)에 가려진다.
-        // 탭바 높이를 미리 빼 둔다. 탭바가 측정된 뒤에 맞추면 지도 크기가 한 번 바뀌어,
-        // 크기 변경에 예민한 지도 엔진이 빈 화면을 그릴 수 있다
-        KakaoMapView(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = tabBarHeight),
-            isActive = isMapTab,
-            onMapReady = { kakaoMap = it },
-            onResumed = { mapRevision++ },
-        )
-        // 지도 탭이 아니면 지도를 덮어 둔다. 화면 전환 중 위 화면이 잠깐 비는 순간에도
-        // 아래층 지도가 비쳐 보이지 않게 한다
-        if (!isMapTab) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Colors.bgDefault),
-            )
-        }
         MainTabNavHost(
             tabNavController = tabNavController,
-            kakaoMap = kakaoMap,
-            mapRevision = mapRevision,
             mapSheetState = mapSheetState,
             onLoggedOut = onLoggedOut,
             actions = actions,
@@ -159,8 +130,6 @@ fun MainTabScreen(
 @Composable
 private fun MainTabNavHost(
     tabNavController: androidx.navigation.NavHostController,
-    kakaoMap: KakaoMap?,
-    mapRevision: Int,
     onLoggedOut: () -> Unit,
     actions: MainTabActions,
     navigateToTab: (String) -> Unit,
@@ -231,8 +200,7 @@ private fun MainTabNavHost(
                         onOpenSearch = { tabNavController.navigate(EXPLORE_SEARCH_ROUTE) },
                     )
                     MainTab.MAP -> MapScreen(
-                        kakaoMap = kakaoMap,
-                        mapRevision = mapRevision,
+                        tabBarHeight = tabBarHeight,
                         sheetState = mapSheetState,
                         onSessionExpired = onLoggedOut,
                         onOpenSearch = actions.onOpenMapSearch,

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
@@ -39,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -106,6 +108,8 @@ fun MapScreen(
     kakaoMap: KakaoMap?,
     // 렌더링 재개 신호. pause 중에 그린 카메라·핀은 프레임을 못 잡아, 재개될 때마다 다시 그린다
     mapRevision: Int = 0,
+    // 탭 밖에서 들고 있는 시트 상태. 여기서 만들면 탭을 옮길 때마다 새로 만들어져 시트가 위에서 떨어진다
+    sheetState: BottomSheetScaffoldState = rememberMapSheetState(),
     onSessionExpired: () -> Unit,
     onOpenSearch: () -> Unit,
     // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
@@ -155,9 +159,12 @@ fun MapScreen(
         }
     }
 
+    val sheetAlpha = rememberSheetAlpha(sheetState)
+
     Box(modifier = Modifier.fillMaxSize()) {
         BottomSheetScaffold(
-            scaffoldState = rememberNonDismissibleScaffoldState(),
+            modifier = Modifier.alpha(sheetAlpha),
+            scaffoldState = sheetState,
             sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
             sheetContainerColor = Colors.commonWhite,
             // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
@@ -255,12 +262,24 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng 
     return center
 }
 
+// 시트는 첫 레이아웃 전까지 위치가 없어 화면 맨 위에 그려진다. 그 한 프레임만 감추고,
+// 위치가 정해진 뒤로는 계속 보여준다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
+    // 위치가 정해지기 전에는 requireOffset 이 던진다
+    val positioned = runCatching { sheetState.bottomSheetState.requireOffset() }.isSuccess
+    var placed by remember { mutableStateOf(false) }
+    LaunchedEffect(positioned) { if (positioned) placed = true }
+    return if (placed) 1f else 0f
+}
+
 // 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
 // 절대 사라지지 않는다. Hidden 앵커는 살려 아래 움직임을 허용하고(skipHiddenState=false),
 // confirmValueChange 로 Hidden 안착만 거부해 복귀시킨다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun rememberNonDismissibleScaffoldState() = rememberBottomSheetScaffoldState(
+fun rememberMapSheetState() = rememberBottomSheetScaffoldState(
     bottomSheetState = rememberStandardBottomSheetState(
         initialValue = SheetValue.PartiallyExpanded,
         skipHiddenState = false,

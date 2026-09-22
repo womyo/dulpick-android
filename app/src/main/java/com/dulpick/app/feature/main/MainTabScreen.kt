@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.BottomSheetScaffoldState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,6 +44,7 @@ import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.MapScreen
+import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.feature.search.SearchScreen
 import com.kakao.vectormap.KakaoMap
@@ -50,6 +53,7 @@ import com.dulpick.app.ui.theme.Typography
 
 // 로그인·온보딩을 마치고 진입하는 메인 탭 컨테이너 (iOS MainTabView 대응).
 // 상세 화면(예: 나의 데이트 유형)은 탭 밖(루트)에서 전체화면으로 push 한다 → onOpenDateType 로 위로 위임
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainTabScreen(
     onLoggedOut: () -> Unit,
@@ -86,6 +90,9 @@ fun MainTabScreen(
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     // 렌더링 재개 횟수. pause 중에 그린 내용은 프레임을 못 잡아, 재개될 때마다 지도 화면이 다시 그린다
     var mapRevision by remember { mutableStateOf(0) }
+    // 지도 시트 상태를 탭 밖에 둔다. 지도 화면 안에 두면 탭을 옮길 때마다 새로 만들어지고,
+    // 새 상태는 첫 레이아웃 전까지 위치가 없어 시트가 화면 맨 위에서 제자리로 떨어진다
+    val mapSheetState = rememberMapSheetState()
     // 탭바가 차지하는 높이 = Material 탭바 높이 + 시스템 내비게이션 인셋(탭바가 스스로 더한다)
     val tabBarHeight = NAVIGATION_BAR_HEIGHT +
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -121,6 +128,7 @@ fun MainTabScreen(
             tabNavController = tabNavController,
             kakaoMap = kakaoMap,
             mapRevision = mapRevision,
+            mapSheetState = mapSheetState,
             onLoggedOut = onLoggedOut,
             actions = actions,
             navigateToTab = navigateToTab,
@@ -135,6 +143,7 @@ fun MainTabScreen(
 }
 
 // 탭별 목적지. 지도 탭은 상시 지도 위에 오버레이(시트·검색바)만 그린다
+@OptIn(ExperimentalMaterial3Api::class)
 @Suppress("LongParameterList")
 @Composable
 private fun MainTabNavHost(
@@ -148,6 +157,7 @@ private fun MainTabNavHost(
     pendingMapSearchArg: String?,
     onMapSearchConsumed: () -> Unit,
     onReopenMapSearch: (String) -> Unit,
+    mapSheetState: BottomSheetScaffoldState,
     pendingMapPlace: Place?,
     onMapPlaceChange: (Place?) -> Unit,
 ) {
@@ -198,6 +208,7 @@ private fun MainTabNavHost(
                     MainTab.MAP -> MapScreen(
                         kakaoMap = kakaoMap,
                         mapRevision = mapRevision,
+                        sheetState = mapSheetState,
                         onSessionExpired = onLoggedOut,
                         onOpenSearch = actions.onOpenMapSearch,
                         pendingSearchArg = pendingMapSearchArg,

@@ -134,6 +134,7 @@ fun CourseResultScreen(
                         variant = AppButtonVariant.PRIMARY,
                         size = AppButtonSize.XL,
                         enabled = !state.isNotifyingPartner,
+                        icon = R.drawable.alarm,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

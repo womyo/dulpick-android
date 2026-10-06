@@ -52,6 +52,8 @@ import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.course.CourseDateScreen
 import com.dulpick.app.feature.course.CoursePlacePickScreen
+import com.dulpick.app.feature.course.CourseResultOrigin
+import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
@@ -238,6 +240,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     pastDatesRoute(navController)
     courseDateRoute(navController)
     coursePlacePickRoute(navController)
+    courseResultRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -351,8 +354,33 @@ private fun NavGraphBuilder.coursePlacePickRoute(navController: NavHostControlle
             dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
             onBack = { navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
-            // TODO: 코스 결과 화면이 생기면 그리로 보낸다
-            onBuilt = { },
+            onBuilt = { id ->
+                // 결과에서 뒤로 가면 코스 흐름을 닫는다. 장소 고르기로 돌아가지 않는다
+                navController.navigate("$MAIN_COURSE_RESULT_ROUTE_BASE/$id") {
+                    popUpTo(MAIN_COURSE_DATE_ROUTE) { inclusive = true }
+                }
+            },
+        )
+    }
+}
+
+// 확정된 코스 보기(push). 지난 데이트 목록에서도 같은 화면을 쓴다
+private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_RESULT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}",
+        arguments = listOf(navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType }),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        CourseResultScreen(
+            dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            origin = CourseResultOrigin.COURSE_BUILT,
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            // TODO: 코스 편집 화면이 생기면 그리로 보낸다
+            onEdit = { },
         )
     }
 }
@@ -409,6 +437,7 @@ private const val ARG_MAP_SEARCH_QUERY = "query"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
+private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다

@@ -11,15 +11,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
@@ -31,12 +32,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -51,21 +54,24 @@ import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.feature.course.component.CoursePlaceRow
 import com.dulpick.app.feature.map.candidatePin
-import com.dulpick.app.feature.map.placePin
-import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.feature.map.component.CATEGORY_ORDER
 import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.FilterDropdown
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.feature.map.placePin
+import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.CtaContainer
 import com.dulpick.app.ui.component.ShimmerBox
+import com.dulpick.app.ui.component.sheetContentScroll
+import com.dulpick.app.ui.component.sheetVisibleHeight
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
+import kotlinx.coroutines.launch
 
 // 지도 화면과 같은 시트 높이 비율
 private const val SHEET_PEEK_FRACTION = 0.42f
@@ -109,9 +115,19 @@ fun CoursePlacePickScreen(
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Colors.bgDefault)) {
+    val scaffoldState = rememberMapSheetState()
+    val scope = rememberCoroutineScope()
+    // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
+    var rootHeightPx by remember { mutableStateOf(0) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Colors.bgDefault)
+            .onSizeChanged { rootHeightPx = it.height },
+    ) {
         BottomSheetScaffold(
-            scaffoldState = rememberMapSheetState(),
+            scaffoldState = scaffoldState,
             sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
@@ -121,6 +137,8 @@ fun CoursePlacePickScreen(
                 SheetBody(
                     state = state,
                     height = sheetExpandedHeight,
+                    rootHeightPx = rootHeightPx,
+                    onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
                     onIntent = viewModel::onIntent,
                 )
             },
@@ -206,6 +224,8 @@ private fun BackButton(onClick: () -> Unit) {
 private fun SheetBody(
     state: CoursePlacePickState,
     height: androidx.compose.ui.unit.Dp,
+    rootHeightPx: Int,
+    onCollapse: () -> Unit,
     onIntent: (CoursePlacePickIntent) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
@@ -216,7 +236,12 @@ private fun SheetBody(
                 onRetry = { onIntent(CoursePlacePickIntent.RetryClicked) },
             )
             state.isEmpty -> EmptyState(hasNoSavedPlace = state.hasNoSavedPlace)
-            else -> PlaceList(state = state, onIntent = onIntent)
+            else -> PlaceList(
+                state = state,
+                rootHeightPx = rootHeightPx,
+                onCollapse = onCollapse,
+                onIntent = onIntent,
+            )
         }
     }
 }
@@ -256,9 +281,22 @@ private fun Header(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent
 }
 
 @Composable
-private fun PlaceList(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
+private fun PlaceList(
+    state: CoursePlacePickState,
+    rootHeightPx: Int,
+    onCollapse: () -> Unit,
+    onIntent: (CoursePlacePickIntent) -> Unit,
+) {
     val places = state.filteredPlaces
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+    val listState = rememberLazyListState()
+    LazyColumn(
+        state = listState,
+        userScrollEnabled = false,
+        modifier = Modifier
+            .fillMaxWidth()
+            .sheetVisibleHeight(rootHeightPx)
+            .sheetContentScroll(listState, onPullDownAtTop = onCollapse),
+    ) {
         itemsIndexed(places, key = { _, place -> place.id }) { index, place ->
             CoursePlaceRow(
                 place = place,

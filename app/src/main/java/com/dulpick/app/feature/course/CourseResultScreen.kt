@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,8 +64,11 @@ import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.CtaContainer
 import com.dulpick.app.ui.component.ShimmerBox
+import com.dulpick.app.ui.component.sheetContentScroll
+import com.dulpick.app.ui.component.sheetVisibleHeight
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
+import kotlinx.coroutines.launch
 
 private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
@@ -108,15 +112,33 @@ fun CourseResultScreen(
     }
     BackHandler { viewModel.onIntent(CourseResultIntent.BackClicked) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Colors.bgDefault)) {
+    val scaffoldState = rememberMapSheetState()
+    val scope = rememberCoroutineScope()
+    // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
+    var rootHeightPx by remember { mutableStateOf(0) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Colors.bgDefault)
+            .onSizeChanged { rootHeightPx = it.height },
+    ) {
         BottomSheetScaffold(
-            scaffoldState = rememberMapSheetState(),
+            scaffoldState = scaffoldState,
             sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
-            sheetContent = { SheetBody(state = state, height = sheetHeight, onIntent = viewModel::onIntent) },
+            sheetContent = {
+                SheetBody(
+                    state = state,
+                    height = sheetHeight,
+                    rootHeightPx = rootHeightPx,
+                    onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
+                    onIntent = viewModel::onIntent,
+                )
+            },
         ) {
             CourseMap(
                 state = state,
@@ -225,25 +247,38 @@ private fun BackButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun SheetBody(state: CourseResultState, height: Dp, onIntent: (CourseResultIntent) -> Unit) {
+private fun SheetBody(
+    state: CourseResultState,
+    height: Dp,
+    rootHeightPx: Int,
+    onCollapse: () -> Unit,
+    onIntent: (CourseResultIntent) -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
         Header(state = state, onIntent = onIntent)
         when (state.load) {
             CourseResultLoad.LOADING -> Skeleton()
             CourseResultLoad.FAILED -> Failure(onRetry = { onIntent(CourseResultIntent.RetryClicked) })
-            CourseResultLoad.LOADED -> Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            ) {
-                CourseTimeline(
-                    stops = state.timelineStops,
-                    legs = state.timelineLegs,
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                )
-                Spacer(
-                    modifier = Modifier.height(
-                        if (state.showsNotifyButton) CTA_COVER_PADDING else 20.dp,
-                    ),
-                )
+            CourseResultLoad.LOADED -> {
+                val scroll = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .sheetVisibleHeight(rootHeightPx)
+                        .sheetContentScroll(scroll, onPullDownAtTop = onCollapse)
+                        .verticalScroll(scroll, enabled = false),
+                ) {
+                    CourseTimeline(
+                        stops = state.timelineStops,
+                        legs = state.timelineLegs,
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                    )
+                    Spacer(
+                        modifier = Modifier.height(
+                            if (state.showsNotifyButton) CTA_COVER_PADDING else 20.dp,
+                        ),
+                    )
+                }
             }
         }
     }

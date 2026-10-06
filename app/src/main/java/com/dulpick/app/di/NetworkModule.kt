@@ -9,6 +9,7 @@ import com.dulpick.app.data.auth.token.AuthTokenAuthenticator
 import com.dulpick.app.data.auth.token.AuthTokenInterceptor
 import com.dulpick.app.data.auth.token.AuthTokenRefresher
 import com.dulpick.app.data.couple.remote.CoupleApi
+import com.dulpick.app.data.course.remote.CourseApi
 import com.dulpick.app.data.explore.remote.ExploreApi
 import com.dulpick.app.data.home.remote.HomeApi
 import com.dulpick.app.data.place.remote.PlaceApi
@@ -109,6 +110,11 @@ object NetworkModule {
     @Singleton
     @Authed
     fun exploreApi(@Authed retrofit: Retrofit): ExploreApi = retrofit.create(ExploreApi::class.java)
+
+    @Provides
+    @Singleton
+    @Authed
+    fun courseApi(@Authed retrofit: Retrofit): CourseApi = retrofit.create(CourseApi::class.java)
 
     @Provides
     @Singleton

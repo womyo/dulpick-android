@@ -52,6 +52,7 @@ import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
+import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.feature.course.component.CoursePlaceRow
 import com.dulpick.app.feature.map.candidatePin
 import com.dulpick.app.feature.map.component.CATEGORY_ORDER
@@ -89,11 +90,18 @@ private val TAB_BAR_HEIGHT = 80.dp
 // 코스에 담을 장소를 고르는 화면. 고른 순서가 곧 번호다 (iOS CoursePlacePickView 대응)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongParameterList")
 fun CoursePlacePickScreen(
-    dateCourseId: String,
     onBack: () -> Unit,
     onSessionExpired: () -> Unit,
-    onBuilt: (dateCourseId: String) -> Unit,
+    // 코스를 처음 짤 때만 있다. 더하기로 열면 null 이다
+    dateCourseId: String? = null,
+    mode: CoursePlacePickMode = CoursePlacePickMode.CREATE,
+    // 더하기로 열 때 이미 담긴 장소. 목록에서 뺀다
+    excluding: List<String> = emptyList(),
+    onBuilt: (dateCourseId: String) -> Unit = {},
+    // 더하기로 열렸을 때 고른 장소를 코스 수정 화면으로 돌려준다
+    onPicked: (List<SavedPlace>) -> Unit = {},
     viewModel: CoursePlacePickViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,10 +116,11 @@ fun CoursePlacePickScreen(
             CoursePlacePickSideEffect.SessionExpired -> onSessionExpired()
             is CoursePlacePickSideEffect.ShowToast -> toastMessage = effect.message
             is CoursePlacePickSideEffect.BuildRequested -> onBuilt(effect.dateCourseId)
+            is CoursePlacePickSideEffect.PlacesPicked -> onPicked(effect.places)
         }
     }
-    LaunchedEffect(dateCourseId) {
-        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId))
+    LaunchedEffect(dateCourseId, mode) {
+        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, excluding))
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 

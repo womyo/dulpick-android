@@ -22,6 +22,7 @@ class CoursePlacePickViewModel @Inject constructor(
     CoursePlacePickState(),
 ) {
     private var dateCourseId: String? = null
+    private var started = false
 
     // 앞 화면이 만든 코스. 제목·날짜·시간을 그대로 다시 올려야 해서 들고 있는다.
     // 낙관적 락 번호(version)도 여기서 본다
@@ -29,33 +30,36 @@ class CoursePlacePickViewModel @Inject constructor(
 
     override fun onIntent(intent: CoursePlacePickIntent) {
         when (intent) {
-            is CoursePlacePickIntent.Start -> start(intent.dateCourseId)
+            is CoursePlacePickIntent.Start -> start(intent)
             CoursePlacePickIntent.RetryClicked -> load()
             is CoursePlacePickIntent.OwnershipSelected ->
                 setState { copy(selectedOwnership = intent.ownership) }
             is CoursePlacePickIntent.CategorySelected ->
                 setState { copy(selectedCategory = intent.category) }
             is CoursePlacePickIntent.PlaceToggled -> toggle(intent.id)
-            CoursePlacePickIntent.BuildClicked -> saveCourse()
+            // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
+            CoursePlacePickIntent.BuildClicked ->
+                if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
             CoursePlacePickIntent.ConflictDismissed -> setState { copy(conflictMessage = null) }
             CoursePlacePickIntent.BackClicked -> postSideEffect(CoursePlacePickSideEffect.Dismissed)
         }
     }
 
-    private fun start(id: String) {
-        if (dateCourseId == id) return
-        dateCourseId = id
+    private fun start(intent: CoursePlacePickIntent.Start) {
+        if (started) return
+        started = true
+        dateCourseId = intent.dateCourseId
+        setState { copy(mode = intent.mode, excludedPlaceIds = intent.excluding) }
         load()
         loadCouple()
     }
 
-    // 코스(제목·날짜·시간·version)와 담을 수 있는 장소를 함께 읽는다
+    // 담을 수 있는 장소를 읽는다. 코스를 처음 짤 때는 제목·날짜·시간·version 도 함께 읽는다
     private fun load() {
-        val id = dateCourseId ?: return
         setState { copy(load = CoursePlaceLoad.LOADING) }
         viewModelScope.launch {
             try {
-                course = courseRepository.course(id)
+                course = dateCourseId?.let { courseRepository.course(it) }
                 val places = courseRepository.coursePlaces()
                 setState { copy(places = places, load = CoursePlaceLoad.LOADED) }
             } catch (error: CancellationException) {
@@ -101,6 +105,14 @@ class CoursePlacePickViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    // 고른 장소를 그 순서대로 돌려준다
+    private fun returnPicked() {
+        val picked = currentState.selectedPlaceIds.mapNotNull { id ->
+            currentState.places.firstOrNull { it.id == id }
+        }
+        if (picked.isNotEmpty()) postSideEffect(CoursePlacePickSideEffect.PlacesPicked(picked))
     }
 
     private fun saveCourse() {

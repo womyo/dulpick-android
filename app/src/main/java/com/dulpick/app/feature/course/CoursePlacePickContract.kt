@@ -10,8 +10,14 @@ import com.dulpick.app.domain.place.matches
 
 enum class CoursePlaceLoad { LOADING, LOADED, FAILED }
 
+// 이 화면을 무엇에 쓰는지. 코스를 처음 짤 때와 수정 중 장소를 더할 때가 다르다 (iOS Mode 대응)
+enum class CoursePlacePickMode { CREATE, ADD }
+
 // 코스에 담을 장소를 고르는 화면. 고른 순서가 곧 번호다 (iOS CoursePlacePickView 대응)
 data class CoursePlacePickState(
+    val mode: CoursePlacePickMode = CoursePlacePickMode.CREATE,
+    // 더하기로 들어왔을 때 이미 코스에 담긴 장소. 목록에서 뺀다
+    val excludedPlaceIds: List<String> = emptyList(),
     val places: List<SavedPlace> = emptyList(),
     val load: CoursePlaceLoad = CoursePlaceLoad.LOADING,
     val isCoupleConnected: Boolean = false,
@@ -27,11 +33,16 @@ data class CoursePlacePickState(
         get() = places
             .filter { selectedOwnership.matches(it.ownership) }
             .filter { selectedCategory == null || it.place.category == selectedCategory }
+            .filter { it.id !in excludedPlaceIds }
 
     val selectedCount: Int get() = selectedPlaceIds.size
 
     val ctaTitle: String
-        get() = if (selectedCount == 0) "장소를 선택해주세요" else "${selectedCount}곳으로 코스짜기"
+        get() = when {
+            mode == CoursePlacePickMode.ADD -> "추가"
+            selectedCount == 0 -> "장소를 선택해주세요"
+            else -> "${selectedCount}곳으로 코스짜기"
+        }
 
     val isCtaEnabled: Boolean get() = selectedCount >= 1 && !isSavingCourse
 
@@ -45,7 +56,12 @@ data class CoursePlacePickState(
 }
 
 sealed interface CoursePlacePickIntent : UiIntent {
-    data class Start(val dateCourseId: String) : CoursePlacePickIntent
+    // 더하기로 열면 코스 번호가 없다. 대신 이미 담긴 장소를 받아 목록에서 뺀다
+    data class Start(
+        val dateCourseId: String?,
+        val mode: CoursePlacePickMode,
+        val excluding: List<String> = emptyList(),
+    ) : CoursePlacePickIntent
     data object RetryClicked : CoursePlacePickIntent
     data class OwnershipSelected(val ownership: PlaceOwnership) : CoursePlacePickIntent
     data class CategorySelected(val category: PlaceCategory?) : CoursePlacePickIntent
@@ -59,6 +75,8 @@ sealed interface CoursePlacePickIntent : UiIntent {
 sealed interface CoursePlacePickSideEffect : UiSideEffect {
     // 확정 저장된 코스. 결과 화면이 받아 그린다
     data class BuildRequested(val dateCourseId: String) : CoursePlacePickSideEffect
+    // 더하기로 열렸을 때. 코스를 저장하지 않고 고른 장소만 돌려준다
+    data class PlacesPicked(val places: List<SavedPlace>) : CoursePlacePickSideEffect
     data object Dismissed : CoursePlacePickSideEffect
     data class ShowToast(val message: String) : CoursePlacePickSideEffect
     data object SessionExpired : CoursePlacePickSideEffect

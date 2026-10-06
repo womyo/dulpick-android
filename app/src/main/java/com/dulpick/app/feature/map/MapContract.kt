@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
@@ -28,6 +29,10 @@ data class MapState(
     val bookmarkOverrides: Map<String, Boolean> = emptyMap(),
     // null 이 아니면 지도 위 저장목록/검색결과 시트 대신 이 장소의 상세 시트를 띄운다 (iOS mode=.content 대응)
     val detail: DetailTarget? = null,
+    // 내 위치 버튼이 잡은 좌표. 지도가 이 좌표로 카메라를 옮긴다
+    val currentLocation: CurrentLocation? = null,
+    // 위치 권한 설정 안내 모달 표시 여부
+    val showsLocationPermissionModal: Boolean = false,
     // null 이 아니면 게시글 상세 시트를 띄운다. 장소 상세와 함께 있을 수 있다 (iOS postDetail 대응)
     val postDetail: PostDetail? = null,
     // 두 상세가 같이 있을 때 위에 있는 쪽. 나중에 연 쪽이다 (iOS topDetail 대응)
@@ -63,6 +68,9 @@ data class MapState(
         return places.any { it.place.kakaoPlaceId == kakaoId }
     }
 }
+
+// 내 위치로 옮길 카메라 목표. nonce 로 같은 좌표를 다시 눌러도 카메라가 움직인다
+data class CurrentLocation(val coordinate: Coordinate, val nonce: Long)
 
 // 지도 검색 결과 모드 상태. searchQuery 는 상세 조회용 원본, displayQuery 는 검색바 표시용
 data class SearchResult(
@@ -135,6 +143,11 @@ sealed interface MapIntent : UiIntent {
     // 탐색 검색에서 온 장소 → 상세 전용(content) 모드로 연다. 검색바 없이 그 장소 핀+상세만
     data class OpenContentDetail(val place: Place, val query: String) : MapIntent
     data object CloseDetail : MapIntent
+    // 내 위치 버튼. 권한 상태에 따라 요청·조회·안내로 갈린다
+    data object CurrentLocationClicked : MapIntent
+    // 권한 요청 결과. granted 면 좌표를 조회하고, 영구 거부면 설정 안내를 띄운다
+    data class LocationPermissionResult(val granted: Boolean, val permanentlyDenied: Boolean) : MapIntent
+    data object LocationModalDismissed : MapIntent
     // 게시물 카드 탭(탐색·검색·홈·장소 상세) → 지도 위에 게시글 상세를 연다
     data class OpenPostDetail(val contentId: String, val returnsOnClose: Boolean = false) : MapIntent
     // 게시글 상세가 받아온 장소들. 지도 핀·카메라를 이걸로 세운다 (iOS contentPlacesApplied 대응)
@@ -150,4 +163,6 @@ sealed interface MapSideEffect : UiSideEffect {
     data class ShowToast(val message: String, val isError: Boolean) : MapSideEffect
     // 다른 곳에서 들어온 게시글 상세를 닫았다. 화면이 온 곳으로 되돌린다
     data object PostDetailClosed : MapSideEffect
+    // 위치 권한이 없다. 화면이 시스템 권한 요청을 띄운다
+    data object RequestLocationPermission : MapSideEffect
 }

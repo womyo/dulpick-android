@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
+import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
@@ -17,6 +18,7 @@ import javax.inject.Inject
 class MapViewModel @Inject constructor(
     private val placeRepository: PlaceRepository,
     private val coupleRepository: CoupleRepository,
+    private val locationRepository: LocationRepository,
 ) : MviViewModel<MapState, MapIntent, MapSideEffect>(MapState()) {
 
     // 별칭 편집 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
@@ -24,6 +26,14 @@ class MapViewModel @Inject constructor(
         repository = placeRepository,
         scope = viewModelScope,
         state = { currentState },
+        update = { reducer -> setState(reducer) },
+        effect = { postSideEffect(it) },
+    )
+
+    // 내 위치 버튼 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
+    private val location = MapLocationController(
+        repository = locationRepository,
+        scope = viewModelScope,
         update = { reducer -> setState(reducer) },
         effect = { postSideEffect(it) },
     )
@@ -51,6 +61,8 @@ class MapViewModel @Inject constructor(
                 alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
+            MapIntent.CurrentLocationClicked, is MapIntent.LocationPermissionResult,
+            MapIntent.LocationModalDismissed -> location.handle(intent)
             else -> onSearchIntent(intent)
         }
     }

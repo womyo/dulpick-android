@@ -101,6 +101,8 @@ private const val CAMERA_EPSILON = 1e-4
 private const val SELECTED_MARKER_RANK = 1L
 // iOS multiPlaceZoom. 시작·저장 목록·검색 결과·상세 모두 이 배율을 쓴다(단일 장소도 14)
 private const val DEFAULT_ZOOM_LEVEL = 14
+// 내 위치 하나만 볼 때의 배율 (iOS singlePlaceZoom)
+private const val SINGLE_PLACE_ZOOM_LEVEL = 16
 // 접힘(기본) 높이 = 화면 높이의 42% (iOS collapsedScreenRatio 40~45% 범위).
 // 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
@@ -157,11 +159,14 @@ fun MapScreen(
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
     val tabBarHidden = state.detail != null || state.searchResult != null || state.postDetail != null
 
+    val requestLocationPermission = rememberLocationPermissionLauncher(viewModel::onIntent)
+
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             MapSideEffect.SessionExpired -> onSessionExpired()
             is MapSideEffect.ShowToast -> toast = MapToast(effect.message, effect.isError)
             MapSideEffect.PostDetailClosed -> onClosePostDetail()
+            MapSideEffect.RequestLocationPermission -> requestLocationPermission()
         }
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
@@ -217,6 +222,8 @@ fun MapScreen(
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = state.detail?.contentMode == true,
                 selectedCategory = state.selectedCategory,
+                showsLocationButton = state.detail == null && state.postDetail == null,
+                locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
                     // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
@@ -227,6 +234,7 @@ fun MapScreen(
                     },
                     onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
                     onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+                    onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
                 ),
             )
         }
@@ -239,9 +247,26 @@ fun MapScreen(
         )
     }
 
-    state.aliasEdit?.let { edit -> AliasEditModal(edit = edit, onIntent = viewModel::onIntent) }
+    MapModals(state, viewModel::onIntent)
 
     RenderMap(kakaoMap, mapRevision, state)
+    MoveToCurrentLocation(kakaoMap, state.currentLocation)
+}
+
+// 내 위치 버튼으로 받은 좌표로 한 번만 옮긴다. 핀은 건드리지 않는다 (iOS 는 파란 점도 안 찍는다).
+// 같은 좌표를 다시 눌러도 움직이도록 nonce 가 바뀐다
+@Composable
+private fun MoveToCurrentLocation(kakaoMap: KakaoMap?, target: CurrentLocation?) {
+    LaunchedEffect(kakaoMap, target) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val coordinate = target?.coordinate ?: return@LaunchedEffect
+        map.moveCamera(
+            CameraUpdateFactory.newCenterPosition(
+                LatLng.from(coordinate.latitude, coordinate.longitude),
+                SINGLE_PLACE_ZOOM_LEVEL,
+            ),
+        )
+    }
 }
 
 // 상세/검색결과/저장 순으로 핀과 카메라를 맞춘다.
@@ -367,6 +392,22 @@ private fun DetailTarget.dismiss(onIntent: (MapIntent) -> Unit, onCloseContentDe
     if (contentMode) onCloseContentDetail()
 }
 
+// 지도 위에 뜨는 모달들(별칭 편집·위치 권한 안내)
+@Composable
+private fun MapModals(state: MapState, onIntent: (MapIntent) -> Unit) {
+    val context = LocalContext.current
+    state.aliasEdit?.let { edit -> AliasEditModal(edit = edit, onIntent = onIntent) }
+    if (state.showsLocationPermissionModal) {
+        LocationPermissionModal(
+            onDismiss = { onIntent(MapIntent.LocationModalDismissed) },
+            onOpenSettings = {
+                onIntent(MapIntent.LocationModalDismissed)
+                context.openAppSettings()
+            },
+        )
+    }
+}
+
 // 별칭 편집 모달 시트 (iOS PlaceAliasView 대응)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -490,6 +531,7 @@ private fun ConsumeSearchArg(
 
 // 상단 검색바·필터 콜백 묶음 (파라미터 수 축소)
 private class MapTopBarActions(
+    val onCurrentLocation: () -> Unit,
     val onOpenSearch: () -> Unit,
     val onReopenSearch: () -> Unit,
     val onClearSearch: () -> Unit,
@@ -551,6 +593,10 @@ private fun MapBody(
     searchQuery: String?,
     hideTopBar: Boolean,
     selectedCategory: PlaceCategory?,
+    // 상세 시트가 떠 있으면 내 위치 버튼을 감춘다 (iOS showsSavedSheet 와 같다)
+    showsLocationButton: Boolean,
+    // 시트 접힘 높이 위에 띄운다
+    locationButtonBottom: Dp,
     actions: MapTopBarActions,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -563,6 +609,14 @@ private fun MapBody(
             onMapReady = onMapReady,
             onResumed = onResumed,
         )
+        if (showsLocationButton) {
+            CurrentLocationButton(
+                onClick = actions.onCurrentLocation,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = locationButtonBottom),
+            )
+        }
         // content 모드(탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
         if (hideTopBar) return@Box
         Column(

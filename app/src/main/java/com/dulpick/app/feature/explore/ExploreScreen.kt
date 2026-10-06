@@ -47,6 +47,8 @@ private const val SKELETON_CHIP_COUNT = 4
 fun ExploreScreen(
     onSessionExpired: () -> Unit,
     onOpenSearch: () -> Unit,
+    // 게시물 카드 탭 → 지도 탭으로 옮겨 그 게시글 상세를 연다
+    onOpenContent: (String) -> Unit,
     viewModel: ExploreViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -54,8 +56,7 @@ fun ExploreScreen(
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             ExploreSideEffect.SearchRequested -> onOpenSearch()
-            // TODO: 게시물 상세는 지도 단계에서
-            is ExploreSideEffect.ShowContentDetail -> Unit
+            is ExploreSideEffect.ShowContentDetail -> onOpenContent(effect.id)
             ExploreSideEffect.SessionExpired -> onSessionExpired()
         }
     }

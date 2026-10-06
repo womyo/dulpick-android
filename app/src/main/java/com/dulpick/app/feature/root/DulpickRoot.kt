@@ -50,6 +50,7 @@ import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
+import com.dulpick.app.feature.course.CourseDateScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
@@ -212,6 +213,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
                 onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
+                onOpenCourse = { navController.navigate(MAIN_COURSE_DATE_ROUTE) },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },
@@ -233,6 +235,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
         )
     }
     pastDatesRoute(navController)
+    courseDateRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -313,6 +316,24 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
     }
 }
 
+// 데이트 코스 날짜 선택(push). 다음 화면(장소 고르기)은 아직 없어 날짜까지만 간다
+private fun NavGraphBuilder.courseDateRoute(navController: NavHostController) {
+    composable(
+        route = MAIN_COURSE_DATE_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        CourseDateScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            // TODO: 장소 고르기 화면이 생기면 그리로 보낸다
+            onPlacePick = { _, _ -> },
+        )
+    }
+}
+
 // 지도 전용 장소 검색(push). 결과 제출/행탭 시 검색을 pop 하고 지도(MAIN)를 검색 결과 모드로 만든다.
 // query 를 넘기면(검색바 뒤로로 재진입) 그 검색어로 곧장 검색해 결과를 복원한다
 private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
@@ -363,6 +384,7 @@ private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 // 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
 private const val ARG_MAP_SEARCH_QUERY = "query"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
+private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
 private const val ARG_COUPLE_ORIGIN = "origin"

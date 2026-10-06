@@ -135,6 +135,8 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
+    // 좌하단 코스 버튼 → 데이트 코스 날짜 선택
+    onOpenCourse: () -> Unit = {},
     // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
     pendingPostId: String? = null,
     onPostConsumed: () -> Unit = {},
@@ -159,16 +161,12 @@ fun MapScreen(
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
     val tabBarHidden = state.detail != null || state.searchResult != null || state.postDetail != null
 
-    val requestLocationPermission = rememberLocationPermissionLauncher(viewModel::onIntent)
-
-    CollectSideEffect(viewModel.sideEffect) { effect ->
-        when (effect) {
-            MapSideEffect.SessionExpired -> onSessionExpired()
-            is MapSideEffect.ShowToast -> toast = MapToast(effect.message, effect.isError)
-            MapSideEffect.PostDetailClosed -> onClosePostDetail()
-            MapSideEffect.RequestLocationPermission -> requestLocationPermission()
-        }
-    }
+    HandleMapEffects(
+        viewModel = viewModel,
+        onSessionExpired = onSessionExpired,
+        onClosePostDetail = onClosePostDetail,
+        onToast = { toast = it },
+    )
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
 
     ConsumeExternalInputs(
@@ -191,6 +189,9 @@ fun MapScreen(
     HandleBack(state, viewModel::onIntent, dismissDetail)
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
+    // 상세 시트가 떠 있으면 떠 있는 버튼을 감춘다. 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
+    val showsFloatingButtons = state.detail == null && state.postDetail == null
+    val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     Box(modifier = Modifier.fillMaxSize()) {
         BottomSheetScaffold(
@@ -222,7 +223,8 @@ fun MapScreen(
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = state.detail?.contentMode == true,
                 selectedCategory = state.selectedCategory,
-                showsLocationButton = state.detail == null && state.postDetail == null,
+                showsLocationButton = showsFloatingButtons,
+                showsCourseButton = showsCourseButton,
                 locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
@@ -235,6 +237,7 @@ fun MapScreen(
                     onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
                     onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
                     onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
+                    onOpenCourse = onOpenCourse,
                 ),
             )
         }
@@ -365,6 +368,25 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
     var placed by remember { mutableStateOf(false) }
     LaunchedEffect(positioned) { if (positioned) placed = true }
     return if (placed) 1f else 0f
+}
+
+// 지도 화면이 받는 1회성 신호. 위치 권한 요청 런처도 여기서 든다
+@Composable
+private fun HandleMapEffects(
+    viewModel: MapViewModel,
+    onSessionExpired: () -> Unit,
+    onClosePostDetail: () -> Unit,
+    onToast: (MapToast) -> Unit,
+) {
+    val requestLocationPermission = rememberLocationPermissionLauncher(viewModel::onIntent)
+    CollectSideEffect(viewModel.sideEffect) { effect ->
+        when (effect) {
+            MapSideEffect.SessionExpired -> onSessionExpired()
+            is MapSideEffect.ShowToast -> onToast(MapToast(effect.message, effect.isError))
+            MapSideEffect.PostDetailClosed -> onClosePostDetail()
+            MapSideEffect.RequestLocationPermission -> requestLocationPermission()
+        }
+    }
 }
 
 // 뒤로가기: 위에 있는 시트부터 닫고, 남은 게 없으면 검색 결과 모드를 푼다
@@ -532,6 +554,7 @@ private fun ConsumeSearchArg(
 // 상단 검색바·필터 콜백 묶음 (파라미터 수 축소)
 private class MapTopBarActions(
     val onCurrentLocation: () -> Unit,
+    val onOpenCourse: () -> Unit,
     val onOpenSearch: () -> Unit,
     val onReopenSearch: () -> Unit,
     val onClearSearch: () -> Unit,
@@ -593,8 +616,10 @@ private fun MapBody(
     searchQuery: String?,
     hideTopBar: Boolean,
     selectedCategory: PlaceCategory?,
-    // 상세 시트가 떠 있으면 내 위치 버튼을 감춘다 (iOS showsSavedSheet 와 같다)
+    // 상세 시트가 떠 있으면 떠 있는 버튼을 감춘다 (iOS showsSavedSheet 와 같다)
     showsLocationButton: Boolean,
+    // 커플 연동 상태에서 검색 중이 아닐 때만 코스 버튼을 낸다 (iOS showsCourseButton 대응)
+    showsCourseButton: Boolean,
     // 시트 접힘 높이 위에 띄운다
     locationButtonBottom: Dp,
     actions: MapTopBarActions,
@@ -610,12 +635,21 @@ private fun MapBody(
             onResumed = onResumed,
         )
         if (showsLocationButton) {
-            CurrentLocationButton(
-                onClick = actions.onCurrentLocation,
+            // 좌하단 코스 버튼 · 우하단 내 위치 버튼 (iOS floatingControls 대응)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = locationButtonBottom),
-            )
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 0.dp)
+                    .padding(bottom = locationButtonBottom),
+            ) {
+                if (showsCourseButton) {
+                    MapPillButton(text = "데이트 코스 짜러가기", onClick = actions.onOpenCourse)
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                CurrentLocationButton(onClick = actions.onCurrentLocation)
+            }
         }
         // content 모드(탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
         if (hideTopBar) return@Box

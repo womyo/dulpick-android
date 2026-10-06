@@ -282,6 +282,7 @@ private fun MapTab(
         sheetState = mapSheetState,
         onSessionExpired = onLoggedOut,
         onOpenSearch = actions.onOpenMapSearch,
+        onOpenCourse = actions.onOpenCourse,
         pendingSearchArg = search.pendingArg,
         onSearchConsumed = search.onConsumed,
         onReopenSearch = search.onReopen,

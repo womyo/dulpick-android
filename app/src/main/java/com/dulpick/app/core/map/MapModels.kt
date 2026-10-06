@@ -45,6 +45,9 @@ class MapPin(
     }
 }
 
+// 코스 순서를 잇는 선 (iOS MapRoute 대응)
+data class MapRoute(val id: String, val coordinates: List<Coordinate>)
+
 // 지도가 보여줄 자리 (iOS MapCamera 대응)
 data class MapCamera(val center: Coordinate, val zoomLevel: Int) {
     companion object {

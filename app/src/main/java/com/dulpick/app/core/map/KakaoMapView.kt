@@ -42,6 +42,8 @@ fun KakaoMapView(
     isActive: Boolean = true,
     // 지도에 찍을 핀. 배열이 바뀌면 다시 그린다
     pins: List<MapPin> = emptyList(),
+    // 코스 순서를 잇는 선
+    routes: List<MapRoute> = emptyList(),
     // 지도가 보여줄 자리. null 이면 카메라를 건드리지 않는다
     camera: MapCamera? = null,
     // 핀 탭. id 가 있는 핀만 온다
@@ -124,6 +126,7 @@ fun KakaoMapView(
 
     HandlePinTaps(kakaoMap, pins, onPinTap)
     RenderMap(kakaoMap, renderRevision, pins, camera)
+    RenderRoutes(kakaoMap, renderRevision, routes)
 
     // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다.
     // 복귀는 여기서 직접 resume 하지 않고 신호만 올려, 위의 재개 완료 확인·알림 경로를 함께 탄다

@@ -3,6 +3,7 @@ package com.dulpick.app.ui.component
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -29,14 +30,18 @@ private val TOAST_MIN_HEIGHT = 48.dp
 
 // 하단에 잠깐 떴다 사라지는 알약 토스트 (iOS Toast 대응).
 // 부모 Box 안에 겹쳐 그리고, message 가 바뀔 때마다 시간을 재서 자동으로 닫는다.
-// iconRes 가 있으면(에러 토스트 등) 문구 앞에 아이콘을 붙인다
+// iconRes 가 있으면(에러 토스트 등) 문구 앞에 아이콘을 붙인다.
+// actionTitle 이 있으면 문구 뒤에 누를 수 있는 글자가 붙는다 (장소 삭제의 '실행취소')
 @Composable
+@Suppress("LongParameterList")
 fun AppToast(
     message: String?,
     onDismiss: () -> Unit,
     bottomInset: Int,
     modifier: Modifier = Modifier,
     @DrawableRes iconRes: Int? = null,
+    actionTitle: String? = null,
+    onAction: () -> Unit = {},
 ) {
     message ?: return
 
@@ -69,6 +74,16 @@ fun AppToast(
                 )
             }
             Text(text = message, style = Typography.body1M, color = Colors.commonWhite)
+            if (actionTitle != null) {
+                Text(
+                    text = actionTitle,
+                    style = Typography.body2SB,
+                    color = Colors.textTertiary,
+                    modifier = Modifier
+                        .clickable(onClick = onAction)
+                        .padding(vertical = 4.dp),
+                )
+            }
         }
     }
 }

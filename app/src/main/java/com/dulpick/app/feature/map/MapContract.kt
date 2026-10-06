@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
+import com.dulpick.app.domain.course.DateCourseSummary
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
@@ -29,6 +30,8 @@ data class MapState(
     val bookmarkOverrides: Map<String, Boolean> = emptyMap(),
     // null 이 아니면 지도 위 저장목록/검색결과 시트 대신 이 장소의 상세 시트를 띄운다 (iOS mode=.content 대응)
     val detail: DetailTarget? = null,
+    // 진행 중인 데이트 코스. 있으면 코스 버튼이 '보러가기' 가 된다
+    val currentCourse: DateCourseSummary? = null,
     // 내 위치 버튼이 잡은 좌표. 지도가 이 좌표로 카메라를 옮긴다
     val currentLocation: CurrentLocation? = null,
     // 위치 권한 설정 안내 모달 표시 여부
@@ -46,6 +49,11 @@ data class MapState(
 
     // 검색 결과 모드 여부
     val isSearching: Boolean get() = searchResult != null
+
+    // 진행 중인 코스가 있으면 보러가기, 없으면 짜러가기 (iOS courseButtonTitle 대응)
+    val courseButtonTitle: String
+        get() = if (currentCourse == null) "데이트 코스 짜러가기" else "데이트 코스 보러가기"
+
 
     // 위에 보일 시트가 게시글 상세인지. 둘 다 있으면 나중에 연 쪽이 이긴다
     val showsPostDetail: Boolean

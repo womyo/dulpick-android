@@ -11,6 +11,6 @@ data class MainTabActions(
     // 지도 검색바 → 지도 전용 장소 검색
     val onOpenMapSearch: () -> Unit,
     val onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,
-    // 지도 좌하단 코스 버튼 → 데이트 코스 만들기
-    val onOpenCourse: () -> Unit,
+    // 지도 좌하단 코스 버튼. 진행 중인 코스가 있으면 결과로, 없으면 날짜 고르기로
+    val onOpenCourse: (dateCourseId: String?) -> Unit,
 )

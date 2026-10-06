@@ -216,7 +216,13 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
                 onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
-                onOpenCourse = { navController.navigate(MAIN_COURSE_DATE_ROUTE) },
+                onOpenCourse = { dateCourseId ->
+                    if (dateCourseId == null) {
+                        navController.navigate(MAIN_COURSE_DATE_ROUTE)
+                    } else {
+                        navController.navigate("$MAIN_COURSE_RESULT_ROUTE_BASE/$dateCourseId")
+                    }
+                },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },

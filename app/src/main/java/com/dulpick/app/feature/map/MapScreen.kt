@@ -108,8 +108,8 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
-    // 좌하단 코스 버튼 → 데이트 코스 날짜 선택
-    onOpenCourse: () -> Unit = {},
+    // 좌하단 코스 버튼. 진행 중인 코스가 있으면 그 번호를 주고, 없으면 null 이다
+    onOpenCourse: (dateCourseId: String?) -> Unit = {},
     // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
     pendingPostId: String? = null,
     onPostConsumed: () -> Unit = {},
@@ -197,6 +197,7 @@ fun MapScreen(
                 selectedCategory = state.selectedCategory,
                 showsLocationButton = showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
+                courseButtonTitle = state.courseButtonTitle,
                 locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
@@ -209,7 +210,7 @@ fun MapScreen(
                     onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
                     onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
                     onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
-                    onOpenCourse = onOpenCourse,
+                    onOpenCourse = { onOpenCourse(state.currentCourse?.id) },
                 ),
             )
         }
@@ -524,6 +525,7 @@ private fun MapBody(
     showsLocationButton: Boolean,
     // 커플 연동 상태에서 검색 중이 아닐 때만 코스 버튼을 낸다 (iOS showsCourseButton 대응)
     showsCourseButton: Boolean,
+    courseButtonTitle: String,
     // 시트 접힘 높이 위에 띄운다
     locationButtonBottom: Dp,
     actions: MapTopBarActions,
@@ -550,7 +552,7 @@ private fun MapBody(
                     .padding(bottom = locationButtonBottom),
             ) {
                 if (showsCourseButton) {
-                    MapPillButton(text = "데이트 코스 짜러가기", onClick = actions.onOpenCourse)
+                    MapPillButton(text = courseButtonTitle, onClick = actions.onOpenCourse)
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 CurrentLocationButton(onClick = actions.onCurrentLocation)

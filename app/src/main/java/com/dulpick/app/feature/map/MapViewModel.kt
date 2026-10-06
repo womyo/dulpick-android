@@ -3,6 +3,7 @@ package com.dulpick.app.feature.map
 import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
+import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceError
@@ -18,6 +19,7 @@ import javax.inject.Inject
 class MapViewModel @Inject constructor(
     private val placeRepository: PlaceRepository,
     private val coupleRepository: CoupleRepository,
+    private val courseRepository: CourseRepository,
     private val locationRepository: LocationRepository,
 ) : MviViewModel<MapState, MapIntent, MapSideEffect>(MapState()) {
 
@@ -216,6 +218,22 @@ class MapViewModel @Inject constructor(
     private fun load() {
         loadPlaces()
         loadCoupleConnection()
+        loadCurrentCourse()
+    }
+
+    // 진행 중인 코스. 코스 화면에서 돌아오면 이 화면이 다시 떠 OnAppear 로 같이 갱신된다.
+    // 조회에 실패하면 없는 것으로 둔다(코스 버튼이 '짜러가기' 로 남는다)
+    private fun loadCurrentCourse() {
+        viewModelScope.launch {
+            val course = try {
+                courseRepository.currentCourse()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (ignored: Throwable) {
+                null
+            }
+            setState { copy(currentCourse = course) }
+        }
     }
 
     // 실패를 다시 시도한다. 빈 목록으로 두지 않고 로딩부터 다시 보여준다

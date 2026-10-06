@@ -46,3 +46,14 @@ private fun drawableToBitmap(context: Context, @DrawableRes resId: Int): Bitmap 
     drawable.draw(Canvas(bitmap))
     return bitmap
 }
+
+// 코스에 담을 후보로 고른 장소. 흰 하트가 든 물방울이다 (iOS .candidate 대응).
+// 다시 누르면 선택이 풀리도록 id 를 달아 탭을 받는다
+fun candidatePin(context: Context, id: String, coordinate: Coordinate): MapPin =
+    MapPin(
+        id = id,
+        coordinate = coordinate,
+        styleId = "candidate",
+        rank = SELECTED_MARKER_RANK,
+        makeStyle = { MapPinStyle(drawableToBitmap(context, R.drawable.map_pin_candidate), 0.5f, 1.0f) },
+    )

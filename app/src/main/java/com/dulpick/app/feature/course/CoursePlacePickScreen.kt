@@ -38,14 +38,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
+import com.dulpick.app.core.map.KakaoMapView
+import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.feature.course.component.CoursePlaceRow
+import com.dulpick.app.feature.map.candidatePin
+import com.dulpick.app.feature.map.placePin
 import com.dulpick.app.feature.map.rememberMapSheetState
 import com.dulpick.app.feature.map.component.CATEGORY_ORDER
 import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
@@ -119,8 +125,17 @@ fun CoursePlacePickScreen(
                 )
             },
         ) {
-            // TODO: 지도는 코스 결과 화면과 함께 붙인다. 지금은 빈 바탕 위에 시트만 둔다
-            Box(modifier = Modifier.fillMaxSize().background(Colors.bgSubtle)) {
+            val pins = coursePins(state)
+            Box(modifier = Modifier.fillMaxSize()) {
+                KakaoMapView(
+                    modifier = Modifier.fillMaxSize(),
+                    pins = pins,
+                    camera = pins.firstOrNull()
+                        ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
+                        ?: MapCamera.SEOUL_CITY_HALL,
+                    // 핀 탭도 목록 행 탭과 같은 토글이다 (iOS markerTapped 대응)
+                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PlaceToggled(it)) },
+                )
                 BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
         }
@@ -154,6 +169,20 @@ fun CoursePlacePickScreen(
             containerColor = Colors.commonWhite,
         )
     }
+}
+
+// 카테고리 핀을 먼저 두고 고른 물방울을 뒤에 둔다. 지도가 배열 순서로 그려 물방울이 위에 온다.
+// 고른 물방울은 필터를 타지 않는다 — 목록에서 사라져도 핀으로 해제할 수 있어야 한다 (iOS markers 대응)
+@Composable
+private fun coursePins(state: CoursePlacePickState): List<MapPin> {
+    val context = LocalContext.current
+    val categoryPins = state.filteredPlaces.map {
+        placePin(context, it.id, it.place.coordinate, it.place.category)
+    }
+    val selectedPins = state.places
+        .filter { it.id in state.selectedPlaceIds }
+        .map { candidatePin(context, it.id, it.place.coordinate) }
+    return categoryPins + selectedPins
 }
 
 @Composable

@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -77,6 +78,9 @@ fun CourseEditScreen(
     onSaved: (DateCourse) -> Unit,
     onConflicted: () -> Unit,
     onAddPlace: (excluding: List<String>) -> Unit,
+    // 장소 추가 화면이 돌려준 장소. 반영한 뒤 지운다
+    pickedPlaces: String? = null,
+    onPickedConsumed: () -> Unit = {},
     viewModel: CourseEditViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -93,31 +97,17 @@ fun CourseEditScreen(
     LaunchedEffect(dateCourseId) {
         viewModel.onIntent(CourseEditIntent.Start(dateCourseId))
     }
+    LaunchedEffect(pickedPlaces) {
+        val added = pickedPlaces?.let(PickedPlacesArg::decode) ?: return@LaunchedEffect
+        viewModel.onIntent(CourseEditIntent.PlacesAdded(added.places.map { it.toEditable() }))
+        onPickedConsumed()
+    }
     BackHandler { viewModel.onIntent(CourseEditIntent.BackClicked) }
 
     Box(modifier = Modifier.fillMaxSize().background(Colors.bgDefault)) {
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(onBack = { viewModel.onIntent(CourseEditIntent.BackClicked) })
-            when (state.load) {
-                CourseEditLoad.LOADING -> Skeleton(modifier = Modifier.weight(1f))
-                CourseEditLoad.FAILED -> Failure(
-                    onRetry = { viewModel.onIntent(CourseEditIntent.RetryClicked) },
-                    modifier = Modifier.weight(1f),
-                )
-                CourseEditLoad.LOADED -> {
-                    Form(state = state, onIntent = viewModel::onIntent, modifier = Modifier.weight(1f))
-                    CtaContainer {
-                        AppButton(
-                            text = "저장",
-                            onClick = { viewModel.onIntent(CourseEditIntent.SaveClicked) },
-                            variant = AppButtonVariant.DARK,
-                            size = AppButtonSize.XL,
-                            enabled = state.canSave,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
+            Body(state = state, onIntent = viewModel::onIntent)
         }
         AppToast(
             message = state.toast?.message,
@@ -138,6 +128,31 @@ fun CourseEditScreen(
             onDiscard = { viewModel.onIntent(CourseEditIntent.BackModalDiscarded) },
             onClose = { viewModel.onIntent(CourseEditIntent.BackModalClosed) },
         )
+    }
+}
+
+// 불러오는 중·실패·칸 채우기. 저장 버튼은 다 불러온 뒤에만 낸다
+@Composable
+private fun ColumnScope.Body(state: CourseEditState, onIntent: (CourseEditIntent) -> Unit) {
+    when (state.load) {
+        CourseEditLoad.LOADING -> Skeleton(modifier = Modifier.weight(1f))
+        CourseEditLoad.FAILED -> Failure(
+            onRetry = { onIntent(CourseEditIntent.RetryClicked) },
+            modifier = Modifier.weight(1f),
+        )
+        CourseEditLoad.LOADED -> {
+            Form(state = state, onIntent = onIntent, modifier = Modifier.weight(1f))
+            CtaContainer {
+                AppButton(
+                    text = "저장",
+                    onClick = { onIntent(CourseEditIntent.SaveClicked) },
+                    variant = AppButtonVariant.DARK,
+                    size = AppButtonSize.XL,
+                    enabled = state.canSave,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

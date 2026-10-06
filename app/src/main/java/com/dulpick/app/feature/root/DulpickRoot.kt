@@ -53,7 +53,10 @@ import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.course.CourseDateScreen
 import com.dulpick.app.feature.course.CourseEditScreen
 import com.dulpick.app.feature.course.CourseReloadReason
+import com.dulpick.app.feature.course.CoursePlacePickMode
 import com.dulpick.app.feature.course.CoursePlacePickScreen
+import com.dulpick.app.feature.course.PickedPlacesArg
+import com.dulpick.app.feature.map.component.displayName
 import com.dulpick.app.feature.course.CourseResultOrigin
 import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
@@ -253,6 +256,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     coursePlacePickRoute(navController)
     courseResultRoute(navController)
     courseEditRoute(navController)
+    coursePlaceAddRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -421,6 +425,41 @@ private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) 
     }
 }
 
+// 코스 수정 중 장소 더하기(push). 같은 장소 고르기 화면을 더하기 모드로 쓴다.
+// 이미 담긴 장소는 빼고 보여주고, 고른 것만 수정 화면으로 돌려준다
+private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING={$ARG_EXCLUDING}",
+        arguments = listOf(
+            navArgument(ARG_EXCLUDING) {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        CoursePlacePickScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            mode = CoursePlacePickMode.ADD,
+            excluding = entry.arguments?.getString(ARG_EXCLUDING)
+                .orEmpty()
+                .split(",")
+                .filter { it.isNotBlank() },
+            onPicked = { picked ->
+                val arg = PickedPlacesArg.from(picked) { it.place.category.displayName() }
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(KEY_COURSE_PICKED, arg.encode())
+                navController.popBackStack()
+            },
+        )
+    }
+}
+
 // 코스 수정(push). 저장하면 결과 화면이 다시 읽게 신호를 남기고 돌아간다
 private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
     composable(
@@ -431,6 +470,10 @@ private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
     ) { entry ->
+        // 장소 추가 화면이 고른 장소를 이 자리에 남긴다
+        val picked by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_COURSE_PICKED, null)
+            .collectAsStateWithLifecycle()
         CourseEditScreen(
             dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
             onBack = { navController.popBackStack() },
@@ -438,8 +481,13 @@ private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
             // 저장도 충돌도 결과 화면이 서버에서 다시 읽는다. 충돌은 그 사실을 알린다
             onSaved = { navController.popBackWithCourseReload(CourseReloadReason.SAVED) },
             onConflicted = { navController.popBackWithCourseReload(CourseReloadReason.CONFLICT) },
-            // TODO: 장소 추가 화면은 다음 단계에서 연결한다
-            onAddPlace = { },
+            onAddPlace = { excluding ->
+                navController.navigate(
+                    "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING=${Uri.encode(excluding.joinToString(","))}",
+                )
+            },
+            pickedPlaces = picked,
+            onPickedConsumed = { entry.savedStateHandle[KEY_COURSE_PICKED] = null },
         )
     }
 }
@@ -495,6 +543,9 @@ private const val KEY_MAP_SEARCH = "map_search"
 // 코스 수정 → 결과 화면에 다시 읽으라고 남기는 키
 private const val KEY_COURSE_RELOAD = "course_reload"
 
+// 장소 추가 → 코스 수정 화면에 고른 장소를 남기는 키
+private const val KEY_COURSE_PICKED = "course_picked"
+
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
@@ -507,6 +558,9 @@ private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
 private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
 private const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
+private const val MAIN_COURSE_PLACE_ADD_ROUTE = "main/course/places/add"
+// 이미 코스에 담긴 장소 번호를 쉼표로 이어 넘긴다
+private const val ARG_EXCLUDING = "excluding"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
 
 // 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다

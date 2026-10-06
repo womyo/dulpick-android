@@ -26,7 +26,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.explore.Content
 import com.dulpick.app.ui.theme.Colors
@@ -48,14 +47,12 @@ fun ContentCard(content: Content, onClick: () -> Unit, modifier: Modifier = Modi
                 // 이미지가 없거나 로딩 중엔 이 회색 배경이 보인다 (iOS gray500)
                 .background(Colors.gray500),
         ) {
-            SubcomposeAsyncImage(
-                model = content.thumbnailUrls.firstOrNull(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            // 로딩 중엔 시머, 실패·주소 없음은 iOS placeEmpty 를 중앙에 얹는다
+            RemoteImage(
+                url = content.thumbnailUrls.firstOrNull(),
+                placeholderColor = Colors.gray500,
+                placeholder = { EmptyThumbnail() },
                 modifier = Modifier.fillMaxSize(),
-                // 로딩 중엔 쉬머, 실패·URL 없음은 iOS placeEmpty 를 중앙에 얹는다
-                loading = { ShimmerBox(modifier = Modifier.fillMaxSize()) },
-                error = { EmptyThumbnail() },
             )
             PlaceCountBadge(
                 count = content.placeCount,

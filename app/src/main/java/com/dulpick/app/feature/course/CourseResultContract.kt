@@ -16,6 +16,9 @@ enum class CourseResultLoad { LOADING, LOADED, FAILED }
 // status 로 대신하면 안 된다 — 지난 데이트도 CONFIRMED 라 예정 데이트와 구별이 안 된다
 enum class CourseResultOrigin { COURSE_BUILT, PAST_DATE }
 
+// 수정 화면에서 돌아온 이유. 충돌이면 최신 코스를 읽었다고 알린다
+enum class CourseReloadReason { SAVED, CONFLICT }
+
 // 타임라인 한 줄. 화면에 그대로 찍히는 글자만 담는다 (iOS CourseStop 뷰 모델 대응)
 data class TimelineStop(
     val id: String,
@@ -102,6 +105,8 @@ data class CourseResultState(
 sealed interface CourseResultIntent : UiIntent {
     data class Start(val dateCourseId: String, val origin: CourseResultOrigin) : CourseResultIntent
     data object RetryClicked : CourseResultIntent
+    // 상대가 먼저 바꿔 저장이 막혔다. 최신 코스를 읽고 그 사실을 알린다
+    data object ConflictReloadRequested : CourseResultIntent
     data object NotifyClicked : CourseResultIntent
     data object EditClicked : CourseResultIntent
     data object BackClicked : CourseResultIntent

@@ -85,12 +85,16 @@ private val CTA_COVER_PADDING = 96.dp
 // 확정된 코스를 보는 화면. 지도 + 타임라인 + 상대에게 알리기 (iOS CourseResultView 대응)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@Suppress("LongParameterList")
 fun CourseResultScreen(
     dateCourseId: String,
     origin: CourseResultOrigin,
     onBack: () -> Unit,
     onSessionExpired: () -> Unit,
     onEdit: (dateCourseId: String) -> Unit,
+    // 수정 화면에서 돌아왔다는 신호. 있으면 코스를 다시 읽고 신호를 지운다
+    reloadReason: CourseReloadReason? = null,
+    onReloadConsumed: () -> Unit = {},
     viewModel: CourseResultViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -109,6 +113,14 @@ fun CourseResultScreen(
     }
     LaunchedEffect(dateCourseId) {
         viewModel.onIntent(CourseResultIntent.Start(dateCourseId, origin))
+    }
+    LaunchedEffect(reloadReason) {
+        reloadReason ?: return@LaunchedEffect
+        when (reloadReason) {
+            CourseReloadReason.SAVED -> viewModel.onIntent(CourseResultIntent.RetryClicked)
+            CourseReloadReason.CONFLICT -> viewModel.onIntent(CourseResultIntent.ConflictReloadRequested)
+        }
+        onReloadConsumed()
     }
     BackHandler { viewModel.onIntent(CourseResultIntent.BackClicked) }
 

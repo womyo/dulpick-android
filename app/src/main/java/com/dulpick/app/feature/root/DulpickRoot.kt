@@ -51,6 +51,8 @@ import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
 import com.dulpick.app.feature.course.CourseDateScreen
+import com.dulpick.app.feature.course.CourseEditScreen
+import com.dulpick.app.feature.course.CourseReloadReason
 import com.dulpick.app.feature.course.CoursePlacePickScreen
 import com.dulpick.app.feature.course.CourseResultOrigin
 import com.dulpick.app.feature.course.CourseResultScreen
@@ -250,6 +252,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     courseDateRoute(navController)
     coursePlacePickRoute(navController)
     courseResultRoute(navController)
+    courseEditRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -398,8 +401,14 @@ private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) 
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
     ) { entry ->
+        // 수정 화면이 저장·충돌 뒤 이 자리에 신호를 남긴다
+        val reloadReason by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_COURSE_RELOAD, null)
+            .collectAsStateWithLifecycle()
         CourseResultScreen(
             dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            reloadReason = reloadReason?.let(CourseReloadReason::valueOf),
+            onReloadConsumed = { entry.savedStateHandle[KEY_COURSE_RELOAD] = null },
             origin = if (entry.arguments?.getString(ARG_COURSE_ORIGIN) == COURSE_ORIGIN_PAST) {
                 CourseResultOrigin.PAST_DATE
             } else {
@@ -407,10 +416,38 @@ private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) 
             },
             onBack = { navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
-            // TODO: 코스 편집 화면이 생기면 그리로 보낸다
-            onEdit = { },
+            onEdit = { id -> navController.navigate("$MAIN_COURSE_EDIT_ROUTE_BASE/$id") },
         )
     }
+}
+
+// 코스 수정(push). 저장하면 결과 화면이 다시 읽게 신호를 남기고 돌아간다
+private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_EDIT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}",
+        arguments = listOf(navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType }),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        CourseEditScreen(
+            dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            // 저장도 충돌도 결과 화면이 서버에서 다시 읽는다. 충돌은 그 사실을 알린다
+            onSaved = { navController.popBackWithCourseReload(CourseReloadReason.SAVED) },
+            onConflicted = { navController.popBackWithCourseReload(CourseReloadReason.CONFLICT) },
+            // TODO: 장소 추가 화면은 다음 단계에서 연결한다
+            onAddPlace = { },
+        )
+    }
+}
+
+// 결과 화면에 다시 읽으라고 남기고 돌아간다
+private fun NavHostController.popBackWithCourseReload(reason: CourseReloadReason) {
+    previousBackStackEntry?.savedStateHandle?.set(KEY_COURSE_RELOAD, reason.name)
+    popBackStack()
 }
 
 // 지도 전용 장소 검색(push). 결과 제출/행탭 시 검색을 pop 하고 지도(MAIN)를 검색 결과 모드로 만든다.
@@ -455,6 +492,9 @@ private fun NavHostController.returnSearchResult(arg: MapSearchReturnArg) {
 // 지도 검색 결과 → 지도(MAIN)로 되돌려줄 때 쓰는 savedStateHandle 키
 private const val KEY_MAP_SEARCH = "map_search"
 
+// 코스 수정 → 결과 화면에 다시 읽으라고 남기는 키
+private const val KEY_COURSE_RELOAD = "course_reload"
+
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
@@ -466,6 +506,7 @@ private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
 private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
+private const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
 
 // 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다

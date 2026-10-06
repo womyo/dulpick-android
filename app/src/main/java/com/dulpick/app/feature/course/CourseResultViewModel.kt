@@ -23,6 +23,11 @@ class CourseResultViewModel @Inject constructor(
         when (intent) {
             is CourseResultIntent.Start -> start(intent.dateCourseId, intent.origin)
             CourseResultIntent.RetryClicked -> load()
+            CourseResultIntent.ConflictReloadRequested -> {
+                setState { copy(course = null) }
+                postSideEffect(CourseResultSideEffect.ShowToast("상대방이 먼저 바꿔서 최신 코스를 불러왔어요"))
+                load()
+            }
             CourseResultIntent.NotifyClicked -> notifyPartner()
             CourseResultIntent.EditClicked -> dateCourseId?.let {
                 postSideEffect(CourseResultSideEffect.EditRequested(it))

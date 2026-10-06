@@ -160,6 +160,8 @@ dependencies {
 
     // 카카오 지도
     implementation(libs.kakao.map)
+    // 현재 위치 1회 조회 (FusedLocationProviderClient)
+    implementation(libs.play.services.location)
 
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)

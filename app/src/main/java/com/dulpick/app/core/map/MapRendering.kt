@@ -19,7 +19,9 @@ private const val RENDER_MAX_TRIES = 10
 private const val RENDER_VERIFY_MS = 300L
 private const val CAMERA_EPSILON = 1e-4
 
-// 핀과 카메라를 지도에 올린다. 지도 준비·재개(revision)·핀·카메라가 바뀔 때마다 다시 그린다
+// 핀과 카메라를 지도에 올린다.
+// 핀과 카메라는 따로 본다 — 핀이 바뀌었다고 카메라를 다시 옮기면,
+// 사용자가 지도를 움직여 둔 자리가 핀을 고를 때마다 되돌아간다
 @Composable
 internal fun RenderMap(
     kakaoMap: KakaoMap?,
@@ -29,15 +31,21 @@ internal fun RenderMap(
 ) {
     // 사용자가 지도를 직접 움직였는지. 움직였으면 카메라 재시도를 멈춘다
     val userMovedCamera = remember { AtomicBoolean(false) }
-    LaunchedEffect(kakaoMap, revision, pins, camera) {
+
+    LaunchedEffect(kakaoMap, revision, pins) {
         val map = kakaoMap ?: return@LaunchedEffect
-        userMovedCamera.set(false)
         // 제스처로 끝난 카메라 이동만 사용자 조작이다(코드가 옮기면 Unknown 으로 온다)
         map.setOnCameraMoveEndListener { _, _, gestureType ->
             if (gestureType != GestureType.Unknown) userMovedCamera.set(true)
         }
         renderPins(map, pins)
+    }
+
+    LaunchedEffect(kakaoMap, revision, camera) {
+        val map = kakaoMap ?: return@LaunchedEffect
         val target = camera ?: return@LaunchedEffect
+        // 새 목표가 왔으니 앞서 사용자가 움직인 기록은 지운다
+        userMovedCamera.set(false)
         moveUntilSettled(map, target, userMovedCamera)
     }
 }

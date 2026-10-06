@@ -20,6 +20,17 @@ val localProperties = Properties().apply {
 
 fun secret(key: String): String = localProperties.getProperty(key).orEmpty()
 
+// 업로드 키(Play 에 올릴 AAB 서명용). keystore.properties 와 키스토어 파일은 gitignore 다.
+// 키가 없는 환경(다른 개발자·CI)에서도 빌드는 되게, 없으면 서명 설정을 만들지 않는다
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+val uploadKeyStoreFile = keystoreProperties.getProperty("storeFile")
+    ?.let { rootProject.file(it) }
+    ?.takeIf { it.exists() }
+
 detekt {
     buildUponDefaultConfig = true
     config.setFrom("$rootDir/config/detekt/detekt.yml")
@@ -55,6 +66,17 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"${secret("API_BASE_URL")}\"")
     }
 
+    signingConfigs {
+        if (uploadKeyStoreFile != null) {
+            create("upload") {
+                storeFile = uploadKeyStoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // 배포 빌드와 나란히 설치되도록 id·스킴 분리
@@ -68,6 +90,8 @@ android {
         }
         release {
             applicationIdSuffix = ".app"
+            // 업로드 키가 있으면 서명한다. 없으면 서명 안 된 AAB 가 나오고 Play 는 그걸 받지 않는다
+            signingConfig = signingConfigs.findByName("upload")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -95,6 +119,8 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // 앱이 뜨는 순간 보이는 런치스크린 (API 31 이전에도 같은 모양으로)
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

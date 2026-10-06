@@ -160,8 +160,8 @@ class PlaceDetailViewModel @Inject constructor(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                // 표시만 되돌린다. 저장 실패로 로그인 화면까지 보내지 않는다 (iOS bookmarkFailed 와 동일)
                 rollbackBookmark(wasBookmarked)
-                if (error == PlaceError.Unauthorized) postSideEffect(PlaceDetailSideEffect.SessionExpired)
             }
         }
     }

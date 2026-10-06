@@ -59,12 +59,15 @@ private val PHOTO_SIZE = 160.dp
 // 장소 상세 시트 내용. 지도 위 바텀시트로 얹힌다 (iOS PlaceDetailView 대응).
 // 넘겨받은 장소(target)로 즉시 그리고, 상세 API 는 부가정보만 덧입힌다. target 별로 VM 을 새로 만든다
 @Composable
+@Suppress("LongParameterList")
 fun PlaceDetailSheet(
     target: Place,
     query: String,
     serverPlaceId: Long?,
     onClose: () -> Unit,
     onSessionExpired: () -> Unit,
+    // 관련 게시물 카드 탭 → 지도가 게시글 상세를 이 위에 얹는다
+    onOpenContent: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PlaceDetailViewModel = hiltViewModel(key = "detail-${target.id}"),
 ) {
@@ -76,8 +79,7 @@ fun PlaceDetailSheet(
             PlaceDetailSideEffect.Close -> onClose()
             PlaceDetailSideEffect.SessionExpired -> onSessionExpired()
             is PlaceDetailSideEffect.OpenKakaoMap -> context.openKakaoMap(effect.appUri, effect.webUrl)
-            // TODO: 게시물 상세는 게시물 상세 화면 구현 시 연결한다
-            is PlaceDetailSideEffect.OpenContent -> Unit
+            is PlaceDetailSideEffect.OpenContent -> onOpenContent(effect.id)
         }
     }
     LaunchedEffect(target.id) {

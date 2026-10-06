@@ -6,6 +6,7 @@ import com.dulpick.app.data.explore.remote.ExploreRemoteDataSource
 import com.dulpick.app.domain.explore.ContentPage
 import com.dulpick.app.domain.explore.ContentSort
 import com.dulpick.app.domain.explore.ExploreRepository
+import com.dulpick.app.domain.explore.PostDetailContent
 import javax.inject.Inject
 
 @Suppress("TooGenericExceptionCaught")
@@ -32,6 +33,14 @@ class ExploreRepositoryImpl @Inject constructor(
     override suspend fun placeContents(placeId: Long, page: Int, size: Int): ContentPage {
         try {
             return ContentDtoMapper.toDomain(exploreRemote.placeContents(placeId, page, size))
+        } catch (error: Throwable) {
+            throw ExploreErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun contentDetail(id: String): PostDetailContent {
+        try {
+            return ContentDtoMapper.toDetail(exploreRemote.contentDetail(id))
         } catch (error: Throwable) {
             throw ExploreErrorMapper.map(error)
         }

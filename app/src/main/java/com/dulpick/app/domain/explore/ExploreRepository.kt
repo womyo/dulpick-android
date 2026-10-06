@@ -10,4 +10,7 @@ interface ExploreRepository {
 
     // 특정 장소와 관련된 게시물 (장소 상세, 페이지네이션)
     suspend fun placeContents(placeId: Long, page: Int, size: Int): ContentPage
+
+    // 게시글 상세 (제목·본문·딸린 장소)
+    suspend fun contentDetail(id: String): PostDetailContent
 }

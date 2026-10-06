@@ -63,6 +63,8 @@ fun HomeScreen(
     onOpenMap: () -> Unit = {},
     // 저장 장소 클릭 → 지도 탭으로 이동하며 그 장소 상세를 연다
     onOpenPlaceOnMap: (com.dulpick.app.domain.place.Place) -> Unit = {},
+    // 추천 게시물 탭 → 지도 탭으로 옮겨 그 게시글 상세를 연다
+    onOpenContent: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -77,7 +79,7 @@ fun HomeScreen(
             // TODO: 코스·게시물 상세는 코스/게시물 단계에서 연결한다
             HomeSideEffect.OpenCourseFlow -> Unit
             is HomeSideEffect.OpenUpcomingCourse -> Unit
-            is HomeSideEffect.OpenContentDetail -> Unit
+            is HomeSideEffect.OpenContentDetail -> onOpenContent(effect.id)
             is HomeSideEffect.OpenPastSchedule -> Unit
         }
     }

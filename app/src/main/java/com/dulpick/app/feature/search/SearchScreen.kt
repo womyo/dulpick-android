@@ -56,14 +56,15 @@ fun SearchScreen(
     onSessionExpired: () -> Unit,
     // 장소 결과 탭 → 이 화면을 스택에 남긴 채 지도에서 그 장소 상세를 연다
     onOpenPlaceOnMap: (query: String, place: Place) -> Unit = { _, _ -> },
+    // 게시물 카드 탭 → 지도를 이 위에 올려 게시글 상세만 보여준다
+    onOpenContent: (String) -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
-            // TODO: 게시물 상세는 게시물 단계에서
-            is SearchSideEffect.ShowContentDetail -> Unit
+            is SearchSideEffect.ShowContentDetail -> onOpenContent(effect.id)
             is SearchSideEffect.ShowPlaceDetail -> onOpenPlaceOnMap(effect.query, effect.place)
             SearchSideEffect.SessionExpired -> onSessionExpired()
         }

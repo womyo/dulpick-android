@@ -1,5 +1,6 @@
 package com.dulpick.app.data.explore.remote
 
+import com.dulpick.app.data.explore.remote.dto.ContentDetailResponseDto
 import com.dulpick.app.data.explore.remote.dto.ContentPageResponseDto
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -12,6 +13,9 @@ interface ExploreApi {
         @Query("page") page: Int,
         @Query("size") size: Int,
     ): ContentPageResponseDto
+
+    @GET("/api/v1/contents/{contentId}")
+    suspend fun contentDetail(@Path("contentId") contentId: String): ContentDetailResponseDto
 
     // 특정 장소와 관련된 게시물 (장소 상세)
     @GET("/api/v1/places/{placeId}/contents")

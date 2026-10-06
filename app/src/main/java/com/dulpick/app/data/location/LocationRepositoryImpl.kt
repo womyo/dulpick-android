@@ -30,10 +30,11 @@ class LocationRepositoryImpl @Inject constructor(
 
     override suspend fun currentCoordinate(): Coordinate {
         if (!locationRemote.hasPermission()) throw LocationError.Denied
-        // 지도 화면은 최근 좌표를 이미 들고 있는 때가 많다. 그때 새로 재면 얻는 것이 없다
-        locationRemote.lastKnown(MAX_CACHE_AGE_MS)?.let { return Coordinate(it.latitude, it.longitude) }
-        val location = withTimeoutOrNull(TIMEOUT_MS) { locationRemote.current(TIMEOUT_MS) }
-            ?: throw LocationError.Unavailable
+        // 캐시 조회와 새 측위를 한 제한 시간 안에 둔다. 캐시 조회가 늦어져도 전체가 5 초를 넘지 않는다
+        val location = withTimeoutOrNull(TIMEOUT_MS) {
+            // 지도 화면은 최근 좌표를 이미 들고 있는 때가 많다. 그때 새로 재면 얻는 것이 없다
+            locationRemote.lastKnown(MAX_CACHE_AGE_MS) ?: locationRemote.current(TIMEOUT_MS)
+        } ?: throw LocationError.Unavailable
         return Coordinate(location.latitude, location.longitude)
     }
 }

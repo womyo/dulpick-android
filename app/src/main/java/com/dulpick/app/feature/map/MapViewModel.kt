@@ -72,7 +72,8 @@ class MapViewModel @Inject constructor(
         when (intent) {
             is MapIntent.OpenPostDetail ->
                 setState { openingPostDetail(intent.contentId, intent.returnsOnClose) }
-            is MapIntent.PostPlacesApplied -> setState { withPostPlaces(intent.places) }
+            is MapIntent.PostPlacesApplied ->
+                setState { withPostPlaces(intent.contentId, intent.places) }
             is MapIntent.OpenPostPlaceDetail -> setState { openingPostPlaceDetail(intent.placeId) }
             MapIntent.ClosePostDetail -> closePostDetail()
             else -> Unit

@@ -554,7 +554,9 @@ private fun MapSheet(
         post != null && state.showsPostDetail -> PostDetailSheet(
             contentId = post.contentId,
             onClose = { onIntent(MapIntent.ClosePostDetail) },
-            onDetailLoaded = { onIntent(MapIntent.PostPlacesApplied(it.places.map { p -> p.place })) },
+            onDetailLoaded = { detail ->
+                onIntent(MapIntent.PostPlacesApplied(post.contentId, detail.places.map { it.place }))
+            },
             onPlaceSelected = { onIntent(MapIntent.OpenPostPlaceDetail(it)) },
             onSessionExpired = onSessionExpired,
             modifier = Modifier.height(sheetHeight),

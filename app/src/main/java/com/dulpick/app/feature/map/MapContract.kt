@@ -150,8 +150,9 @@ sealed interface MapIntent : UiIntent {
     data object LocationModalDismissed : MapIntent
     // 게시물 카드 탭(탐색·검색·홈·장소 상세) → 지도 위에 게시글 상세를 연다
     data class OpenPostDetail(val contentId: String, val returnsOnClose: Boolean = false) : MapIntent
-    // 게시글 상세가 받아온 장소들. 지도 핀·카메라를 이걸로 세운다 (iOS contentPlacesApplied 대응)
-    data class PostPlacesApplied(val places: List<Place>) : MapIntent
+    // 게시글 상세가 받아온 장소들. 지도 핀·카메라를 이걸로 세운다 (iOS contentPlacesApplied 대응).
+    // 늦게 도착한 앞 게시글의 장소를 지금 게시글에 올리지 않도록 contentId 를 같이 받는다
+    data class PostPlacesApplied(val contentId: String, val places: List<Place>) : MapIntent
     // 게시글 상세의 장소 행 탭 → 그 장소 상세를 위에 얹는다
     data class OpenPostPlaceDetail(val placeId: String) : MapIntent
     data object ClosePostDetail : MapIntent

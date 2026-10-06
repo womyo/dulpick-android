@@ -12,9 +12,12 @@ fun MapState.openingPostDetail(contentId: String, returnsOnClose: Boolean): MapS
         topDetail = TopDetail.POST,
     )
 
-// 게시글 상세가 받아온 장소들. 이때부터 지도 핀·카메라가 이걸 본다
-fun MapState.withPostPlaces(places: List<Place>): MapState =
-    copy(postDetail = postDetail?.copy(places = places))
+// 게시글 상세가 받아온 장소들. 이때부터 지도 핀·카메라가 이걸 본다.
+// 지금 열린 게시글의 것일 때만 올린다 — 앞 게시글의 응답이 늦게 닿으면 남의 핀을 그리게 된다
+fun MapState.withPostPlaces(contentId: String, places: List<Place>): MapState {
+    if (postDetail?.contentId != contentId) return this
+    return copy(postDetail = postDetail.copy(places = places))
+}
 
 // 게시글 속 장소 행 탭. 핀 탭과 똑같이 그 장소 상세를 위에 얹는다
 fun MapState.openingPostPlaceDetail(placeId: String): MapState {

@@ -192,6 +192,8 @@ private fun MainTabNavHost(
                         onSessionExpired = onLoggedOut,
                         onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
                         onOpenPastDates = actions.onOpenPastDates,
+                        onOpenCourse = actions.onOpenCourse,
+                        onOpenPastCourse = actions.onOpenPastCourse,
                         // 전체보기 → 지도 탭 이동만
                         onOpenMap = { navigateToTab(MainTab.MAP.route) },
                         // 장소 클릭 → 지도 탭 이동 + 그 장소 상세

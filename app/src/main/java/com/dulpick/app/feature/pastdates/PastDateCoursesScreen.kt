@@ -48,15 +48,18 @@ private val HORIZONTAL_PADDING = 20.dp
 @Composable
 fun PastDateCoursesScreen(
     onBack: () -> Unit,
+    // 코스가 없을 때의 빈 상태 버튼 → 날짜 고르기
+    onOpenCourseFlow: () -> Unit,
+    // 지난 코스 한 건 보기
+    onOpenCourseResult: (dateCourseId: String) -> Unit,
     viewModel: PastDateCoursesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
-            // TODO: 코스 만들기·코스 결과는 지도/코스 단계에서 연결한다
-            PastDateCoursesSideEffect.OpenCreateCourse -> Unit
-            is PastDateCoursesSideEffect.OpenCourseResult -> Unit
+            PastDateCoursesSideEffect.OpenCreateCourse -> onOpenCourseFlow()
+            is PastDateCoursesSideEffect.OpenCourseResult -> onOpenCourseResult(effect.id)
         }
     }
 

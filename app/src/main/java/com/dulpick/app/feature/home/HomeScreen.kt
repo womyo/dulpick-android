@@ -59,6 +59,10 @@ fun HomeScreen(
     onSessionExpired: () -> Unit,
     onOpenCoupleConnect: (myNickname: String) -> Unit,
     onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,
+    // 코스 배너. 짜여 있으면 그 번호로 코스를 보여주고, 없으면 null 로 날짜 고르기를 연다
+    onOpenCourse: (dateCourseId: String?) -> Unit,
+    // 지난 데이트 행 → 그 코스 보기
+    onOpenPastCourse: (dateCourseId: String) -> Unit,
     // 최근 저장 장소 전체보기 → 지도 탭으로 이동만
     onOpenMap: () -> Unit = {},
     // 저장 장소 클릭 → 지도 탭으로 이동하며 그 장소 상세를 연다
@@ -76,11 +80,10 @@ fun HomeScreen(
             is HomeSideEffect.OpenPastDates -> onOpenPastDates(effect.hasCurrentCourse)
             is HomeSideEffect.OpenPlaceDetail -> onOpenPlaceOnMap(effect.place)
             HomeSideEffect.OpenSavedPlacesAll -> onOpenMap()
-            // TODO: 코스·게시물 상세는 코스/게시물 단계에서 연결한다
-            HomeSideEffect.OpenCourseFlow -> Unit
-            is HomeSideEffect.OpenUpcomingCourse -> Unit
+            HomeSideEffect.OpenCourseFlow -> onOpenCourse(null)
+            is HomeSideEffect.OpenUpcomingCourse -> onOpenCourse(effect.id)
             is HomeSideEffect.OpenContentDetail -> onOpenContent(effect.id)
-            is HomeSideEffect.OpenPastSchedule -> Unit
+            is HomeSideEffect.OpenPastSchedule -> onOpenPastCourse(effect.id)
         }
     }
 

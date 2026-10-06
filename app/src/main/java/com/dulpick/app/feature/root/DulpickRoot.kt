@@ -220,8 +220,11 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                     if (dateCourseId == null) {
                         navController.navigate(MAIN_COURSE_DATE_ROUTE)
                     } else {
-                        navController.navigate("$MAIN_COURSE_RESULT_ROUTE_BASE/$dateCourseId")
+                        navController.navigate(courseResultRoute(dateCourseId))
                     }
+                },
+                onOpenPastCourse = { dateCourseId ->
+                    navController.navigate(courseResultRoute(dateCourseId, isPast = true))
                 },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
@@ -323,7 +326,13 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
     ) {
-        PastDateCoursesScreen(onBack = { navController.popBackStack() })
+        PastDateCoursesScreen(
+            onBack = { navController.popBackStack() },
+            onOpenCourseFlow = { navController.navigate(MAIN_COURSE_DATE_ROUTE) },
+            onOpenCourseResult = { id ->
+                navController.navigate(courseResultRoute(id, isPast = true))
+            },
+        )
     }
 }
 
@@ -362,7 +371,7 @@ private fun NavGraphBuilder.coursePlacePickRoute(navController: NavHostControlle
             onSessionExpired = { navController.navigateToAuth() },
             onBuilt = { id ->
                 // 결과에서 뒤로 가면 코스 흐름을 닫는다. 장소 고르기로 돌아가지 않는다
-                navController.navigate("$MAIN_COURSE_RESULT_ROUTE_BASE/$id") {
+                navController.navigate(courseResultRoute(id)) {
                     popUpTo(MAIN_COURSE_DATE_ROUTE) { inclusive = true }
                 }
             },
@@ -370,11 +379,20 @@ private fun NavGraphBuilder.coursePlacePickRoute(navController: NavHostControlle
     }
 }
 
+// 코스 결과로 가는 길. 지난 데이트로 들어가면 결과 화면이 수정·알리기를 숨긴다
+private fun courseResultRoute(dateCourseId: String, isPast: Boolean = false): String {
+    val origin = if (isPast) COURSE_ORIGIN_PAST else COURSE_ORIGIN_BUILT
+    return "$MAIN_COURSE_RESULT_ROUTE_BASE/$dateCourseId/$origin"
+}
+
 // 확정된 코스 보기(push). 지난 데이트 목록에서도 같은 화면을 쓴다
 private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_COURSE_RESULT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}",
-        arguments = listOf(navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType }),
+        route = "$MAIN_COURSE_RESULT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}/{$ARG_COURSE_ORIGIN}",
+        arguments = listOf(
+            navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType },
+            navArgument(ARG_COURSE_ORIGIN) { type = NavType.StringType },
+        ),
         enterTransition = { slideInHorizontally { it } },
         exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
@@ -382,7 +400,11 @@ private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) 
     ) { entry ->
         CourseResultScreen(
             dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
-            origin = CourseResultOrigin.COURSE_BUILT,
+            origin = if (entry.arguments?.getString(ARG_COURSE_ORIGIN) == COURSE_ORIGIN_PAST) {
+                CourseResultOrigin.PAST_DATE
+            } else {
+                CourseResultOrigin.COURSE_BUILT
+            },
             onBack = { navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
             // TODO: 코스 편집 화면이 생기면 그리로 보낸다
@@ -445,6 +467,11 @@ private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
 private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
+
+// 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다
+private const val ARG_COURSE_ORIGIN = "courseOrigin"
+private const val COURSE_ORIGIN_BUILT = "built"
+private const val COURSE_ORIGIN_PAST = "past"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
 private const val ARG_COUPLE_ORIGIN = "origin"

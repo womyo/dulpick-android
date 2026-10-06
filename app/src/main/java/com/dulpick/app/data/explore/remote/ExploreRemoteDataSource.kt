@@ -2,6 +2,7 @@ package com.dulpick.app.data.explore.remote
 
 import com.dulpick.app.core.network.Authed
 import com.dulpick.app.core.network.safeApiCall
+import com.dulpick.app.data.explore.remote.dto.ContentDetailResponseDto
 import com.dulpick.app.data.explore.remote.dto.ContentPageResponseDto
 import javax.inject.Inject
 
@@ -13,6 +14,9 @@ class ExploreRemoteDataSource @Inject constructor(
 
     suspend fun search(query: String, sort: String, page: Int, size: Int): ContentPageResponseDto =
         safeApiCall { exploreApi.search(query, sort, page, size) }
+
+    suspend fun contentDetail(id: String): ContentDetailResponseDto =
+        safeApiCall { exploreApi.contentDetail(id) }
 
     suspend fun placeContents(placeId: Long, page: Int, size: Int): ContentPageResponseDto =
         safeApiCall { exploreApi.placeContents(placeId, page, size) }

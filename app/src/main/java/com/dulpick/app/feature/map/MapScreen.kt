@@ -353,10 +353,15 @@ fun rememberMapSheetState(): BottomSheetScaffoldState {
         bottomSheetState = rememberStandardBottomSheetState(
             initialValue = SheetValue.PartiallyExpanded,
             skipHiddenState = false,
-            confirmValueChange = { it != SheetValue.Hidden },
+            confirmValueChange = NOT_HIDDEN,
         ),
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+// rememberStandardBottomSheetState 는 이 함수를 기억 키로 쓴다.
+// 호출할 때마다 새로 만들면 그릴 때마다 시트 상태가 초기화돼 접힘으로 돌아간다
+private val NOT_HIDDEN: (SheetValue) -> Boolean = { it != SheetValue.Hidden }
 
 // 시트는 첫 레이아웃 전까지 위치가 없어 화면 맨 위에 그려진다. 그 한 프레임만 감추고,
 // 위치가 정해진 뒤로는(아래에서 올라오는 동안에도) 계속 보여준다

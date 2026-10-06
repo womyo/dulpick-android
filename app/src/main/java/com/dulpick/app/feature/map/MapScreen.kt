@@ -66,6 +66,7 @@ import com.dulpick.app.feature.map.component.FilterDropdown
 import com.dulpick.app.feature.map.component.MapSearchBar
 import com.dulpick.app.feature.placedetail.MapSearchReturnArg
 import com.dulpick.app.feature.placedetail.PlaceDetailSheet
+import com.dulpick.app.feature.postdetail.PostDetailSheet
 import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
@@ -132,6 +133,11 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
+    // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
+    pendingPostId: String? = null,
+    onPostConsumed: () -> Unit = {},
+    // 그렇게 연 게시글 상세가 닫힘 → 온 곳으로 되돌린다
+    onClosePostDetail: () -> Unit = {},
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 떠 있는지 위로 알린다.
     // 탭 컨테이너가 이 값으로 탭바를 감춘다
     onTabBarHiddenChange: (Boolean) -> Unit = {},
@@ -149,12 +155,13 @@ fun MapScreen(
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var mapRevision by remember { mutableStateOf(0) }
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
-    val tabBarHidden = state.detail != null || state.searchResult != null
+    val tabBarHidden = state.detail != null || state.searchResult != null || state.postDetail != null
 
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
             MapSideEffect.SessionExpired -> onSessionExpired()
             is MapSideEffect.ShowToast -> toast = MapToast(effect.message, effect.isError)
+            MapSideEffect.PostDetailClosed -> onClosePostDetail()
         }
     }
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
@@ -166,6 +173,8 @@ fun MapScreen(
         onContentDetailConsumed = onContentDetailConsumed,
         pendingSearchArg = pendingSearchArg,
         onSearchConsumed = onSearchConsumed,
+        pendingPostId = pendingPostId,
+        onPostConsumed = onPostConsumed,
         onIntent = viewModel::onIntent,
     )
 
@@ -174,11 +183,7 @@ fun MapScreen(
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
-    // 뒤로가기: 상세가 열려 있으면 상세를 닫고, 검색 결과 모드면 저장 모드로 돌아간다
-    BackHandler(enabled = state.detail != null || state.searchResult != null) {
-        val detail = state.detail
-        if (detail != null) dismissDetail(detail) else viewModel.onIntent(MapIntent.ClearSearch)
-    }
+    HandleBack(state, viewModel::onIntent, dismissDetail)
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
 
@@ -246,7 +251,14 @@ private fun RenderMap(kakaoMap: KakaoMap?, mapRevision: Int, state: MapState) {
     val context = LocalContext.current
     // 사용자가 지도를 직접 움직였는지. 움직였으면 카메라 재시도를 멈춘다
     val userMovedCamera = remember { AtomicBoolean(false) }
-    LaunchedEffect(kakaoMap, mapRevision, state.filteredPlaces, state.searchResult, state.detail) {
+    LaunchedEffect(
+        kakaoMap,
+        mapRevision,
+        state.filteredPlaces,
+        state.searchResult,
+        state.detail,
+        state.postDetail,
+    ) {
         val map = kakaoMap ?: return@LaunchedEffect
         userMovedCamera.set(false)
         // 제스처로 끝난 카메라 이동만 사용자 조작이다(코드가 옮기면 Unknown 으로 온다)
@@ -286,6 +298,9 @@ private fun renderMap(context: Context, map: KakaoMap, state: MapState): LatLng 
     val detail = state.detail
     val searchResult = state.searchResult
     val basePins = when {
+        // 게시글 상세의 장소들 (iOS contentPlacesApplied 대응). 받아오기 전에는 원래 핀을 둔다
+        state.showsPostPins ->
+            state.postDetail?.places.orEmpty().map { MapPin(it.id, it.coordinate, it.category) }
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
         detail != null && detail.contentMode ->
             listOf(MapPin(detail.place.id, detail.place.coordinate, detail.place.category))
@@ -325,6 +340,25 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
     var placed by remember { mutableStateOf(false) }
     LaunchedEffect(positioned) { if (positioned) placed = true }
     return if (placed) 1f else 0f
+}
+
+// 뒤로가기: 위에 있는 시트부터 닫고, 남은 게 없으면 검색 결과 모드를 푼다
+@Composable
+private fun HandleBack(
+    state: MapState,
+    onIntent: (MapIntent) -> Unit,
+    onDismissDetail: (DetailTarget) -> Unit,
+) {
+    BackHandler(
+        enabled = state.detail != null || state.searchResult != null || state.postDetail != null,
+    ) {
+        val detail = state.detail
+        when {
+            state.showsPostDetail -> onIntent(MapIntent.ClosePostDetail)
+            detail != null -> onDismissDetail(detail)
+            else -> onIntent(MapIntent.ClearSearch)
+        }
+    }
 }
 
 // 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고, 아니면 상세만 내린다
@@ -392,6 +426,8 @@ private fun ConsumeExternalInputs(
     onContentDetailConsumed: () -> Unit,
     pendingSearchArg: String?,
     onSearchConsumed: () -> Unit,
+    pendingPostId: String?,
+    onPostConsumed: () -> Unit,
     onIntent: (MapIntent) -> Unit,
 ) {
     // 홈 등에서 넘어온 저장 장소는 저장 모드에서 상세만 연다
@@ -402,6 +438,13 @@ private fun ConsumeExternalInputs(
         val target = pendingContentDetail ?: return@LaunchedEffect
         onIntent(MapIntent.OpenContentDetail(target.place, target.query))
         onContentDetailConsumed()
+    }
+
+    // 다른 탭·화면에서 넘어온 게시글. 닫으면 온 곳으로 되돌리도록 표시해 둔다
+    LaunchedEffect(pendingPostId) {
+        val id = pendingPostId ?: return@LaunchedEffect
+        onIntent(MapIntent.OpenPostDetail(id, returnsOnClose = true))
+        onPostConsumed()
     }
 
     // 지도 검색에서 넘어온 결과는 검색 결과 모드로 올린다. selectedIndex 있으면 상세도 연다
@@ -464,13 +507,23 @@ private fun MapSheet(
 ) {
     val detail = state.detail
     val searchResult = state.searchResult
+    val post = state.postDetail
     when {
+        post != null && state.showsPostDetail -> PostDetailSheet(
+            contentId = post.contentId,
+            onClose = { onIntent(MapIntent.ClosePostDetail) },
+            onDetailLoaded = { onIntent(MapIntent.PostPlacesApplied(it.places.map { p -> p.place })) },
+            onPlaceSelected = { onIntent(MapIntent.OpenPostPlaceDetail(it)) },
+            onSessionExpired = onSessionExpired,
+            modifier = Modifier.height(sheetHeight),
+        )
         detail != null -> PlaceDetailSheet(
             target = detail.place,
             query = detail.query,
             serverPlaceId = detail.serverPlaceId,
             onClose = { onCloseDetail(detail) },
             onSessionExpired = onSessionExpired,
+            onOpenContent = { onIntent(MapIntent.OpenPostDetail(it)) },
             modifier = Modifier.height(sheetHeight),
         )
         searchResult != null -> SearchResultSheet(

@@ -30,11 +30,33 @@ class MapViewModel @Inject constructor(
             is MapIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
             is MapIntent.DeleteClicked -> delete(intent.id)
             is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
-            MapIntent.CloseDetail -> setState { copy(detail = null) }
+            MapIntent.CloseDetail -> setState { closingPlaceDetail() }
             is MapIntent.EditClicked, is MapIntent.AliasSaveClicked, MapIntent.AliasEditDismissed ->
                 onAliasIntent(intent)
+            is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
+            is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
             else -> onSearchIntent(intent)
         }
+    }
+
+    // 게시글 상세 인텐트 (onIntent 복잡도 분리). 상태 전이는 MapDetailTransitions 에 있다
+    private fun onPostIntent(intent: MapIntent) {
+        when (intent) {
+            is MapIntent.OpenPostDetail ->
+                setState { openingPostDetail(intent.contentId, intent.returnsOnClose) }
+            is MapIntent.PostPlacesApplied -> setState { withPostPlaces(intent.places) }
+            is MapIntent.OpenPostPlaceDetail -> setState { openingPostPlaceDetail(intent.placeId) }
+            MapIntent.ClosePostDetail -> closePostDetail()
+            else -> Unit
+        }
+    }
+
+    // 다른 곳에서 들어온 게시글이면 닫을 때 온 곳으로 되돌리라고 알린다
+    private fun closePostDetail() {
+        if (currentState.postDetail?.returnsOnClose == true) {
+            postSideEffect(MapSideEffect.PostDetailClosed)
+        }
+        setState { closingPostDetail() }
     }
 
     // 별칭 편집 인텐트 (onIntent 복잡도 분리)

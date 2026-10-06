@@ -28,6 +28,10 @@ data class MapState(
     val bookmarkOverrides: Map<String, Boolean> = emptyMap(),
     // null 이 아니면 지도 위 저장목록/검색결과 시트 대신 이 장소의 상세 시트를 띄운다 (iOS mode=.content 대응)
     val detail: DetailTarget? = null,
+    // null 이 아니면 게시글 상세 시트를 띄운다. 장소 상세와 함께 있을 수 있다 (iOS postDetail 대응)
+    val postDetail: PostDetail? = null,
+    // 두 상세가 같이 있을 때 위에 있는 쪽. 나중에 연 쪽이다 (iOS topDetail 대응)
+    val topDetail: TopDetail? = null,
 ) : UiState {
     // 지도 핀과 시트 목록이 함께 보는 하나의 배열. 소유자·카테고리 필터를 적용한다
     val filteredPlaces: List<SavedPlace>
@@ -37,6 +41,14 @@ data class MapState(
 
     // 검색 결과 모드 여부
     val isSearching: Boolean get() = searchResult != null
+
+    // 위에 보일 시트가 게시글 상세인지. 둘 다 있으면 나중에 연 쪽이 이긴다
+    val showsPostDetail: Boolean
+        get() = postDetail != null && (detail == null || topDetail == TopDetail.POST)
+
+    // 게시글 핀을 그릴지. 상세를 받아오기 전에는 원래 핀을 그대로 둔다
+    val showsPostPins: Boolean
+        get() = postDetail != null && postDetail.places.isNotEmpty()
 
     // 저장한 장소 자체가 없다(필터 때문에 빈 것과 문구가 다르다)
     val hasNoSavedPlace: Boolean get() = !isLoading && places.isEmpty()
@@ -68,6 +80,16 @@ data class DetailTarget(
     val serverPlaceId: Long?,
     val contentMode: Boolean = false,
 )
+
+// 지도 위에 띄우는 게시글 상세. places 는 상세를 받아온 뒤 채워져 핀·카메라에 쓰인다
+data class PostDetail(
+    val contentId: String,
+    val places: List<Place> = emptyList(),
+    // 다른 탭·화면에서 들어온 경우. 닫으면 온 곳으로 되돌린다 (iOS returnsAfterDetailClose 대응)
+    val returnsOnClose: Boolean = false,
+)
+
+enum class TopDetail { PLACE, POST }
 
 // 별칭 편집 시트 상태 (iOS PlaceAliasFeature.State 대응)
 data class AliasEdit(
@@ -113,10 +135,19 @@ sealed interface MapIntent : UiIntent {
     // 탐색 검색에서 온 장소 → 상세 전용(content) 모드로 연다. 검색바 없이 그 장소 핀+상세만
     data class OpenContentDetail(val place: Place, val query: String) : MapIntent
     data object CloseDetail : MapIntent
+    // 게시물 카드 탭(탐색·검색·홈·장소 상세) → 지도 위에 게시글 상세를 연다
+    data class OpenPostDetail(val contentId: String, val returnsOnClose: Boolean = false) : MapIntent
+    // 게시글 상세가 받아온 장소들. 지도 핀·카메라를 이걸로 세운다 (iOS contentPlacesApplied 대응)
+    data class PostPlacesApplied(val places: List<Place>) : MapIntent
+    // 게시글 상세의 장소 행 탭 → 그 장소 상세를 위에 얹는다
+    data class OpenPostPlaceDetail(val placeId: String) : MapIntent
+    data object ClosePostDetail : MapIntent
 }
 
 sealed interface MapSideEffect : UiSideEffect {
     data object SessionExpired : MapSideEffect
     // isError 면 에러 아이콘이 붙은 토스트로 띄운다 (iOS ToastState.error 대응)
     data class ShowToast(val message: String, val isError: Boolean) : MapSideEffect
+    // 다른 곳에서 들어온 게시글 상세를 닫았다. 화면이 온 곳으로 되돌린다
+    data object PostDetailClosed : MapSideEffect
 }

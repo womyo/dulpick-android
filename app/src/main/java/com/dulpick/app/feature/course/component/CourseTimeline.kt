@@ -1,6 +1,5 @@
 package com.dulpick.app.feature.course.component
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,10 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -42,10 +38,6 @@ private val RAIL_GAP = 12.dp
 private val BADGE_SIZE = 20.dp
 private val WALK_ICON_SIZE = 24.dp
 private val WARNING_ICON_SIZE = 13.dp
-
-// 점 지름과 점 사이 (iOS lineWidth 2 · dotSpacing 5)
-private val DOT_SIZE = 2.dp
-private val DOT_SPACING = 5.dp
 
 // 코스 순서를 위에서 아래로 잇는 타임라인 (iOS CourseTimeline 대응).
 // 번호 배지 사이를 빨강 점선으로 잇고, 사이마다 이동 구간을 한 줄 끼운다.
@@ -172,17 +164,12 @@ private fun NumberBadge(number: Int) {
 // 세로 점선. 남는 높이를 다 채워야 배지와 배지가 끊김 없이 이어진다
 @Composable
 private fun Connector(modifier: Modifier = Modifier, visible: Boolean) {
-    Canvas(modifier = modifier.width(RAIL_WIDTH)) {
-        if (!visible) return@Canvas
-        // 길이 0 인 선분을 둥근 캡으로 찍어 동그란 점을 만든다 (iOS DottedVerticalLine 과 같은 규격)
-        drawLine(
-            color = Colors.brandPrimary,
-            start = Offset(size.width / 2, 0f),
-            end = Offset(size.width / 2, size.height),
-            strokeWidth = DOT_SIZE.toPx(),
-            cap = StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.01f, DOT_SPACING.toPx())),
-        )
+    if (!visible) {
+        Box(modifier = modifier.width(RAIL_WIDTH))
+        return
+    }
+    Box(modifier = modifier.width(RAIL_WIDTH), contentAlignment = Alignment.Center) {
+        DottedVerticalLine(color = Colors.brandPrimary, modifier = Modifier.fillMaxHeight())
     }
 }
 

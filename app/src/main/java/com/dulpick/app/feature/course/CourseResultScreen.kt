@@ -35,10 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,7 +50,9 @@ import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.map.MapRoute
+import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
 import com.dulpick.app.feature.map.numberedPin
 import com.dulpick.app.feature.map.placePin
@@ -113,7 +118,11 @@ fun CourseResultScreen(
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = { SheetBody(state = state, height = sheetHeight, onIntent = viewModel::onIntent) },
         ) {
-            CourseMap(state = state, onBack = { viewModel.onIntent(CourseResultIntent.BackClicked) })
+            CourseMap(
+                state = state,
+                sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+                onBack = { viewModel.onIntent(CourseResultIntent.BackClicked) },
+            )
         }
 
         if (state.showsNotifyButton) {
@@ -137,7 +146,7 @@ fun CourseResultScreen(
 
 // 카테고리 핀 위에 번호 물방울을 얹고, 순서대로 선을 잇는다 (iOS markers·routes 대응)
 @Composable
-private fun CourseMap(state: CourseResultState, onBack: () -> Unit) {
+private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () -> Unit) {
     val context = LocalContext.current
     val pins = state.stops.flatMapIndexed { index, stop ->
         listOf<MapPin>(
@@ -152,16 +161,48 @@ private fun CourseMap(state: CourseResultState, onBack: () -> Unit) {
         emptyList()
     }
 
+    // 시트 위에 보이는 띠. 지도는 화면 전체를 덮고 그 아래를 시트가 가린다
+    val density = LocalDensity.current
+    val peekHeightPx = with(density) { sheetPeekHeight.toPx() }
+    var mapSize by remember { mutableStateOf(IntSize.Zero) }
+    val collapsedSheetTop = (mapSize.height - peekHeightPx).coerceAtLeast(0f)
+    // 줌 계산은 dp 로 넘긴다. 카메라 오프셋만 픽셀이다
+    val camera = courseCamera(
+        coordinates = state.stops.map { it.place.coordinate },
+        viewWidth = with(density) { mapSize.width.toDp().value },
+        visibleHeight = with(density) { collapsedSheetTop.toDp().value },
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         KakaoMapView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().onSizeChanged { mapSize = it },
             pins = pins,
             routes = routes,
-            camera = pins.firstOrNull()
-                ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
-                ?: MapCamera.SEOUL_CITY_HALL,
+            camera = camera,
+            collapsedSheetTopPx = collapsedSheetTop,
         )
         BackButton(onClick = onBack)
+    }
+}
+
+// 첫 장소를 초점에 두고, 모든 장소가 시트 위에 들어오는 줌을 고른다.
+// 멀리 떨어진 장소가 섞이면 그만큼 줌아웃한다 (iOS mapSizeChanged 대응).
+// 가로·세로는 dp 다. 크기를 재기 전에는 여러 장소용 기본 줌이다
+@Composable
+private fun courseCamera(coordinates: List<Coordinate>, viewWidth: Float, visibleHeight: Float): MapCamera {
+    val anchor = coordinates.firstOrNull() ?: return MapCamera.SEOUL_CITY_HALL
+    return remember(coordinates, viewWidth, visibleHeight) {
+        MapCamera(
+            center = anchor,
+            zoomLevel = MapZoom.fit(
+                coordinates = coordinates,
+                anchor = anchor,
+                viewWidth = viewWidth,
+                visibleHeight = visibleHeight,
+                maximum = MapCamera.MULTI_PLACE_ZOOM,
+                focusRatio = MapZoom.MAP_FOCUS_RATIO,
+            ),
+        )
     }
 }
 

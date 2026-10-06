@@ -13,6 +13,7 @@ import com.kakao.vectormap.label.LabelStyles
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
+import kotlin.math.pow
 
 // 카메라 도달 검증 재시도. 엔진 재개 직후엔 명령이 유실될 수 있어 앉을 때까지 다시 보낸다
 private const val RENDER_MAX_TRIES = 10
@@ -28,6 +29,8 @@ internal fun RenderMap(
     revision: Int,
     pins: List<MapPin>,
     camera: MapCamera?,
+    // 접힘 시트 윗면의 y 픽셀. 0 이면 목표 좌표를 화면 한가운데에 둔다
+    collapsedSheetTopPx: Float,
 ) {
     // 사용자가 지도를 직접 움직였는지. 움직였으면 카메라 재시도를 멈춘다
     val userMovedCamera = remember { AtomicBoolean(false) }
@@ -46,7 +49,7 @@ internal fun RenderMap(
         val target = camera ?: return@LaunchedEffect
         // 새 목표가 왔으니 앞서 사용자가 움직인 기록은 지운다
         userMovedCamera.set(false)
-        moveUntilSettled(map, target, userMovedCamera)
+        moveUntilSettled(map, target, collapsedSheetTopPx, userMovedCamera)
     }
 }
 
@@ -56,26 +59,53 @@ internal fun RenderMap(
 private suspend fun moveUntilSettled(
     map: KakaoMap,
     camera: MapCamera,
+    collapsedSheetTopPx: Float,
     userMovedCamera: AtomicBoolean,
 ) {
     repeat(RENDER_MAX_TRIES) {
         if (userMovedCamera.get()) return
-        map.moveCamera(
-            CameraUpdateFactory.newCenterPosition(
-                LatLng.from(camera.center.latitude, camera.center.longitude),
-                camera.zoomLevel,
-            ),
-        )
+        val destination = map.focusedCenter(camera, collapsedSheetTopPx)
+        map.moveCamera(CameraUpdateFactory.newCenterPosition(destination, camera.zoomLevel))
         delay(RENDER_VERIFY_MS)
-        if (userMovedCamera.get() || map.arrivedAt(camera)) return
+        if (userMovedCamera.get() || map.arrivedAt(destination)) return
     }
 }
 
 // 카메라가 목표 좌표에 앉았는지
-private fun KakaoMap.arrivedAt(camera: MapCamera): Boolean {
+private fun KakaoMap.arrivedAt(destination: LatLng): Boolean {
     val position = cameraPosition?.position ?: return false
-    return abs(position.latitude - camera.center.latitude) < CAMERA_EPSILON &&
-        abs(position.longitude - camera.center.longitude) < CAMERA_EPSILON
+    return abs(position.latitude - destination.latitude) < CAMERA_EPSILON &&
+        abs(position.longitude - destination.longitude) < CAMERA_EPSILON
+}
+
+// 목표 좌표가 시트 위 영역의 초점에 보이도록 카메라 중심을 남쪽으로 민 자리.
+//
+// 지도를 먼저 옮겨 재면 화면이 한 번 튄다. 그래서 지금 자리에서 픽셀당 위도를 재고,
+// 줌이 다르면 한 단계에 두 배인 성질로 환산한다 (iOS focusedCenter 대응)
+@Suppress("ReturnCount")
+private fun KakaoMap.focusedCenter(camera: MapCamera, collapsedSheetTopPx: Float): LatLng {
+    val target = LatLng.from(camera.center.latitude, camera.center.longitude)
+    val viewport = viewport ?: return target
+    val midY = viewport.height() / 2
+    val focusY = focusY(viewport.height(), collapsedSheetTopPx)
+    // 초점이 화면 한가운데면 오프셋이 0 이므로 목표 좌표를 그대로 쓴다
+    if (focusY == midY) return target
+
+    val midX = viewport.width() / 2
+    val centerLatitude = fromScreenPoint(midX, midY)?.latitude ?: return target
+    val focusLatitude = fromScreenPoint(midX, focusY)?.latitude ?: return target
+    val currentZoom = cameraPosition?.zoomLevel ?: return target
+
+    // 줌이 한 단계 오르면 같은 픽셀이 덮는 위도 폭이 절반이 된다
+    val scale = 2.0.pow(currentZoom - camera.zoomLevel)
+    val offset = (centerLatitude - focusLatitude) * scale
+    return LatLng.from(camera.center.latitude + offset, camera.center.longitude)
+}
+
+// 초점 지점의 y. 시트 윗면이 안 왔거나 뷰 밖이면 화면 한가운데다
+private fun focusY(viewHeight: Int, collapsedSheetTopPx: Float): Int {
+    if (collapsedSheetTopPx <= 0f || collapsedSheetTopPx > viewHeight) return viewHeight / 2
+    return (collapsedSheetTopPx * MapZoom.MAP_FOCUS_RATIO).toInt()
 }
 
 // 핀을 다시 올린다. 같은 styleId 는 스타일을 한 번만 만들어 재사용한다

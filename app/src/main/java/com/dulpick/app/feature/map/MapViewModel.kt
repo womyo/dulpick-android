@@ -19,6 +19,15 @@ class MapViewModel @Inject constructor(
     private val coupleRepository: CoupleRepository,
 ) : MviViewModel<MapState, MapIntent, MapSideEffect>(MapState()) {
 
+    // 별칭 편집 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
+    private val alias = MapAliasController(
+        repository = placeRepository,
+        scope = viewModelScope,
+        state = { currentState },
+        update = { reducer -> setState(reducer) },
+        effect = { postSideEffect(it) },
+    )
+
     // 낙관적으로 뺀 행. 서버 삭제가 실패하면 이 자리로 되돌린다
     private val pendingDeletes = mutableMapOf<String, PendingDelete>()
 
@@ -31,8 +40,15 @@ class MapViewModel @Inject constructor(
             is MapIntent.DeleteClicked -> delete(intent.id)
             is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
             MapIntent.CloseDetail -> setState { closingPlaceDetail() }
+            else -> onDelegatedIntent(intent)
+        }
+    }
+
+    // 별칭·게시글·내 위치·검색은 각자 맡은 쪽으로 넘긴다 (onIntent 복잡도 분리)
+    private fun onDelegatedIntent(intent: MapIntent) {
+        when (intent) {
             is MapIntent.EditClicked, is MapIntent.AliasSaveClicked, MapIntent.AliasEditDismissed ->
-                onAliasIntent(intent)
+                alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
             else -> onSearchIntent(intent)
@@ -57,16 +73,6 @@ class MapViewModel @Inject constructor(
             postSideEffect(MapSideEffect.PostDetailClosed)
         }
         setState { closingPostDetail() }
-    }
-
-    // 별칭 편집 인텐트 (onIntent 복잡도 분리)
-    private fun onAliasIntent(intent: MapIntent) {
-        when (intent) {
-            is MapIntent.EditClicked -> openAliasEdit(intent.id)
-            is MapIntent.AliasSaveClicked -> saveAlias(intent.alias)
-            MapIntent.AliasEditDismissed -> setState { copy(aliasEdit = null) }
-            else -> Unit
-        }
     }
 
     // 검색 결과·상세 진입 인텐트 (onIntent 복잡도 분리)
@@ -155,63 +161,6 @@ class MapViewModel @Inject constructor(
                 searchResult = null,
                 detail = DetailTarget(place, query = "", serverPlaceId = place.id.toLongOrNull()),
             )
-        }
-    }
-
-    // 별칭 편집 시트를 연다. 초기값은 기존 별칭 없으면 장소명 (iOS PlaceAliasFeature.init 대응)
-    private fun openAliasEdit(id: String) {
-        val place = currentState.places.firstOrNull { it.id == id } ?: return
-        setState {
-            copy(
-                aliasEdit = AliasEdit(
-                    placeId = place.place.id,
-                    placeName = place.place.name,
-                    address = place.place.roadAddress,
-                    initialAlias = place.alias ?: place.place.name,
-                ),
-            )
-        }
-    }
-
-    // 별칭 저장. 성공하면 목록 원소를 갈아 끼우고 시트를 닫으며 토스트, 실패하면 시트에 문구를 띄운다
-    private fun saveAlias(alias: String) {
-        val edit = currentState.aliasEdit ?: return
-        val trimmed = alias.trim()
-        if (trimmed.isEmpty() || edit.isSaving) return
-        val placeId = edit.placeId.toLongOrNull() ?: run {
-            setState { copy(aliasEdit = aliasEdit?.copy(errorMessage = "저장한 장소가 아니에요")) }
-            return
-        }
-        setState { copy(aliasEdit = aliasEdit?.copy(isSaving = true, errorMessage = null)) }
-        viewModelScope.launch {
-            try {
-                val saved = placeRepository.updateAlias(placeId, trimmed)
-                setState {
-                    copy(
-                        aliasEdit = null,
-                        places = places.map { if (it.id == saved.id) saved else it },
-                    )
-                }
-                postSideEffect(MapSideEffect.ShowToast("별칭을 저장했어요", isError = false))
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                handleAliasFailure(error)
-            }
-        }
-    }
-
-    // iOS PlaceAliasFeature 대응: 401 은 세션 만료, 404 는 저장 대상 아님, 그 외는 재시도 안내
-    private fun handleAliasFailure(error: Throwable) {
-        when (error) {
-            PlaceError.Unauthorized -> {
-                setState { copy(aliasEdit = null) }
-                postSideEffect(MapSideEffect.SessionExpired)
-            }
-            PlaceError.NotFound ->
-                setState { copy(aliasEdit = aliasEdit?.copy(isSaving = false, errorMessage = "저장한 장소가 아니에요")) }
-            else ->
-                setState { copy(aliasEdit = aliasEdit?.copy(isSaving = false, errorMessage = "잠시 뒤 다시 시도해주세요")) }
         }
     }
 

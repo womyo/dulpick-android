@@ -229,7 +229,7 @@ private fun PlaceSection(state: CourseEditState, onIntent: (CourseEditIntent) ->
         Text(text = "데이트 장소", style = Typography.title3SB, color = Colors.textPrimary)
         ReorderableList(
             items = state.places,
-            key = { it.id },
+            itemKey = { it.id },
             title = { it.name },
             subtitle = { it.address },
             category = { it.category },

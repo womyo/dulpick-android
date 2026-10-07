@@ -1,6 +1,7 @@
 package com.dulpick.app.feature.course.component
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -135,7 +137,7 @@ private class ReorderState(private val pitchPx: Float) {
 @Suppress("LongParameterList")
 fun <T> ReorderableList(
     items: List<T>,
-    key: (T) -> String,
+    itemKey: (T) -> String,
     title: (T) -> String,
     subtitle: (T) -> String,
     onMove: (from: Int, to: Int) -> Unit,
@@ -145,7 +147,7 @@ fun <T> ReorderableList(
 ) {
     val density = LocalDensity.current
     val state = remember(density) { ReorderState(with(density) { PITCH.toPx() }) }
-    val keys = items.map(key)
+    val keys = items.map(itemKey)
 
     // 끄는 중에 밖에서 그 항목이 지워지면 손을 떼는 신호가 오지 않는다.
     // 그대로 두면 없는 열쇠를 가리킨 채 나머지 행이 한 칸 밀린 모양으로 굳는다
@@ -157,30 +159,39 @@ fun <T> ReorderableList(
         Connectors(count = items.size)
         Column(verticalArrangement = Arrangement.spacedBy(ROW_SPACING)) {
             items.forEachIndexed { index, item ->
-                val itemKey = key(item)
-                val isDragging = state.draggingKey == itemKey
-                // 비켜주는 행만 움직임을 입힌다. 끄는 카드는 손가락을 그대로 따라간다
-                val settled by animateFloatAsState(
-                    targetValue = state.restOffset(index),
-                    animationSpec = tween(MOVE_ANIMATION_MS),
-                    label = "reorderOffset",
-                )
-                Box(
-                    modifier = Modifier
-                        .zIndex(if (isDragging) 1f else 0f)
-                        .offset {
-                            IntOffset(
-                                x = if (isDragging) LIFT_OFFSET_X.roundToPx() else 0,
-                                y = if (isDragging) state.translation.roundToInt() else settled.roundToInt(),
-                            )
-                        },
-                ) {
-                    PlaceCard(
-                        text = RowText(title(item), subtitle(item), category?.invoke(item)),
-                        isDragging = isDragging,
-                        handleModifier = Modifier.dragHandle(state, items, itemKey, index, key, onMove),
-                        trailing = { trailing(item) },
+                val rowKey = itemKey(item)
+                // 행의 움직임 상태를 자리가 아니라 항목에 묶는다. 순서가 바뀌면 상태도 함께 간다
+                key(rowKey) {
+                    val isDragging = state.draggingKey == rowKey
+                    // 비켜주는 행만 움직임을 입힌다. 끄는 카드는 손가락을 그대로 따라간다.
+                    // 손을 뗀 뒤에는 배열이 이미 바뀌었으니 제자리로 즉시 둔다 —
+                    // 움직임을 주면 카드가 엉뚱한 칸에서 미끄러져 들어온다
+                    val settled by animateFloatAsState(
+                        targetValue = state.restOffset(index),
+                        animationSpec = if (state.draggingKey == null) snap() else tween(MOVE_ANIMATION_MS),
+                        label = "reorderOffset",
                     )
+                    Box(
+                        modifier = Modifier
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .offset {
+                                IntOffset(
+                                    x = if (isDragging) LIFT_OFFSET_X.roundToPx() else 0,
+                                    y = if (isDragging) {
+                                        state.translation.roundToInt()
+                                    } else {
+                                        settled.roundToInt()
+                                    },
+                                )
+                            },
+                    ) {
+                        PlaceCard(
+                            text = RowText(title(item), subtitle(item), category?.invoke(item)),
+                            isDragging = isDragging,
+                            handleModifier = Modifier.dragHandle(state, items, rowKey, index, itemKey, onMove),
+                            trailing = { trailing(item) },
+                        )
+                    }
                 }
             }
         }
@@ -192,16 +203,16 @@ fun <T> ReorderableList(
 private fun <T> Modifier.dragHandle(
     state: ReorderState,
     items: List<T>,
-    itemKey: String,
+    rowKey: String,
     index: Int,
-    key: (T) -> String,
+    itemKey: (T) -> String,
     onMove: (from: Int, to: Int) -> Unit,
-): Modifier = pointerInput(itemKey, items.size) {
+): Modifier = pointerInput(rowKey, items.size) {
     detectVerticalDragGestures(
-        onDragStart = { state.start(itemKey, index) },
+        onDragStart = { state.start(rowKey, index) },
         onDragEnd = {
             // 끄는 도중 밖에서 배열이 바뀌었을 수 있어 시작할 때 잡은 자리를 믿지 않는다
-            val source = items.indexOfFirst { key(it) == itemKey }
+            val source = items.indexOfFirst { itemKey(it) == rowKey }
             val drop = state.dropIndex
             if (source == state.source && source != drop && drop in items.indices) {
                 onMove(source, drop)

@@ -21,6 +21,7 @@ class NicknameViewModel @Inject constructor(
             NicknameIntent.NextClicked -> submit()
             NicknameIntent.BackClicked -> back()
             is NicknameIntent.TermsCheckTapped -> toggleTerms(intent.terms)
+            NicknameIntent.Over14CheckTapped -> setState { copy(isOver14Agreed = !isOver14Agreed) }
             NicknameIntent.TermsAgreeButtonTapped -> agreeTerms()
             is NicknameIntent.TermsDetailTapped -> openTermsDetail(intent.terms)
         }
@@ -39,8 +40,13 @@ class NicknameViewModel @Inject constructor(
 
     private fun agreeTerms() {
         setState {
+            // 필수가 덜 켜졌으면 셋과 만 14세 동의를 한 번에 켠 뒤 닫는다
             val agreed = if (isRequiredTermsAgreed) agreedTerms else NicknameState.SHEET_TERMS.toSet()
-            copy(agreedTerms = agreed, isTermsSheetPresented = false)
+            copy(
+                agreedTerms = agreed,
+                isOver14Agreed = true,
+                isTermsSheetPresented = false,
+            )
         }
     }
 

@@ -146,7 +146,7 @@ fun MyPageScreen(
 
                 Spacer(modifier = Modifier.height(30.dp))
 
-                MyPageCard(title = "문의하기") {
+                MyPageCard(title = "고객지원") {
                     NavRow(title = "공지사항") { viewModel.onIntent(MyPageIntent.NoticeClicked) }
                     RowDivider()
                     NavRow(title = "서비스 피드백하기") {

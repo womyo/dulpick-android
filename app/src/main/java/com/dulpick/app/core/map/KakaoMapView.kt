@@ -28,16 +28,29 @@ private const val RESUME_WAIT_MS = 3_000L
 
 private const val LOG_TAG = "KakaoMapView"
 
-// 카카오 MapView 를 Compose 로 감싼다. 화면은 이걸 통해서만 지도를 쓴다 (iOS KakaoMapView 대응).
+// 카카오 MapView 를 Compose 로 감싼다. 화면은 핀 목록과 카메라만 넘기고 SDK 타입은 보지 않는다
+// (iOS CoreUI/KakaoMap 의 KakaoMapView 대응).
 //
 // 지도는 지도 화면의 바텀시트 본문 안에 둔다. 시트(Material Surface)가 터치를 흡수하므로
 // 시트 밖(아래층)에 두면 지도가 드래그·확대·핀 탭을 전혀 받지 못한다.
 // 그래서 지도 화면과 함께 만들어지고, 화면이 떠날 때 finish 로 정리한다.
 // isActive 를 끄면 파괴하지 않고 렌더링만 멈춘다
 @Composable
+@Suppress("LongParameterList")
 fun KakaoMapView(
     modifier: Modifier = Modifier,
     isActive: Boolean = true,
+    // 지도에 찍을 핀. 배열이 바뀌면 다시 그린다
+    pins: List<MapPin> = emptyList(),
+    // 코스 순서를 잇는 선
+    routes: List<MapRoute> = emptyList(),
+    // 지도가 보여줄 자리. null 이면 카메라를 건드리지 않는다
+    camera: MapCamera? = null,
+    // 이 뷰가 화면 전체를 덮는다고 보고, 접힘 시트 윗면의 y 픽셀을 받는다.
+    // 목표 좌표를 그 자리의 초점에 놓는다. 0 이면 화면 한가운데다
+    collapsedSheetTopPx: Float = 0f,
+    // 핀 탭. id 가 있는 핀만 온다
+    onPinTap: (String) -> Unit = {},
     onMapReady: (KakaoMap) -> Unit = {},
     // 렌더링이 실제로 재개된 뒤 불린다. pause 중에 쌓인 카메라·라벨 명령은 프레임을 못 잡으므로
     // 화면은 이 신호를 받아 다시 그려야 한다
@@ -55,6 +68,10 @@ fun KakaoMapView(
     // 앱이 전면으로 돌아올 때마다 올린다. 아래 재개 처리를 다시 타게 해, 복귀 경로에서도
     // 재개 완료를 확인한 뒤 onResumed 를 부른다
     var foregroundCount by remember { mutableStateOf(0) }
+    // 엔진이 준 지도. 핀·카메라를 여기에 그린다
+    var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
+    // 재개될 때마다 올린다. 멈춘 동안 유실된 명령을 다시 보내는 신호다
+    var renderRevision by remember { mutableStateOf(0) }
     val mapView = remember {
         MapView(context).also {
             // 기본값은 뷰가 window 에서 떨어질 때 SDK 가 스스로 finish 한다. 정리는 dispose 한 번만 한다
@@ -78,9 +95,10 @@ fun KakaoMapView(
                     }
                 },
                 object : KakaoMapReadyCallback() {
-                    override fun onMapReady(kakaoMap: KakaoMap) {
+                    override fun onMapReady(map: KakaoMap) {
                         isReady = true
-                        currentOnReady(kakaoMap)
+                        kakaoMap = map
+                        currentOnReady(map)
                     }
                 },
             )
@@ -102,11 +120,16 @@ fun KakaoMapView(
         }
         // 재개를 확인하지 못했으면 알리지 않는다. 멈춘 엔진에 카메라·라벨을 다시 보내도 프레임을 못 잡는다
         if (mapView.isResumed) {
+            renderRevision++
             currentOnResumed()
         } else {
             Log.w(LOG_TAG, "지도 렌더링 재개를 확인하지 못했다 (${RESUME_WAIT_MS}ms)")
         }
     }
+
+    HandlePinTaps(kakaoMap, pins, onPinTap)
+    RenderMap(kakaoMap, renderRevision, pins, camera, collapsedSheetTopPx)
+    RenderRoutes(kakaoMap, renderRevision, routes)
 
     // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다.
     // 복귀는 여기서 직접 resume 하지 않고 신호만 올려, 위의 재개 완료 확인·알림 경로를 함께 탄다
@@ -122,6 +145,22 @@ fun KakaoMapView(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.finish()
+        }
+    }
+}
+
+// 핀 탭 → id 가 있는 핀이면 화면에 알린다. 선택 마커처럼 id 가 없는 핀은 무시된다
+@Composable
+private fun HandlePinTaps(kakaoMap: KakaoMap?, pins: List<MapPin>, onPinTap: (String) -> Unit) {
+    val currentPins by rememberUpdatedState(pins)
+    val currentOnTap by rememberUpdatedState(onPinTap)
+    LaunchedEffect(kakaoMap) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        map.setOnLabelClickListener { _, _, label ->
+            val id = label.tag as? String
+            val known = id != null && currentPins.any { it.id == id }
+            if (known) currentOnTap(requireNotNull(id))
+            known
         }
     }
 }

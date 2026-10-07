@@ -13,9 +13,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -30,6 +34,7 @@ import androidx.core.app.ActivityCompat
 import com.dulpick.app.R
 import com.dulpick.app.ui.component.ModalContent
 import com.dulpick.app.ui.theme.Colors
+import com.dulpick.app.ui.theme.Typography
 
 // 시스템 위치 권한 요청. 거부로 돌아오면 영구 거부인지 가려 뷰모델에 알린다.
 // 안드로이드는 '미결정' 과 '영구 거부' 를 구분하는 API 가 없어, 거부 뒤에도 안내를 보여줄 수
@@ -120,5 +125,21 @@ fun CurrentLocationButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             colorFilter = ColorFilter.tint(Colors.textPrimary),
             modifier = Modifier.size(24.dp),
         )
+    }
+}
+
+// 지도 좌하단 알약 버튼. 빨강 바탕에 글자만 (iOS MapFloatingButton pill 대응)
+@Composable
+fun MapPillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Colors.primaryPink)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = text, style = Typography.body1M, color = Colors.textInverse)
     }
 }

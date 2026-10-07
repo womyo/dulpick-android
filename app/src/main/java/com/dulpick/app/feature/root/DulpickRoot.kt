@@ -50,6 +50,15 @@ import com.dulpick.app.feature.onboarding.datetype.ARG_DATETYPE_EDIT
 import com.dulpick.app.feature.onboarding.datetype.DateTypeScreen
 import com.dulpick.app.feature.onboarding.nickname.NicknameScreen
 import com.dulpick.app.feature.pastdates.ARG_PASTDATES_HAS_CURRENT
+import com.dulpick.app.feature.course.CourseDateScreen
+import com.dulpick.app.feature.course.CourseEditScreen
+import com.dulpick.app.feature.course.CourseReloadReason
+import com.dulpick.app.feature.course.CoursePlacePickMode
+import com.dulpick.app.feature.course.CoursePlacePickScreen
+import com.dulpick.app.feature.course.PickedPlacesArg
+import com.dulpick.app.ui.component.displayName
+import com.dulpick.app.feature.course.CourseResultOrigin
+import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
@@ -212,6 +221,16 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
                 onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
+                onOpenCourse = { dateCourseId ->
+                    if (dateCourseId == null) {
+                        navController.navigate(MAIN_COURSE_DATE_ROUTE)
+                    } else {
+                        navController.navigate(courseResultRoute(dateCourseId))
+                    }
+                },
+                onOpenPastCourse = { dateCourseId ->
+                    navController.navigate(courseResultRoute(dateCourseId, isPast = true))
+                },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },
@@ -233,6 +252,11 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
         )
     }
     pastDatesRoute(navController)
+    courseDateRoute(navController)
+    coursePlacePickRoute(navController)
+    courseResultRoute(navController)
+    courseEditRoute(navController)
+    coursePlaceAddRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
         arguments = listOf(
@@ -309,8 +333,169 @@ private fun NavGraphBuilder.pastDatesRoute(navController: NavHostController) {
         popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
         popExitTransition = { slideOutHorizontally { it } },
     ) {
-        PastDateCoursesScreen(onBack = { navController.popBackStack() })
+        PastDateCoursesScreen(
+            onBack = { navController.popBackStack() },
+            onOpenCourseFlow = { navController.navigate(MAIN_COURSE_DATE_ROUTE) },
+            onOpenCourseResult = { id ->
+                navController.navigate(courseResultRoute(id, isPast = true))
+            },
+        )
     }
+}
+
+// 데이트 코스 날짜 선택(push). 다음 화면(장소 고르기)은 아직 없어 날짜까지만 간다
+private fun NavGraphBuilder.courseDateRoute(navController: NavHostController) {
+    composable(
+        route = MAIN_COURSE_DATE_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        CourseDateScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            onPlacePick = { dateCourseId, _ ->
+                navController.navigate("$MAIN_COURSE_PLACE_ROUTE_BASE/$dateCourseId")
+            },
+        )
+    }
+}
+
+// 코스에 담을 장소 고르기(push). 확정 저장까지 여기서 한다
+private fun NavGraphBuilder.coursePlacePickRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_PLACE_ROUTE_BASE/{$ARG_DATE_COURSE_ID}",
+        arguments = listOf(navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType }),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        CoursePlacePickScreen(
+            dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            onBuilt = { id ->
+                // 결과에서 뒤로 가면 코스 흐름을 닫는다. 장소 고르기로 돌아가지 않는다
+                navController.navigate(courseResultRoute(id)) {
+                    popUpTo(MAIN_COURSE_DATE_ROUTE) { inclusive = true }
+                }
+            },
+        )
+    }
+}
+
+// 코스 결과로 가는 길. 지난 데이트로 들어가면 결과 화면이 수정·알리기를 숨긴다
+private fun courseResultRoute(dateCourseId: String, isPast: Boolean = false): String {
+    val origin = if (isPast) COURSE_ORIGIN_PAST else COURSE_ORIGIN_BUILT
+    return "$MAIN_COURSE_RESULT_ROUTE_BASE/$dateCourseId/$origin"
+}
+
+// 확정된 코스 보기(push). 지난 데이트 목록에서도 같은 화면을 쓴다
+private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_RESULT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}/{$ARG_COURSE_ORIGIN}",
+        arguments = listOf(
+            navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType },
+            navArgument(ARG_COURSE_ORIGIN) { type = NavType.StringType },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        // 수정 화면이 저장·충돌 뒤 이 자리에 신호를 남긴다
+        val reloadReason by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_COURSE_RELOAD, null)
+            .collectAsStateWithLifecycle()
+        CourseResultScreen(
+            dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            reloadReason = reloadReason?.let(CourseReloadReason::valueOf),
+            onReloadConsumed = { entry.savedStateHandle[KEY_COURSE_RELOAD] = null },
+            origin = if (entry.arguments?.getString(ARG_COURSE_ORIGIN) == COURSE_ORIGIN_PAST) {
+                CourseResultOrigin.PAST_DATE
+            } else {
+                CourseResultOrigin.COURSE_BUILT
+            },
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            onEdit = { id -> navController.navigate("$MAIN_COURSE_EDIT_ROUTE_BASE/$id") },
+        )
+    }
+}
+
+// 코스 수정 중 장소 더하기(push). 같은 장소 고르기 화면을 더하기 모드로 쓴다.
+// 이미 담긴 장소는 빼고 보여주고, 고른 것만 수정 화면으로 돌려준다
+private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING={$ARG_EXCLUDING}",
+        arguments = listOf(
+            navArgument(ARG_EXCLUDING) {
+                type = NavType.StringType
+                defaultValue = ""
+            },
+        ),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        CoursePlacePickScreen(
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            mode = CoursePlacePickMode.ADD,
+            excluding = entry.arguments?.getString(ARG_EXCLUDING)
+                .orEmpty()
+                .split(",")
+                .filter { it.isNotBlank() },
+            onPicked = { picked ->
+                val arg = PickedPlacesArg.from(picked) { it.place.category.displayName() }
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(KEY_COURSE_PICKED, arg.encode())
+                navController.popBackStack()
+            },
+        )
+    }
+}
+
+// 코스 수정(push). 저장하면 결과 화면이 다시 읽게 신호를 남기고 돌아간다
+private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
+    composable(
+        route = "$MAIN_COURSE_EDIT_ROUTE_BASE/{$ARG_DATE_COURSE_ID}",
+        arguments = listOf(navArgument(ARG_DATE_COURSE_ID) { type = NavType.StringType }),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        // 장소 추가 화면이 고른 장소를 이 자리에 남긴다
+        val picked by entry.savedStateHandle
+            .getStateFlow<String?>(KEY_COURSE_PICKED, null)
+            .collectAsStateWithLifecycle()
+        CourseEditScreen(
+            dateCourseId = entry.arguments?.getString(ARG_DATE_COURSE_ID).orEmpty(),
+            onBack = { navController.popBackStack() },
+            onSessionExpired = { navController.navigateToAuth() },
+            // 저장도 충돌도 결과 화면이 서버에서 다시 읽는다. 충돌은 그 사실을 알린다
+            onSaved = { navController.popBackWithCourseReload(CourseReloadReason.SAVED) },
+            onConflicted = { navController.popBackWithCourseReload(CourseReloadReason.CONFLICT) },
+            onAddPlace = { excluding ->
+                navController.navigate(
+                    "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING=${Uri.encode(excluding.joinToString(","))}",
+                )
+            },
+            pickedPlaces = picked,
+            onPickedConsumed = { entry.savedStateHandle[KEY_COURSE_PICKED] = null },
+        )
+    }
+}
+
+// 결과 화면에 다시 읽으라고 남기고 돌아간다
+private fun NavHostController.popBackWithCourseReload(reason: CourseReloadReason) {
+    previousBackStackEntry?.savedStateHandle?.set(KEY_COURSE_RELOAD, reason.name)
+    popBackStack()
 }
 
 // 지도 전용 장소 검색(push). 결과 제출/행탭 시 검색을 pop 하고 지도(MAIN)를 검색 결과 모드로 만든다.
@@ -355,6 +540,12 @@ private fun NavHostController.returnSearchResult(arg: MapSearchReturnArg) {
 // 지도 검색 결과 → 지도(MAIN)로 되돌려줄 때 쓰는 savedStateHandle 키
 private const val KEY_MAP_SEARCH = "map_search"
 
+// 코스 수정 → 결과 화면에 다시 읽으라고 남기는 키
+private const val KEY_COURSE_RELOAD = "course_reload"
+
+// 장소 추가 → 코스 수정 화면에 고른 장소를 남기는 키
+private const val KEY_COURSE_PICKED = "course_picked"
+
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
 private const val MAIN_DATETYPE_ROUTE = "main/datetype"
 private const val MAIN_CONNECTION_ROUTE = "main/connection"
@@ -363,6 +554,19 @@ private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 // 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
 private const val ARG_MAP_SEARCH_QUERY = "query"
 private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
+private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
+private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
+private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
+private const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
+private const val MAIN_COURSE_PLACE_ADD_ROUTE = "main/course/places/add"
+// 이미 코스에 담긴 장소 번호를 쉼표로 이어 넘긴다
+private const val ARG_EXCLUDING = "excluding"
+private const val ARG_DATE_COURSE_ID = "dateCourseId"
+
+// 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다
+private const val ARG_COURSE_ORIGIN = "courseOrigin"
+private const val COURSE_ORIGIN_BUILT = "built"
+private const val COURSE_ORIGIN_PAST = "past"
 
 // 커플 연결 진입 출처. 완료 후 홈으로 되돌아갈지 연결 관리로 갈지 가른다
 private const val ARG_COUPLE_ORIGIN = "origin"

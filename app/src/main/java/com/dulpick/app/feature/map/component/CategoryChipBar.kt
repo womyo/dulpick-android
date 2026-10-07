@@ -20,6 +20,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.domain.place.PlaceCategory
+import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.component.iconRes
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography

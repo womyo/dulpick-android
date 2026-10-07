@@ -3,6 +3,7 @@ package com.dulpick.app.di
 import com.dulpick.app.data.auth.AuthRepositoryImpl
 import com.dulpick.app.data.couple.CoupleRepositoryImpl
 import com.dulpick.app.data.explore.ExploreRepositoryImpl
+import com.dulpick.app.data.course.CourseRepositoryImpl
 import com.dulpick.app.data.home.HomeRepositoryImpl
 import com.dulpick.app.data.location.LocationRepositoryImpl
 import com.dulpick.app.data.placeimport.PlaceImportRepositoryImpl
@@ -11,6 +12,7 @@ import com.dulpick.app.data.place.PlaceRepositoryImpl
 import com.dulpick.app.domain.auth.AuthRepository
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.explore.ExploreRepository
+import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.home.HomeRepository
 import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.PlaceRepository
@@ -59,4 +61,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindLocationRepository(impl: LocationRepositoryImpl): LocationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCourseRepository(impl: CourseRepositoryImpl): CourseRepository
 }

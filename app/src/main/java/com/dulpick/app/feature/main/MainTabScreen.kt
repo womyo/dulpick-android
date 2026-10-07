@@ -44,7 +44,7 @@ import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.DetailTarget
 import com.dulpick.app.feature.map.MapScreen
-import com.dulpick.app.feature.map.rememberMapSheetState
+import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.feature.search.SearchScreen
 import com.dulpick.app.ui.theme.Colors
@@ -192,6 +192,8 @@ private fun MainTabNavHost(
                         onSessionExpired = onLoggedOut,
                         onOpenCoupleConnect = actions.onOpenCoupleConnectFromHome,
                         onOpenPastDates = actions.onOpenPastDates,
+                        onOpenCourse = actions.onOpenCourse,
+                        onOpenPastCourse = actions.onOpenPastCourse,
                         // 전체보기 → 지도 탭 이동만
                         onOpenMap = { navigateToTab(MainTab.MAP.route) },
                         // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
@@ -282,6 +284,7 @@ private fun MapTab(
         sheetState = mapSheetState,
         onSessionExpired = onLoggedOut,
         onOpenSearch = actions.onOpenMapSearch,
+        onOpenCourse = actions.onOpenCourse,
         pendingSearchArg = search.pendingArg,
         onSearchConsumed = search.onConsumed,
         onReopenSearch = search.onReopen,

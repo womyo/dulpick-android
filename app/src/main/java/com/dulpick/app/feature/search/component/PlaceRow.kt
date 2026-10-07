@@ -5,10 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,14 +17,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
 import com.dulpick.app.R
 import com.dulpick.app.domain.place.Place
-import com.dulpick.app.ui.component.ShimmerBox
+import com.dulpick.app.ui.component.RemoteImage
 import com.dulpick.app.ui.component.iconRes
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -75,16 +71,12 @@ fun PlaceRow(place: Place, onClick: () -> Unit, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 place.thumbnailUrls.forEach { url ->
-                    // 장소는 placeEmpty 를 안 쓴다. 로딩 중엔 쉬머, 실패는 회색
-                    SubcomposeAsyncImage(
-                        model = url,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(100.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        loading = { ShimmerBox(modifier = Modifier.fillMaxSize()) },
-                        error = { Box(modifier = Modifier.fillMaxSize().background(Colors.gray100)) },
+                    // 장소는 placeEmpty 를 안 쓴다. 로딩 중엔 시머, 실패는 회색
+                    RemoteImage(
+                        url = url,
+                        cornerRadius = 8.dp,
+                        placeholderColor = Colors.gray100,
+                        modifier = Modifier.size(100.dp),
                     )
                 }
             }

@@ -5,8 +5,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -31,6 +36,7 @@ enum class AppButtonVariant { PRIMARY, DARK, OUTLINED }
 enum class AppButtonSize { XL, LG, MD, SM }
 
 @Composable
+@Suppress("LongParameterList")
 fun AppButton(
     text: String,
     onClick: () -> Unit,
@@ -39,6 +45,8 @@ fun AppButton(
     size: AppButtonSize = AppButtonSize.XL,
     fullWidth: Boolean = false,
     enabled: Boolean = true,
+    // 글자 앞에 서는 아이콘. 크기는 에셋 원본이고 색은 글자색을 따라간다
+    icon: Int? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -65,12 +73,25 @@ fun AppButton(
             .padding(size.padding),
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.material3.Text(
-            text = text,
-            style = size.typography,
-            color = foregroundColor(variant, enabled),
-            textAlign = TextAlign.Center,
-        )
+        val foreground = foregroundColor(variant, enabled)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Image(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(foreground),
+                )
+            }
+            androidx.compose.material3.Text(
+                text = text,
+                style = size.typography,
+                color = foreground,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 

@@ -20,8 +20,10 @@ data class PlaceImportState(
         data object Failed : Phase
     }
 
+    // 카카오와 매칭되지 않은 후보(place 가 없음)는 저장할 수 없다. 목록에서도 빼고 고르지도 않는다
+    // (iOS candidates.savable 대응)
     val candidates: List<ImportCandidate>
-        get() = (phase as? Phase.Loaded)?.placeImport?.candidates ?: emptyList()
+        get() = (phase as? Phase.Loaded)?.placeImport?.candidates?.savable ?: emptyList()
 
     val title: String
         get() = (phase as? Phase.Loaded)?.placeImport?.content?.title.orEmpty()
@@ -56,3 +58,7 @@ sealed interface PlaceImportSideEffect : UiSideEffect {
     // 세션 만료(401). 상위에서 로그인으로 보낸다
     data object SessionExpired : PlaceImportSideEffect
 }
+
+// 저장할 수 있는 후보만. 실장소로 이어지지 않은 후보는 저장 요청에 담을 수 없다
+internal val List<ImportCandidate>.savable: List<ImportCandidate>
+    get() = filter { it.place != null }

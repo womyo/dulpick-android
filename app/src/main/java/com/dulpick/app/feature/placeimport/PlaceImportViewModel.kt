@@ -96,15 +96,17 @@ class PlaceImportViewModel @Inject constructor(
     }
 
     private fun showCandidates(placeImport: PlaceImport, failWhenEmpty: Boolean) {
-        if (failWhenEmpty && placeImport.candidates.isEmpty()) {
+        // 저장할 수 없는 후보(실장소로 못 이어진 것)는 세지 않는다
+        val savable = placeImport.candidates.savable
+        if (failWhenEmpty && savable.isEmpty()) {
             fail()
             return
         }
         setState {
             copy(
                 phase = PlaceImportState.Phase.Loaded(placeImport),
-                // 기본은 전부 선택
-                selectedIds = placeImport.candidates.map { it.candidateId }.toSet(),
+                // 기본은 저장할 수 있는 것 전부
+                selectedIds = savable.map { it.candidateId }.toSet(),
             )
         }
     }

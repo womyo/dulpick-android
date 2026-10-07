@@ -54,15 +54,22 @@ class PlaceImportViewModel @Inject constructor(
         }
     }
 
-    // 서버가 알려준 nextAction 에 따라 대기·후보표시·실패로 가른다 (iOS applyImport 대응)
+    // 대기·후보표시·실패로 가른다 (iOS applyImport·DTOMapper.progress 대응).
+    //
+    // 작업 상태를 먼저 본다 — 서버가 아직 처리 중이라고 하면 nextAction 이 무엇이든 기다린다.
+    // 그래야 서버가 nextAction 값을 늘렸을 때 진행 중인 작업이 실패로 끊기지 않는다.
+    // 끝났으면 무엇을 보여줄지는 nextAction 이 정하고, 없거나 모르는 값이면 작업 상태로 정한다
     private fun applyImport(placeImport: PlaceImport) {
         importId = placeImport.importId
+        if (placeImport.status == ImportStatus.RECEIVED || placeImport.status == ImportStatus.PROCESSING) {
+            waitAndPoll(placeImport)
+            return
+        }
         when (placeImport.nextAction) {
             ImportNextAction.WAIT -> waitAndPoll(placeImport)
             ImportNextAction.SELECT_PLACES -> showCandidates(placeImport, failWhenEmpty = false)
             ImportNextAction.COMPLETED -> showCandidates(placeImport, failWhenEmpty = true)
             ImportNextAction.RETRY -> fail()
-            // 명세에 없는 NONE 은 작업 상태로 판단한다
             ImportNextAction.NONE -> applyByStatus(placeImport)
         }
     }

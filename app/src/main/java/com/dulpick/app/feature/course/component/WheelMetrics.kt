@@ -80,7 +80,11 @@ fun <T> WheelColumn(
     title: (T) -> String,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
+    // 고른 자리에서 시작한다. 0 번에서 시작하면 아래 수집이 첫 항목을 고른 값으로 올려
+    // 밖에서 들고 있던 선택을 덮는다
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = items.indexOf(selected).coerceAtLeast(0),
+    )
     val currentItems by rememberUpdatedState(items)
     val currentOnSelect by rememberUpdatedState(onSelect)
 

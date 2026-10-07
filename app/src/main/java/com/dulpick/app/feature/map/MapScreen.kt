@@ -88,6 +88,8 @@ private data class MapToast(val message: String, val isError: Boolean)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
+    // 지도 탭이 보이는 중인지. 아니면 지도 그리기를 멈춘다 (조합에는 남아 엔진은 살아 있다)
+    isActive: Boolean = true,
     // 탭바가 차지하는 높이. 탭바가 감춰져 화면이 길어진 만큼 지도 뷰가 아래를 비워,
     // 시트가 바뀌어도 지도 뷰 크기가 변하지 않게 한다
     tabBarHeight: Dp = 0.dp,
@@ -187,6 +189,7 @@ fun MapScreen(
             },
         ) {
             MapBody(
+                isActive = isActive,
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
@@ -539,6 +542,7 @@ private fun MapSheet(
 @Composable
 @Suppress("LongParameterList")
 private fun MapBody(
+    isActive: Boolean,
     mapBottomInset: Dp,
     pins: List<MapPin>,
     camera: MapCamera,
@@ -562,6 +566,7 @@ private fun MapBody(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = mapBottomInset),
+            isActive = isActive,
             pins = pins,
             camera = camera,
             onPinTap = onPinTap,

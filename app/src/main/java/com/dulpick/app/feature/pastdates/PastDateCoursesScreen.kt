@@ -65,24 +65,33 @@ fun PastDateCoursesScreen(
 
     BackHandler { onBack() }
 
-    Column(
+    val isEmpty = state.hasLoaded && !state.hasError && state.courses.isEmpty()
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Colors.bgDefault),
     ) {
-        TopBar(onBack = onBack)
-        Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                // 로딩 중엔 "총 0번" 이 번쩍이지 않게 로딩만 보여준다
-                !state.hasLoaded -> CenteredLoading(modifier = Modifier.fillMaxSize())
-                state.hasError -> ErrorRetry(
-                    onRetry = { viewModel.onIntent(PastDateCoursesIntent.RetryClicked) },
-                )
-                state.courses.isEmpty() -> EmptyState(
-                    showCreate = !state.hasCurrentCourse,
-                    onCreate = { viewModel.onIntent(PastDateCoursesIntent.CreateCourseClicked) },
-                )
-                else -> CourseList(state = state, onIntent = viewModel::onIntent)
+        // 빈 상태는 상단 띠를 뺀 자리가 아니라 화면 전체의 세로 가운데에 선다.
+        // 띠 아래만 기준으로 잡으면 띠 높이의 절반만큼 아래로 치우쳐 보인다 (iOS 도 ignoresSafeArea 로 같게 둔다)
+        if (isEmpty) {
+            EmptyState(
+                showCreate = !state.hasCurrentCourse,
+                onCreate = { viewModel.onIntent(PastDateCoursesIntent.CreateCourseClicked) },
+            )
+        }
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopBar(onBack = onBack)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when {
+                    // 로딩 중엔 "총 0번" 이 번쩍이지 않게 로딩만 보여준다
+                    !state.hasLoaded -> CenteredLoading(modifier = Modifier.fillMaxSize())
+                    state.hasError -> ErrorRetry(
+                        onRetry = { viewModel.onIntent(PastDateCoursesIntent.RetryClicked) },
+                    )
+                    isEmpty -> Unit
+                    else -> CourseList(state = state, onIntent = viewModel::onIntent)
+                }
             }
         }
     }

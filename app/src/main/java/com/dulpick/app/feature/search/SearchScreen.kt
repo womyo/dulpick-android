@@ -332,10 +332,10 @@ private fun ResultGrid(state: SearchState, onIntent: (SearchIntent) -> Unit) {
 @Composable
 private fun EmptyResult() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 32.dp),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        // 그림과 글자를 한 묶음으로 두고 그 묶음을 세로 가운데에 세운다 (iOS EmptyStateView 기본 정렬)
+        verticalArrangement = Arrangement.Center,
     ) {
         Image(
             painter = painterResource(R.drawable.placeempty),

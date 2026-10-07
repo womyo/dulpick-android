@@ -49,7 +49,7 @@ class NoticeListViewModel @Inject constructor(
             val page = fetch(requested)
             setState {
                 if (page == null) {
-                    copy(isLoadingMore = false)
+                    copy(isLoadingMore = false, loadMoreFailed = true)
                 } else {
                     copy(
                         notices = (notices + page.notices).distinctBy { it.id },

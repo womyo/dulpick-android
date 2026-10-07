@@ -14,10 +14,12 @@ data class NoticeListState(
     val hasNext: Boolean = true,
     val hasLoaded: Boolean = false,
     val isLoadingMore: Boolean = false,
+    // 다음 장 받기가 실패했는지. 실패 뒤 마지막 줄이 다시 보일 때마다 자동 재요청이 반복되는 걸 막는다
+    val loadMoreFailed: Boolean = false,
 ) : UiState {
     val isEmpty: Boolean get() = hasLoaded && notices.isEmpty()
 
-    val canLoadMore: Boolean get() = hasLoaded && hasNext && !isLoadingMore
+    val canLoadMore: Boolean get() = hasLoaded && hasNext && !isLoadingMore && !loadMoreFailed
 
     companion object {
         const val PAGE_SIZE = 20

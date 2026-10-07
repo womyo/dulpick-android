@@ -22,11 +22,8 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,22 +51,25 @@ import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
-import com.dulpick.app.feature.map.component.CATEGORY_ORDER
-import com.dulpick.app.feature.map.component.CATEGORY_UNFILTERED
+import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
-import com.dulpick.app.feature.map.component.FilterDropdown
+import com.dulpick.app.ui.component.FilterDropdown
 import com.dulpick.app.feature.map.component.MapSearchBar
 import com.dulpick.app.feature.placedetail.MapSearchReturnArg
 import com.dulpick.app.feature.placedetail.PlaceDetailSheet
 import com.dulpick.app.feature.postdetail.PostDetailSheet
-import com.dulpick.app.feature.map.component.OWNERSHIP_ORDER
+import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.feature.map.component.PlaceAliasSheet
 import com.dulpick.app.feature.map.component.PlaceListRow
-import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.map.placePin
+import com.dulpick.app.ui.map.selectedPin
+import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.iconRes
 import androidx.compose.ui.text.style.TextOverflow
 import com.dulpick.app.ui.theme.Colors
@@ -259,22 +259,6 @@ private fun mapCamera(state: MapState, pins: List<MapPin>): MapCamera {
 // 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
 // 절대 사라지지 않는다. Hidden 앵커는 살려 아래 움직임을 허용하고(skipHiddenState=false),
 // confirmValueChange 로 Hidden 안착만 거부해 복귀시킨다
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun rememberMapSheetState(): BottomSheetScaffoldState {
-    return rememberBottomSheetScaffoldState(
-        bottomSheetState = rememberStandardBottomSheetState(
-            initialValue = SheetValue.PartiallyExpanded,
-            skipHiddenState = false,
-            confirmValueChange = NOT_HIDDEN,
-        ),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-// rememberStandardBottomSheetState 는 이 함수를 기억 키로 쓴다.
-// 호출할 때마다 새로 만들면 그릴 때마다 시트 상태가 초기화돼 접힘으로 돌아간다
-private val NOT_HIDDEN: (SheetValue) -> Boolean = { it != SheetValue.Hidden }
 
 // 시트는 첫 레이아웃 전까지 위치가 없어 화면 맨 위에 그려진다. 그 한 프레임만 감추고,
 // 위치가 정해진 뒤로는(아래에서 올라오는 동안에도) 계속 보여준다

@@ -55,9 +55,9 @@ import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
-import com.dulpick.app.feature.map.numberedPin
-import com.dulpick.app.feature.map.placePin
-import com.dulpick.app.feature.map.rememberMapSheetState
+import com.dulpick.app.ui.map.numberedPin
+import com.dulpick.app.ui.map.placePin
+import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant

@@ -5,7 +5,7 @@ import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.course.CourseStop
 import com.dulpick.app.domain.course.DateCourse
-import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.displayName
 
 // 이 분을 넘는 구간에 "이동이 긴 구간입니다" 를 붙인다 (iOS longLegMinutes)
 const val LONG_LEG_MINUTES = 30

@@ -1,4 +1,4 @@
-package com.dulpick.app.feature.map
+package com.dulpick.app.ui.map
 
 import android.content.Context
 import android.graphics.Bitmap

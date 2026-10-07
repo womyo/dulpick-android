@@ -6,7 +6,7 @@ import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseContent
-import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job

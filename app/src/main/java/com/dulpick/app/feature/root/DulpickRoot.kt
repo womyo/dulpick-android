@@ -56,7 +56,7 @@ import com.dulpick.app.feature.course.CourseReloadReason
 import com.dulpick.app.feature.course.CoursePlacePickMode
 import com.dulpick.app.feature.course.CoursePlacePickScreen
 import com.dulpick.app.feature.course.PickedPlacesArg
-import com.dulpick.app.feature.map.component.displayName
+import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.feature.course.CourseResultOrigin
 import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen

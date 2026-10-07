@@ -44,7 +44,7 @@ import com.dulpick.app.feature.home.HomeScreen
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.map.DetailTarget
 import com.dulpick.app.feature.map.MapScreen
-import com.dulpick.app.feature.map.rememberMapSheetState
+import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.feature.search.SearchScreen
 import com.dulpick.app.ui.theme.Colors

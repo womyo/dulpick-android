@@ -1,4 +1,4 @@
-package com.dulpick.app.feature.map.component
+package com.dulpick.app.ui.component
 
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership

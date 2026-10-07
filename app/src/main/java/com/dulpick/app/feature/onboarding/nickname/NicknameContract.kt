@@ -12,6 +12,8 @@ data class NicknameState(
     // 온보딩 진입 시 약관 시트를 먼저 띄운다
     val isTermsSheetPresented: Boolean = true,
     val agreedTerms: Set<TermsType> = emptySet(),
+    // 약관 항목이 아니라 따로 둔 필수 동의. 시안대로 약관 셋 위에 선다
+    val isOver14Agreed: Boolean = false,
 ) : UiState {
 
     val isNextEnabled: Boolean
@@ -20,9 +22,9 @@ data class NicknameState(
     val lengthError: String?
         get() = if (nickname.length > MAX_NICKNAME_LENGTH) "최대 6글자 내로 입력해주세요" else null
 
-    // 필수 약관 둘이 모두 켜졌는지
+    // 필수 셋이 모두 켜졌는지. 약관 둘과 만 14세 동의다
     val isRequiredTermsAgreed: Boolean
-        get() = SHEET_TERMS.filter { it.isRequired }.all { it in agreedTerms }
+        get() = isOver14Agreed && SHEET_TERMS.filter { it.isRequired }.all { it in agreedTerms }
 
     // 필수가 다 켜지면 그대로 닫는 버튼, 아니면 셋을 한 번에 켜는 버튼
     val termsAgreeButtonTitle: String
@@ -51,6 +53,7 @@ sealed interface NicknameIntent : UiIntent {
     data object NextClicked : NicknameIntent
     data object BackClicked : NicknameIntent
     data class TermsCheckTapped(val terms: TermsType) : NicknameIntent
+    data object Over14CheckTapped : NicknameIntent
     data object TermsAgreeButtonTapped : NicknameIntent
     data class TermsDetailTapped(val terms: TermsType) : NicknameIntent
 }

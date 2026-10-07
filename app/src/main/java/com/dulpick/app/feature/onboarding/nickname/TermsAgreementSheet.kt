@@ -32,16 +32,18 @@ import com.dulpick.app.ui.theme.Typography
 
 // NicknameScreen 이 닫기 불가 바텀시트로 올리는 내용 (iOS TermsAgreementSheet)
 @Composable
+@Suppress("LongParameterList")
 fun TermsAgreementSheet(
     terms: List<TermsType>,
     agreedTerms: Set<TermsType>,
+    isOver14Agreed: Boolean,
+    // 필수가 다 켜지면 그대로 닫는 버튼, 아니면 셋을 한 번에 켜는 버튼
+    agreeButtonTitle: String,
     onCheck: (TermsType) -> Unit,
+    onOver14Check: () -> Unit,
     onDetail: (TermsType) -> Unit,
     onAgree: () -> Unit,
 ) {
-    // 필수가 다 켜지면 그대로 닫는 버튼, 아니면 셋을 한 번에 켜는 버튼
-    val allRequiredAgreed = terms.filter { it.isRequired }.all { it in agreedTerms }
-    val agreeButtonTitle = if (allRequiredAgreed) "완료" else "모두 동의하기"
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -62,9 +64,17 @@ fun TermsAgreementSheet(
         Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 만 14세 동의는 약관 항목이 아니다. 열 문서가 없어 화살표를 그리지 않고
+            // 줄 전체가 체크를 토글한다. 시안대로 약관 셋 위에 둔다
+            AgreementRow(
+                title = "만 14세 이상 이용 동의(필수)",
+                isChecked = isOver14Agreed,
+                onCheck = onOver14Check,
+                onDetail = null,
+            )
             terms.forEach { item ->
-                TermsRow(
-                    terms = item,
+                AgreementRow(
+                    title = item.agreementTitle,
                     isChecked = item in agreedTerms,
                     onCheck = { onCheck(item) },
                     onDetail = { onDetail(item) },
@@ -86,13 +96,14 @@ fun TermsAgreementSheet(
     }
 }
 
-// 체크 슬롯·라벨이 동의를 켜고 끈다. 오른쪽 화살표만 약관 내용을 연다
+// 체크 슬롯·라벨이 동의를 켜고 끈다. 오른쪽 화살표만 약관 내용을 연다.
+// onDetail 이 없으면(만 14세 동의) 화살표를 그리지 않는다
 @Composable
-private fun TermsRow(
-    terms: TermsType,
+private fun AgreementRow(
+    title: String,
     isChecked: Boolean,
     onCheck: () -> Unit,
-    onDetail: () -> Unit,
+    onDetail: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier
@@ -126,28 +137,30 @@ private fun TermsRow(
                 )
             }
             Text(
-                text = terms.agreementTitle,
+                text = title,
                 style = Typography.body1M,
                 color = Colors.textSecondary,
                 modifier = Modifier.weight(1f),
             )
         }
 
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDetail,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.arrowright),
-                contentDescription = "약관 보기",
-                modifier = Modifier.size(20.dp),
-            )
+        if (onDetail != null) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDetail,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.arrowright),
+                    contentDescription = "약관 보기",
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

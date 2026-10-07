@@ -129,7 +129,10 @@ fun NicknameScreen(
                 TermsAgreementSheet(
                     terms = NicknameState.SHEET_TERMS,
                     agreedTerms = state.agreedTerms,
+                    isOver14Agreed = state.isOver14Agreed,
+                    agreeButtonTitle = state.termsAgreeButtonTitle,
                     onCheck = { viewModel.onIntent(NicknameIntent.TermsCheckTapped(it)) },
+                    onOver14Check = { viewModel.onIntent(NicknameIntent.Over14CheckTapped) },
                     onDetail = { viewModel.onIntent(NicknameIntent.TermsDetailTapped(it)) },
                     onAgree = { viewModel.onIntent(NicknameIntent.TermsAgreeButtonTapped) },
                 )

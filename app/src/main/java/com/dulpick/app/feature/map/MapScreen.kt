@@ -108,6 +108,8 @@ fun MapScreen(
     onContentDetailConsumed: () -> Unit = {},
     // 상세 전용(content) 모드 닫힘 → 온 곳(탐색 검색)으로 되돌린다
     onCloseContentDetail: () -> Unit = {},
+    // 상세를 닫았다. 다른 탭에서 들어왔으면 호출하는 쪽이 그 탭으로 되돌린다
+    onCloseDetail: () -> Unit = {},
     // 좌하단 코스 버튼. 진행 중인 코스가 있으면 그 번호를 주고, 없으면 null 이다
     onOpenCourse: (dateCourseId: String?) -> Unit = {},
     // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
@@ -153,7 +155,7 @@ fun MapScreen(
     ReportTabBarHidden(tabBarHidden, onTabBarHiddenChange)
 
     val dismissDetail: (DetailTarget) -> Unit =
-        { it.dismiss(viewModel::onIntent, onCloseContentDetail) }
+        { it.dismiss(viewModel::onIntent, onCloseContentDetail, onCloseDetail) }
     HandleBack(state, viewModel::onIntent, dismissDetail)
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
@@ -310,10 +312,15 @@ private fun HandleBack(
     }
 }
 
-// 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고, 아니면 상세만 내린다
-private fun DetailTarget.dismiss(onIntent: (MapIntent) -> Unit, onCloseContentDetail: () -> Unit) {
+// 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고,
+// 아니면 상세를 내리고 온 탭으로 되돌릴지는 호출하는 쪽이 정한다
+private fun DetailTarget.dismiss(
+    onIntent: (MapIntent) -> Unit,
+    onCloseContentDetail: () -> Unit,
+    onCloseDetail: () -> Unit,
+) {
     onIntent(MapIntent.CloseDetail)
-    if (contentMode) onCloseContentDetail()
+    if (contentMode) onCloseContentDetail() else onCloseDetail()
 }
 
 // 지도 위에 뜨는 모달들(별칭 편집·위치 권한 안내)

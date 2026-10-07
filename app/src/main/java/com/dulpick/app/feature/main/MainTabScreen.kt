@@ -74,7 +74,7 @@ fun MainTabScreen(
     // 탐색·검색·홈에서 고른 게시물. 지도가 그 게시글 상세를 열고 비운다
     var pendingPostId by remember { mutableStateOf<String?>(null) }
     // 그 게시글을 닫으면 돌아갈 곳. 탭이면 그 탭으로, 검색 화면이면 pop 한다
-    var postReturnTab by remember { mutableStateOf<String?>(null) }
+    var detailReturnTab by remember { mutableStateOf<String?>(null) }
     // 지도에 검색 결과·장소 상세 시트가 떠 있는지. 떠 있으면 탭바를 감춘다
     var mapHidesTabBar by remember { mutableStateOf(false) }
     // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
@@ -127,8 +127,8 @@ fun MainTabScreen(
                 onPlaceChange = { pendingMapPlace = it },
                 postId = pendingPostId,
                 onPostIdChange = { pendingPostId = it },
-                postReturnTab = postReturnTab,
-                onPostReturnTabChange = { postReturnTab = it },
+                detailReturnTab = detailReturnTab,
+                onDetailReturnTabChange = { detailReturnTab = it },
             ),
             mapHidesTabBar = mapHidesTabBar,
             onMapHidesTabBarChange = { mapHidesTabBar = it },
@@ -186,7 +186,7 @@ private fun MainTabNavHost(
                     MainTab.HOME -> HomeScreen(
                         onOpenContent = { id ->
                             pending.onPostIdChange(id)
-                            pending.onPostReturnTabChange(MainTab.HOME.route)
+                            pending.onDetailReturnTabChange(MainTab.HOME.route)
                             navigateToTab(MainTab.MAP.route)
                         },
                         onSessionExpired = onLoggedOut,
@@ -199,6 +199,8 @@ private fun MainTabNavHost(
                         // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
                         onOpenPlaceOnMap = { place ->
                             pending.onPlaceChange(place)
+                            // 상세를 닫으면 홈으로 되돌아온다 (iOS presentPlaceDetail 과 같다)
+                            pending.onDetailReturnTabChange(MainTab.HOME.route)
                             navigateToTab(MainTab.MAP.route)
                         },
                     )
@@ -213,7 +215,7 @@ private fun MainTabNavHost(
                         onSessionExpired = onLoggedOut,
                         onOpenContent = { id ->
                             pending.onPostIdChange(id)
-                            pending.onPostReturnTabChange(MainTab.EXPLORE.route)
+                            pending.onDetailReturnTabChange(MainTab.EXPLORE.route)
                             navigateToTab(MainTab.MAP.route)
                         },
                         // 검색은 탭 안에 push 한다. 지도 상세를 보러 가도 이 화면이 스택에 그대로 남는다
@@ -241,7 +243,7 @@ private fun MainTabNavHost(
             onLoggedOut = onLoggedOut,
             onContentDetailChange = pending.onContentDetailChange,
             onPostIdChange = pending.onPostIdChange,
-            onPostReturnTabChange = pending.onPostReturnTabChange,
+            onDetailReturnTabChange = pending.onDetailReturnTabChange,
         )
     }
 }
@@ -261,8 +263,8 @@ private data class MapTabPending(
     val onPlaceChange: (Place?) -> Unit,
     val postId: String?,
     val onPostIdChange: (String?) -> Unit,
-    val postReturnTab: String?,
-    val onPostReturnTabChange: (String?) -> Unit,
+    val detailReturnTab: String?,
+    val onDetailReturnTabChange: (String?) -> Unit,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -303,9 +305,16 @@ private fun MapTab(
         onPostConsumed = { pending.onPostIdChange(null) },
         // 탭에서 왔으면 그 탭으로, 검색 화면에서 왔으면 pop 한다
         onClosePostDetail = {
-            val tab = pending.postReturnTab
-            pending.onPostReturnTabChange(null)
+            val tab = pending.detailReturnTab
+            pending.onDetailReturnTabChange(null)
             if (tab != null) navigateToTab(tab) else tabNavController.popBackStack()
+        },
+        // 장소 상세를 닫았다. 다른 탭에서 들어왔으면 그 탭으로 되돌린다
+        onCloseDetail = {
+            pending.detailReturnTab?.let { tab ->
+                pending.onDetailReturnTabChange(null)
+                navigateToTab(tab)
+            }
         },
     )
 }
@@ -318,7 +327,7 @@ private fun androidx.navigation.NavGraphBuilder.exploreSearchDestination(
     onLoggedOut: () -> Unit,
     onContentDetailChange: (DetailTarget?) -> Unit,
     onPostIdChange: (String?) -> Unit,
-    onPostReturnTabChange: (String?) -> Unit,
+    onDetailReturnTabChange: (String?) -> Unit,
 ) {
     composable(
         route = EXPLORE_SEARCH_ROUTE,
@@ -339,7 +348,7 @@ private fun androidx.navigation.NavGraphBuilder.exploreSearchDestination(
             // 게시물은 이 화면을 스택에 남긴 채 지도를 올려 게시글 상세만 보여준다
             onOpenContent = { id ->
                 onPostIdChange(id)
-                onPostReturnTabChange(null)
+                onDetailReturnTabChange(null)
                 tabNavController.navigate(MainTab.MAP.route) { launchSingleTop = true }
             },
         )

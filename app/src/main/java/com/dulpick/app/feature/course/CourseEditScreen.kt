@@ -372,9 +372,12 @@ private fun Failure(onRetry: () -> Unit, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(text = "코스를 불러오지 못했어요", style = Typography.body1SB, color = Colors.textPrimary)
+        // 그림은 원본 크기(200×160)로 둔다. iOS 도 크기를 지정하지 않는다
+        Image(painter = painterResource(R.drawable.placeempty), contentDescription = null)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "코스를 불러오지 못했어요", style = Typography.title3SB, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body2M, color = Colors.textTertiary)
+        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body1M, color = Colors.textTertiary)
         Spacer(modifier = Modifier.height(16.dp))
         AppButton(
             text = "다시 시도",

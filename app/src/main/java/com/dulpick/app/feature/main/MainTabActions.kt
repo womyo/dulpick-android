@@ -15,4 +15,6 @@ data class MainTabActions(
     val onOpenCourse: (dateCourseId: String?) -> Unit,
     // 지난 데이트 코스 보기. 결과 화면에서 수정·알리기를 숨긴다
     val onOpenPastCourse: (dateCourseId: String) -> Unit,
+    // 마이페이지 → 공지사항 목록
+    val onOpenNotice: () -> Unit,
 )

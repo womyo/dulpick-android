@@ -9,6 +9,10 @@ data class MyPageState(
     // 기본값(빈 닉네임·기본 아이콘·전부 off)이 서버로 새어 나가지 않게 한다 (iOS 스켈레톤 게이팅 대응)
     val isProfileLoaded: Boolean = false,
     val isNotificationsLoaded: Boolean = false,
+    // 시머를 걷었는지. 알림 조회가 끝나면(실패여도) 내린다 (iOS isSkeleton 대응).
+    // isNotificationsLoaded 와 따로 두는 이유: 그건 실패 시 기본값이 PUT 으로 새지 않게 막는 자물쇠라
+    // 실패하면 계속 false 다. 그걸 시머 조건으로 쓰면 화면이 시머에서 못 나온다
+    val isSkeleton: Boolean = true,
     val nickname: String = "",
     val iconId: Int = DEFAULT_ICON_ID,
     val savedContentAlarm: Boolean = false,
@@ -28,6 +32,7 @@ data class MyPageState(
 }
 
 sealed interface MyPageIntent : UiIntent {
+    data object NoticeClicked : MyPageIntent
     data object OnAppear : MyPageIntent
     data class ContentSavedToggled(val enabled: Boolean) : MyPageIntent
     data class DateScheduleToggled(val enabled: Boolean) : MyPageIntent
@@ -45,6 +50,8 @@ sealed interface MyPageIntent : UiIntent {
 }
 
 sealed interface MyPageSideEffect : UiSideEffect {
+    // 공지사항 목록으로 간다
+    data object OpenNotice : MyPageSideEffect
     // 로그아웃·세션 만료 모두 로그인으로 되돌린다
     data object LoggedOut : MyPageSideEffect
     data object SessionExpired : MyPageSideEffect

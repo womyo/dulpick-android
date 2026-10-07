@@ -207,6 +207,7 @@ private fun MainTabNavHost(
                         onOpenDateType = actions.onOpenDateType,
                         onOpenConnection = actions.onOpenConnection,
                         onOpenCoupleConnect = actions.onOpenCoupleConnect,
+                        onOpenNotice = actions.onOpenNotice,
                     )
                     MainTab.EXPLORE -> ExploreScreen(
                         onSessionExpired = onLoggedOut,

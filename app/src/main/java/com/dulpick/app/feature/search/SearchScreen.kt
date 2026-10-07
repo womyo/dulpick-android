@@ -332,22 +332,21 @@ private fun ResultGrid(state: SearchState, onIntent: (SearchIntent) -> Unit) {
 @Composable
 private fun EmptyResult() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 32.dp),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        // 그림과 글자를 한 묶음으로 두고 그 묶음을 세로 가운데에 세운다 (iOS EmptyStateView 기본 정렬)
+        verticalArrangement = Arrangement.Center,
     ) {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(140.dp),
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "검색 결과가 없어요", style = Typography.headline, color = Colors.textPrimary)
+        Text(text = "검색 결과가 없어요", style = Typography.title3SB, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "다른 검색어를 입력해주세요",
-            style = Typography.body2M,
+            style = Typography.body1M,
             color = Colors.textTertiary,
             textAlign = TextAlign.Center,
         )

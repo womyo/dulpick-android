@@ -199,10 +199,9 @@ private fun ContentsFailure(onRetry: () -> Unit) {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(120.dp),
         )
-        Text(text = "게시물을 불러오지 못했어요", style = Typography.headline, color = Colors.textPrimary)
-        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body2M, color = Colors.textTertiary)
+        Text(text = "게시물을 불러오지 못했어요", style = Typography.title3SB, color = Colors.textPrimary)
+        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body1M, color = Colors.textTertiary)
         AppButton(
             text = "다시 시도",
             onClick = onRetry,

@@ -340,14 +340,13 @@ private fun EmptyResult() {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(140.dp),
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "검색 결과가 없어요", style = Typography.headline, color = Colors.textPrimary)
+        Text(text = "검색 결과가 없어요", style = Typography.title3SB, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "다른 검색어를 입력해주세요",
-            style = Typography.body2M,
+            style = Typography.body1M,
             color = Colors.textTertiary,
             textAlign = TextAlign.Center,
         )

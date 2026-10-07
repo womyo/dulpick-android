@@ -314,12 +314,11 @@ private fun EmptySavedPlaces() {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(140.dp),
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "최근 저장된 장소가 없어요!", style = Typography.headline, color = Colors.textPrimary)
+        Text(text = "최근 저장된 장소가 없어요!", style = Typography.title3SB, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = "장소를 저장해주세요", style = Typography.body2M, color = Colors.textTertiary)
+        Text(text = "장소를 저장해주세요", style = Typography.body1M, color = Colors.textTertiary)
     }
 }
 

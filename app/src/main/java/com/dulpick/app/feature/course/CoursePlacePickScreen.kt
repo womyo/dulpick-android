@@ -346,10 +346,9 @@ private fun Failure(onRetry: () -> Unit) {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(120.dp),
         )
-        Text(text = "장소를 불러오지 못했어요", style = Typography.headline, color = Colors.textPrimary)
-        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body2M, color = Colors.textTertiary)
+        Text(text = "장소를 불러오지 못했어요", style = Typography.title3SB, color = Colors.textPrimary)
+        Text(text = "잠시 뒤 다시 시도해주세요", style = Typography.body1M, color = Colors.textTertiary)
         AppButton(
             text = "다시 시도",
             onClick = onRetry,
@@ -368,18 +367,17 @@ private fun EmptyState(hasNoSavedPlace: Boolean) {
         Image(
             painter = painterResource(R.drawable.placeempty),
             contentDescription = null,
-            modifier = Modifier.size(140.dp),
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = if (hasNoSavedPlace) "저장한 장소가 없어요" else "조건에 맞는 장소가 없어요",
-            style = Typography.headline,
+            style = Typography.title3SB,
             color = Colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = if (hasNoSavedPlace) "마음에 드는 장소를 저장해보세요" else "필터를 바꿔보세요",
-            style = Typography.body2M,
+            style = Typography.body1M,
             color = Colors.textTertiary,
         )
     }

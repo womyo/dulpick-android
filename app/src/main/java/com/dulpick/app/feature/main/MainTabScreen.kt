@@ -175,7 +175,8 @@ private fun MainTabNavHost(
                 // 상세가 올라오기 전에도 탭바가 보이지 않아야 해 백스택으로 미리 가린다
                 val overSearch = tabNavController.previousBackStackEntry
                     ?.destination?.route == EXPLORE_SEARCH_ROUTE
-                val hideBar = tab == MainTab.MAP && (overSearch || mapHidesTabBar)
+                val hideBar = tab == MainTab.MAP &&
+                    (overSearch || mapHidesTabBar || pending.hasIncomingDetail)
                 // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
                 TabWithBottomBar(
                     showBar = !hideBar,
@@ -265,7 +266,12 @@ private data class MapTabPending(
     val onPostIdChange: (String?) -> Unit,
     val detailReturnTab: String?,
     val onDetailReturnTabChange: (String?) -> Unit,
-)
+) {
+    // 다른 탭·화면에서 상세를 들고 들어오는 중인지. 지도가 알려주는 값은 한 프레임 늦어,
+    // 그사이 탭바가 있었다 없어지며 담는 칸이 커져 시트가 탭바 높이만큼 자리를 다시 잡는다.
+    // 그래서 상세가 올라오기 전부터 이 값으로 탭바를 감춘다
+    val hasIncomingDetail: Boolean get() = place != null || postId != null || contentDetail != null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

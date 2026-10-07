@@ -129,8 +129,7 @@ fun MapScreen(
     val context = LocalContext.current
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
-    // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
-    val tabBarHidden = state.detail != null || state.searchResult != null || state.postDetail != null
+    val chrome = mapChrome(state, pendingPlace, pendingPostId, pendingContentDetail)
 
     HandleMapEffects(
         viewModel = viewModel,
@@ -152,7 +151,7 @@ fun MapScreen(
         onIntent = viewModel::onIntent,
     )
 
-    ReportTabBarHidden(tabBarHidden, onTabBarHiddenChange)
+    ReportTabBarHidden(chrome.tabBarHidden, onTabBarHiddenChange)
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail, onCloseDetail) }
@@ -162,8 +161,7 @@ fun MapScreen(
     val pins = mapPins(state)
     val camera = state.currentLocation?.let { MapCamera(it.coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
         ?: mapCamera(state, pins)
-    // 상세 시트가 떠 있으면 떠 있는 버튼을 감춘다. 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
-    val showsFloatingButtons = state.detail == null && state.postDetail == null
+    // 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -181,6 +179,7 @@ fun MapScreen(
                 MapSheet(
                     state = state,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
+                    incomingDetail = chrome.incomingDetail,
                     onIntent = viewModel::onIntent,
                     onSessionExpired = onSessionExpired,
                     onCloseDetail = dismissDetail,
@@ -189,7 +188,7 @@ fun MapScreen(
         ) {
             MapBody(
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
-                mapBottomInset = if (tabBarHidden) tabBarHeight else 0.dp,
+                mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
                 camera = camera,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
@@ -197,7 +196,7 @@ fun MapScreen(
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = state.detail?.contentMode == true,
                 selectedCategory = state.selectedCategory,
-                showsLocationButton = showsFloatingButtons,
+                showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
                 locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
@@ -272,6 +271,33 @@ private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
     var placed by remember { mutableStateOf(false) }
     LaunchedEffect(positioned) { if (positioned) placed = true }
     return if (placed) 1f else 0f
+}
+
+// 상세가 들어오는 중인지와, 그에 따라 걷을 것들
+private data class MapChrome(
+    val incomingDetail: Boolean,
+    val tabBarHidden: Boolean,
+    val showsFloatingButtons: Boolean,
+)
+
+// 다른 탭·화면에서 상세를 들고 들어오면 상태에 반영되는 건 첫 그림 다음 프레임이다.
+// 그때까지 저장 목록 시트를 보이면 목록이 한 번 떴다 내려가고 상세가 다시 올라온다.
+// 들어오는 상세를 미리 알고 처음부터 목록·떠 있는 버튼·탭바를 걷는다
+// (iOS 는 탭을 바꾸기 전에 상세를 상태에 넣어 같은 결과를 낸다)
+private fun mapChrome(
+    state: MapState,
+    pendingPlace: Place?,
+    pendingPostId: String?,
+    pendingContentDetail: DetailTarget?,
+): MapChrome {
+    val incoming = pendingPlace != null || pendingPostId != null || pendingContentDetail != null
+    val hasDetailSheet = state.detail != null || state.postDetail != null
+    return MapChrome(
+        incomingDetail = incoming,
+        // 저장 목록이 아닌 시트(검색 결과·상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
+        tabBarHidden = hasDetailSheet || state.searchResult != null || incoming,
+        showsFloatingButtons = !hasDetailSheet && !incoming,
+    )
 }
 
 // 지도 화면이 받는 1회성 신호. 위치 권한 요청 런처도 여기서 든다
@@ -458,9 +484,12 @@ private class MapTopBarActions(
 
 // 시트 콘텐츠 전환. 상세 > 검색결과 > 저장목록 순
 @Composable
+@Suppress("LongParameterList")
 private fun MapSheet(
     state: MapState,
     sheetHeight: Dp,
+    // 들어오는 상세가 상태에 닿기 전에는 저장 목록 대신 빈 자리를 둔다
+    incomingDetail: Boolean,
     onIntent: (MapIntent) -> Unit,
     onSessionExpired: () -> Unit,
     onCloseDetail: (DetailTarget) -> Unit,
@@ -469,6 +498,9 @@ private fun MapSheet(
     val searchResult = state.searchResult
     val post = state.postDetail
     when {
+        // 한 프레임짜리 빈 시트. 높이는 그대로 둬서 시트가 다시 자리를 잡지 않는다
+        incomingDetail && detail == null && post == null ->
+            Spacer(modifier = Modifier.fillMaxWidth().height(sheetHeight))
         post != null && state.showsPostDetail -> PostDetailSheet(
             contentId = post.contentId,
             onClose = { onIntent(MapIntent.ClosePostDetail) },

@@ -12,6 +12,7 @@ import com.dulpick.app.data.couple.remote.CoupleApi
 import com.dulpick.app.data.course.remote.CourseApi
 import com.dulpick.app.data.explore.remote.ExploreApi
 import com.dulpick.app.data.home.remote.HomeApi
+import com.dulpick.app.data.notice.remote.NoticeApi
 import com.dulpick.app.data.place.remote.PlaceApi
 import com.dulpick.app.data.placeimport.remote.PlaceImportApi
 import com.dulpick.app.data.profile.remote.ProfileApi
@@ -115,6 +116,11 @@ object NetworkModule {
     @Singleton
     @Authed
     fun courseApi(@Authed retrofit: Retrofit): CourseApi = retrofit.create(CourseApi::class.java)
+
+    // 공지는 로그인 없이도 읽는다 (iOS plainClient 와 같다)
+    @Provides
+    @Singleton
+    fun noticeApi(@Plain retrofit: Retrofit): NoticeApi = retrofit.create(NoticeApi::class.java)
 
     @Provides
     @Singleton

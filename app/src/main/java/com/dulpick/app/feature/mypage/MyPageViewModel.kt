@@ -109,7 +109,9 @@ class MyPageViewModel @Inject constructor(
         runCatching { profileRepository.notificationSettings() }
             .onSuccess { settings -> applyLoaded(settings) }
             .onFailure { error ->
-                // 실패 시 isNotificationsLoaded 를 올리지 않아, 기본값(전부 off)이 PUT 으로 새지 않게 한다
+                // 실패 시 isNotificationsLoaded 를 올리지 않아, 기본값(전부 off)이 PUT 으로 새지 않게 한다.
+                // 시머는 걷는다 — 안 걷으면 프로필·다른 묶음까지 영원히 시머로 남는다 (iOS 와 같다)
+                setState { copy(isSkeleton = false) }
                 if (error == ProfileError.Unauthorized) postSideEffect(MyPageSideEffect.SessionExpired)
             }
     }
@@ -118,6 +120,7 @@ class MyPageViewModel @Inject constructor(
         setState {
             copy(
                 isNotificationsLoaded = true,
+                isSkeleton = false,
                 savedContentAlarm = settings.contentSavedEnabled,
                 dateScheduleAlarm = settings.dateScheduleEnabled,
                 marketingAlarm = settings.marketingEnabled,

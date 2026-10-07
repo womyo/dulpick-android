@@ -56,6 +56,7 @@ import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.ModalContent
+import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -112,47 +113,43 @@ fun MyPageScreen(
                     .padding(horizontal = 20.dp)
                     .padding(top = 20.dp, bottom = 16.dp),
             ) {
-                ProfileSection(
-                    nickname = state.nickname,
-                    iconId = state.iconId,
-                    onEdit = { viewModel.onIntent(MyPageIntent.ProfileEditClicked) },
-                )
+                if (state.isSkeleton) {
+                    SkeletonProfileSection()
+                } else {
+                    ProfileSection(
+                        nickname = state.nickname,
+                        iconId = state.iconId,
+                        onEdit = { viewModel.onIntent(MyPageIntent.ProfileEditClicked) },
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 MyPageCard(title = "개인/보안") {
-                    NavRow(title = "나의 데이트 유형", onClick = onOpenDateType)
-                    RowDivider()
-                    NavRow(title = "연결 관리") { viewModel.onIntent(MyPageIntent.ConnectionClicked) }
-                    RowDivider()
-                    NavRow(title = "로그아웃") { viewModel.onIntent(MyPageIntent.LogoutClicked) }
-                }
-
-                Spacer(modifier = Modifier.height(30.dp))
-
-                MyPageCard(title = "알림 설정") {
-                    ToggleRow(title = "콘텐츠 저장 알림", checked = state.savedContentAlarm) {
-                        viewModel.onIntent(MyPageIntent.ContentSavedToggled(it))
-                    }
-                    RowDivider()
-                    ToggleRow(title = "데이트 일정 알림", checked = state.dateScheduleAlarm) {
-                        viewModel.onIntent(MyPageIntent.DateScheduleToggled(it))
-                    }
-                    RowDivider()
-                    ToggleRow(title = "마케팅 정보 알림", checked = state.marketingAlarm) {
-                        viewModel.onIntent(MyPageIntent.MarketingToggled(it))
+                    if (state.isSkeleton) {
+                        SkeletonRows(count = 3) { SkeletonNavRow() }
+                    } else {
+                        NavRow(title = "나의 데이트 유형", onClick = onOpenDateType)
+                        RowDivider()
+                        NavRow(title = "연결 관리") { viewModel.onIntent(MyPageIntent.ConnectionClicked) }
+                        RowDivider()
+                        NavRow(title = "로그아웃") { viewModel.onIntent(MyPageIntent.LogoutClicked) }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(30.dp))
 
-                MyPageCard(title = "고객지원") {
-                    NavRow(title = "공지사항") { viewModel.onIntent(MyPageIntent.NoticeClicked) }
-                    RowDivider()
-                    NavRow(title = "서비스 피드백하기") {
+                NotificationCard(state = state, onIntent = viewModel::onIntent)
+
+                Spacer(modifier = Modifier.height(30.dp))
+
+                SupportCard(
+                    isSkeleton = state.isSkeleton,
+                    onNotice = { viewModel.onIntent(MyPageIntent.NoticeClicked) },
+                    onFeedback = {
                         context.startExternal(feedbackEmailIntent()) { toastMessage = NO_APP_MESSAGE }
-                    }
-                }
+                    },
+                )
 
                 Spacer(modifier = Modifier.height(30.dp))
 
@@ -333,6 +330,87 @@ private fun ToggleRow(title: String, checked: Boolean, onCheckedChange: (Boolean
                 uncheckedBorderColor = Colors.gray300,
             ),
         )
+    }
+}
+
+@Composable
+private fun NotificationCard(state: MyPageState, onIntent: (MyPageIntent) -> Unit) {
+    MyPageCard(title = "알림 설정") {
+        if (state.isSkeleton) {
+            SkeletonRows(count = 3) { SkeletonToggleRow() }
+        } else {
+            ToggleRow(title = "콘텐츠 저장 알림", checked = state.savedContentAlarm) {
+                onIntent(MyPageIntent.ContentSavedToggled(it))
+            }
+            RowDivider()
+            ToggleRow(title = "데이트 일정 알림", checked = state.dateScheduleAlarm) {
+                onIntent(MyPageIntent.DateScheduleToggled(it))
+            }
+            RowDivider()
+            ToggleRow(title = "마케팅 정보 알림", checked = state.marketingAlarm) {
+                onIntent(MyPageIntent.MarketingToggled(it))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SupportCard(isSkeleton: Boolean, onNotice: () -> Unit, onFeedback: () -> Unit) {
+    MyPageCard(title = "고객지원") {
+        if (isSkeleton) {
+            SkeletonRows(count = 2) { SkeletonNavRow() }
+        } else {
+            NavRow(title = "공지사항", onClick = onNotice)
+            RowDivider()
+            NavRow(title = "서비스 피드백하기", onClick = onFeedback)
+        }
+    }
+}
+
+// 시머 행 사이도 실제 행처럼 구분선으로 나눈다. 로드 전후 높이가 같아 줄이 밀리지 않는다
+@Composable
+private fun SkeletonRows(count: Int, row: @Composable () -> Unit) {
+    repeat(count) { index ->
+        row()
+        if (index != count - 1) RowDivider()
+    }
+}
+
+// 사진·닉네임·수정 버튼 자리를 시머로 채운다 (iOS skeletonProfileSection)
+@Composable
+private fun SkeletonProfileSection() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ShimmerBox(modifier = Modifier.size(100.dp).clip(CircleShape))
+        ShimmerBox(modifier = Modifier.size(100.dp, 18.dp).clip(RoundedCornerShape(4.dp)))
+        ShimmerBox(modifier = Modifier.size(90.dp, 34.dp).clip(RoundedCornerShape(8.dp)))
+    }
+}
+
+// NavRow 와 같은 높이. 제목만 시머로 두고 화살표 자리는 비운다 (iOS skeletonNavRow)
+@Composable
+private fun SkeletonNavRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ShimmerBox(modifier = Modifier.size(100.dp, 16.dp).clip(RoundedCornerShape(4.dp)))
+    }
+}
+
+// ToggleRow 와 같은 높이. 제목과 토글 자리를 시머로 채운다 (iOS skeletonToggleRow)
+@Composable
+private fun SkeletonToggleRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(ROW_HEIGHT),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ShimmerBox(modifier = Modifier.size(100.dp, 16.dp).clip(RoundedCornerShape(4.dp)))
+        Spacer(modifier = Modifier.weight(1f))
+        ShimmerBox(modifier = Modifier.size(51.dp, 31.dp).clip(RoundedCornerShape(15.dp)))
     }
 }
 

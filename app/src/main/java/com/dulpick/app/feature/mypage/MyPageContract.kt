@@ -22,6 +22,9 @@ data class MyPageState(
     val isProfileEditPresented: Boolean = false,
     val isSavingProfile: Boolean = false,
 ) : UiState {
+    // 알림 설정이 들어오기 전까지 시머로 둔다. iOS 도 이 응답에서 스켈레톤을 끈다
+    val isSkeleton: Boolean get() = !isNotificationsLoaded
+
     companion object {
         const val DEFAULT_ICON_ID = 1
     }

@@ -28,6 +28,7 @@ data class MyPageState(
 }
 
 sealed interface MyPageIntent : UiIntent {
+    data object NoticeClicked : MyPageIntent
     data object OnAppear : MyPageIntent
     data class ContentSavedToggled(val enabled: Boolean) : MyPageIntent
     data class DateScheduleToggled(val enabled: Boolean) : MyPageIntent
@@ -45,6 +46,8 @@ sealed interface MyPageIntent : UiIntent {
 }
 
 sealed interface MyPageSideEffect : UiSideEffect {
+    // 공지사항 목록으로 간다
+    data object OpenNotice : MyPageSideEffect
     // 로그아웃·세션 만료 모두 로그인으로 되돌린다
     data object LoggedOut : MyPageSideEffect
     data object SessionExpired : MyPageSideEffect

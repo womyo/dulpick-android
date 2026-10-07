@@ -35,6 +35,7 @@ class MyPageViewModel @Inject constructor(
             is MyPageIntent.MarketingToggled ->
                 toggle { copy(marketingAlarm = intent.enabled) }
             MyPageIntent.LogoutClicked -> logout()
+            MyPageIntent.NoticeClicked -> postSideEffect(MyPageSideEffect.OpenNotice)
             else -> handleAccountIntent(intent)
         }
     }

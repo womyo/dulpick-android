@@ -62,6 +62,9 @@ import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
 import com.dulpick.app.feature.placeimport.PlaceImportScreen
 import com.dulpick.app.feature.mapsearch.MapSearchScreen
+import com.dulpick.app.feature.notice.NoticeArg
+import com.dulpick.app.feature.notice.NoticeDetailScreen
+import com.dulpick.app.feature.notice.NoticeListScreen
 import com.dulpick.app.feature.placedetail.MapSearchReturnArg
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -231,6 +234,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                 onOpenPastCourse = { dateCourseId ->
                     navController.navigate(courseResultRoute(dateCourseId, isPast = true))
                 },
+                onOpenNotice = { navController.navigate(MAIN_NOTICE_ROUTE) },
                 onOpenPastDates = { hasCurrentCourse ->
                     navController.navigate("$MAIN_PASTDATES_ROUTE_BASE/$hasCurrentCourse")
                 },
@@ -256,6 +260,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
     coursePlacePickRoute(navController)
     courseResultRoute(navController)
     courseEditRoute(navController)
+    noticeRoutes(navController)
     coursePlaceAddRoute(navController)
     composable(
         route = MAIN_DATETYPE_ROUTE,
@@ -425,6 +430,44 @@ private fun NavGraphBuilder.courseResultRoute(navController: NavHostController) 
     }
 }
 
+// 공지사항 목록·상세(push). 상세 조회 API 가 없어 목록에서 받은 값을 그대로 넘긴다
+private fun NavGraphBuilder.noticeRoutes(navController: NavHostController) {
+    composable(
+        route = MAIN_NOTICE_ROUTE,
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) {
+        NoticeListScreen(
+            onBack = { navController.popBackStack() },
+            onOpenNotice = { notice ->
+                navController.navigate(
+                    "$MAIN_NOTICE_DETAIL_ROUTE_BASE/${Uri.encode(NoticeArg.from(notice).encode())}",
+                )
+            },
+        )
+    }
+    composable(
+        route = "$MAIN_NOTICE_DETAIL_ROUTE_BASE/{$ARG_NOTICE}",
+        arguments = listOf(navArgument(ARG_NOTICE) { type = NavType.StringType }),
+        enterTransition = { slideInHorizontally { it } },
+        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
+        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        popExitTransition = { slideOutHorizontally { it } },
+    ) { entry ->
+        val notice = entry.arguments?.getString(ARG_NOTICE)
+            ?.let(NoticeArg::decode)
+            ?.toNotice()
+        // 인자를 못 읽으면 보여줄 게 없다. 목록으로 되돌린다
+        if (notice == null) {
+            LaunchedEffect(Unit) { navController.popBackStack() }
+        } else {
+            NoticeDetailScreen(notice = notice, onBack = { navController.popBackStack() })
+        }
+    }
+}
+
 // 코스 수정 중 장소 더하기(push). 같은 장소 고르기 화면을 더하기 모드로 쓴다.
 // 이미 담긴 장소는 빼고 보여주고, 고른 것만 수정 화면으로 돌려준다
 private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController) {
@@ -559,6 +602,10 @@ private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
 private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
 private const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
 private const val MAIN_COURSE_PLACE_ADD_ROUTE = "main/course/places/add"
+private const val MAIN_NOTICE_ROUTE = "main/notices"
+private const val MAIN_NOTICE_DETAIL_ROUTE_BASE = "main/notices/detail"
+// 상세로 넘기는 공지 한 건(JSON)
+private const val ARG_NOTICE = "notice"
 // 이미 코스에 담긴 장소 번호를 쉼표로 이어 넘긴다
 private const val ARG_EXCLUDING = "excluding"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"

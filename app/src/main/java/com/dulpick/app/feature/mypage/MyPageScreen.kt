@@ -73,6 +73,7 @@ private const val NO_APP_MESSAGE = "열 수 있는 앱이 없어요"
 @Composable
 fun MyPageScreen(
     onLoggedOut: () -> Unit,
+    onOpenNotice: () -> Unit,
     onOpenDateType: () -> Unit,
     onOpenConnection: () -> Unit,
     onOpenCoupleConnect: (myNickname: String) -> Unit,
@@ -89,6 +90,7 @@ fun MyPageScreen(
             MyPageSideEffect.LoggedOut, MyPageSideEffect.SessionExpired -> onLoggedOut()
             is MyPageSideEffect.ShowToast -> toastMessage = effect.message
             MyPageSideEffect.OpenConnection -> onOpenConnection()
+            MyPageSideEffect.OpenNotice -> onOpenNotice()
             is MyPageSideEffect.OpenCoupleConnect -> onOpenCoupleConnect(effect.myNickname)
         }
     }
@@ -145,6 +147,8 @@ fun MyPageScreen(
                 Spacer(modifier = Modifier.height(30.dp))
 
                 MyPageCard(title = "문의하기") {
+                    NavRow(title = "공지사항") { viewModel.onIntent(MyPageIntent.NoticeClicked) }
+                    RowDivider()
                     NavRow(title = "서비스 피드백하기") {
                         context.startExternal(feedbackEmailIntent()) { toastMessage = NO_APP_MESSAGE }
                     }

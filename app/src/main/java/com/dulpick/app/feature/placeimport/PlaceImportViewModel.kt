@@ -22,7 +22,6 @@ class PlaceImportViewModel @Inject constructor(
 
     private var importId: Long? = null
     private var started = false
-    private var pollCount = 0
     private var job: Job? = null
     private var confirmJob: Job? = null
 
@@ -77,13 +76,10 @@ class PlaceImportViewModel @Inject constructor(
         }
     }
 
-    // retryAfterSeconds(없으면 기본) 만큼 기다렸다 다시 폴링. 횟수 초과면 실패로 끊는다
+    // retryAfterSeconds(없으면 기본) 만큼 기다렸다 다시 폴링.
+    // 서버가 처리 중이라고 하는 동안은 계속 다시 묻는다 — 횟수나 시간으로 끊으면
+    // 아직 끝나지 않은 작업을 실패로 단정하게 된다 (iOS waitAndPoll 과 같다)
     private fun waitAndPoll(placeImport: PlaceImport) {
-        if (pollCount >= MAX_POLL_COUNT) {
-            fail()
-            return
-        }
-        pollCount += 1
         val seconds = placeImport.retryAfterSeconds?.takeIf { it > 0 } ?: FALLBACK_DELAY_SECONDS
         val id = placeImport.importId
         job = viewModelScope.launch {
@@ -139,7 +135,7 @@ class PlaceImportViewModel @Inject constructor(
     }
 
     private companion object {
-        const val MAX_POLL_COUNT = 7
+        // 서버가 retryAfterSeconds 를 안 줄 때 쓰는 간격
         const val FALLBACK_DELAY_SECONDS = 2
         const val MILLIS_PER_SECOND = 1000L
     }

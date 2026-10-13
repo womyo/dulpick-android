@@ -92,7 +92,10 @@ android {
             applicationIdSuffix = ".app"
             // 업로드 키가 있으면 서명한다. 없으면 서명 안 된 AAB 가 나오고 Play 는 그걸 받지 않는다
             signingConfig = signingConfigs.findByName("upload")
-            isMinifyEnabled = false
+            // R8: 난독화 + 미사용 코드·리소스 제거.
+            // Play 가 DEX 최적화 비율 25% 미만을 경고하고 공개·게시에 영향을 준다고 안내한다
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

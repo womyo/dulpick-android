@@ -22,7 +22,6 @@ class PlaceImportViewModel @Inject constructor(
 
     private var importId: Long? = null
     private var started = false
-    private var pollCount = 0
     private var job: Job? = null
     private var confirmJob: Job? = null
 
@@ -55,15 +54,22 @@ class PlaceImportViewModel @Inject constructor(
         }
     }
 
-    // 서버가 알려준 nextAction 에 따라 대기·후보표시·실패로 가른다 (iOS applyImport 대응)
+    // 대기·후보표시·실패로 가른다 (iOS applyImport·DTOMapper.progress 대응).
+    //
+    // 작업 상태를 먼저 본다 — 서버가 아직 처리 중이라고 하면 nextAction 이 무엇이든 기다린다.
+    // 그래야 서버가 nextAction 값을 늘렸을 때 진행 중인 작업이 실패로 끊기지 않는다.
+    // 끝났으면 무엇을 보여줄지는 nextAction 이 정하고, 없거나 모르는 값이면 작업 상태로 정한다
     private fun applyImport(placeImport: PlaceImport) {
         importId = placeImport.importId
+        if (placeImport.status == ImportStatus.RECEIVED || placeImport.status == ImportStatus.PROCESSING) {
+            waitAndPoll(placeImport)
+            return
+        }
         when (placeImport.nextAction) {
             ImportNextAction.WAIT -> waitAndPoll(placeImport)
             ImportNextAction.SELECT_PLACES -> showCandidates(placeImport, failWhenEmpty = false)
             ImportNextAction.COMPLETED -> showCandidates(placeImport, failWhenEmpty = true)
             ImportNextAction.RETRY -> fail()
-            // 명세에 없는 NONE 은 작업 상태로 판단한다
             ImportNextAction.NONE -> applyByStatus(placeImport)
         }
     }
@@ -77,13 +83,10 @@ class PlaceImportViewModel @Inject constructor(
         }
     }
 
-    // retryAfterSeconds(없으면 기본) 만큼 기다렸다 다시 폴링. 횟수 초과면 실패로 끊는다
+    // retryAfterSeconds(없으면 기본) 만큼 기다렸다 다시 폴링.
+    // 서버가 처리 중이라고 하는 동안은 계속 다시 묻는다 — 횟수나 시간으로 끊으면
+    // 아직 끝나지 않은 작업을 실패로 단정하게 된다 (iOS waitAndPoll 과 같다)
     private fun waitAndPoll(placeImport: PlaceImport) {
-        if (pollCount >= MAX_POLL_COUNT) {
-            fail()
-            return
-        }
-        pollCount += 1
         val seconds = placeImport.retryAfterSeconds?.takeIf { it > 0 } ?: FALLBACK_DELAY_SECONDS
         val id = placeImport.importId
         job = viewModelScope.launch {
@@ -93,15 +96,17 @@ class PlaceImportViewModel @Inject constructor(
     }
 
     private fun showCandidates(placeImport: PlaceImport, failWhenEmpty: Boolean) {
-        if (failWhenEmpty && placeImport.candidates.isEmpty()) {
+        // 저장할 수 없는 후보(실장소로 못 이어진 것)는 세지 않는다
+        val savable = placeImport.candidates.savable
+        if (failWhenEmpty && savable.isEmpty()) {
             fail()
             return
         }
         setState {
             copy(
                 phase = PlaceImportState.Phase.Loaded(placeImport),
-                // 기본은 전부 선택
-                selectedIds = placeImport.candidates.map { it.candidateId }.toSet(),
+                // 기본은 저장할 수 있는 것 전부
+                selectedIds = savable.map { it.candidateId }.toSet(),
             )
         }
     }
@@ -139,7 +144,7 @@ class PlaceImportViewModel @Inject constructor(
     }
 
     private companion object {
-        const val MAX_POLL_COUNT = 7
+        // 서버가 retryAfterSeconds 를 안 줄 때 쓰는 간격
         const val FALLBACK_DELAY_SECONDS = 2
         const val MILLIS_PER_SECOND = 1000L
     }

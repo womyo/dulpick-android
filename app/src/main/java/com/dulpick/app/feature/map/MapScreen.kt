@@ -157,7 +157,7 @@ fun MapScreen(
 
     val dismissDetail: (DetailTarget) -> Unit =
         { it.dismiss(viewModel::onIntent, onCloseContentDetail, onCloseDetail) }
-    HandleBack(state, viewModel::onIntent, dismissDetail)
+    HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
     val pins = mapPins(state)
@@ -325,12 +325,16 @@ private fun HandleMapEffects(
 // 뒤로가기: 위에 있는 시트부터 닫고, 남은 게 없으면 검색 결과 모드를 푼다
 @Composable
 private fun HandleBack(
+    // 지도 탭이 아닐 때는 뒤로가기를 먹지 않는다. 지도는 조합에 남아 있어
+    // 그대로 두면 다른 탭의 뒤로가기를 이 화면이 가로챈다
+    isActive: Boolean,
     state: MapState,
     onIntent: (MapIntent) -> Unit,
     onDismissDetail: (DetailTarget) -> Unit,
 ) {
     BackHandler(
-        enabled = state.detail != null || state.searchResult != null || state.postDetail != null,
+        enabled = isActive &&
+            (state.detail != null || state.searchResult != null || state.postDetail != null),
     ) {
         val detail = state.detail
         when {

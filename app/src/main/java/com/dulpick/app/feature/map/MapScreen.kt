@@ -155,8 +155,7 @@ fun MapScreen(
 
     ReportTabBarHidden(chrome.tabBarHidden, onTabBarHiddenChange)
 
-    val dismissDetail: (DetailTarget) -> Unit =
-        { it.dismiss(viewModel::onIntent, onCloseContentDetail, onCloseDetail) }
+    val dismissDetail = rememberDismissDetail(state, viewModel::onIntent, onCloseContentDetail, onCloseDetail)
     HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
     val sheetAlpha = rememberSheetAlpha(sheetState)
@@ -345,15 +344,38 @@ private fun HandleBack(
     }
 }
 
-// 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고,
-// 아니면 상세를 내리고 온 탭으로 되돌릴지는 호출하는 쪽이 정한다
-private fun DetailTarget.dismiss(
+// 상세 닫기 손잡이. X 와 뒤로가기가 같은 길을 쓴다
+@Composable
+private fun rememberDismissDetail(
+    state: MapState,
     onIntent: (MapIntent) -> Unit,
     onCloseContentDetail: () -> Unit,
     onCloseDetail: () -> Unit,
+): (DetailTarget) -> Unit = { target ->
+    target.dismiss(
+        onIntent = onIntent,
+        onCloseContentDetail = onCloseContentDetail,
+        // 게시글 상세 위에 겹쳐 열린 장소 상세면 부모가 그대로 남는다.
+        // 그때는 탭으로 되돌리지 않는다 (iOS closePlaceDetail 과 같다)
+        returnsToTab = state.postDetail == null,
+        onCloseDetail = onCloseDetail,
+    )
+}
+
+// 상세 닫기(X·뒤로가기 공용): content 모드면 온 곳(탐색 검색)으로 되돌리고,
+// 맨 위 상세였으면 온 탭으로 되돌린다. 겹쳐 열린 것이면 상세만 내린다
+private fun DetailTarget.dismiss(
+    onIntent: (MapIntent) -> Unit,
+    onCloseContentDetail: () -> Unit,
+    // 이 상세가 맨 위인지. 게시글 상세 위에 겹쳐 열린 것이면 닫아도 부모가 남는다
+    returnsToTab: Boolean,
+    onCloseDetail: () -> Unit,
 ) {
     onIntent(MapIntent.CloseDetail)
-    if (contentMode) onCloseContentDetail() else onCloseDetail()
+    when {
+        contentMode -> onCloseContentDetail()
+        returnsToTab -> onCloseDetail()
+    }
 }
 
 // 지도 위에 뜨는 모달들(별칭 편집·위치 권한 안내)

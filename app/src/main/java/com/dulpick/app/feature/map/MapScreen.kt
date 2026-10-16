@@ -7,11 +7,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -132,6 +136,7 @@ fun MapScreen(
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val chrome = mapChrome(state, pendingPlace, pendingPostId, pendingContentDetail)
+    val sheetContentBottomInset = mapSheetContentInset(chrome.tabBarHidden)
 
     HandleMapEffects(
         viewModel = viewModel,
@@ -180,6 +185,7 @@ fun MapScreen(
                 MapSheet(
                     state = state,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
+                    contentBottomInset = sheetContentBottomInset,
                     incomingDetail = chrome.incomingDetail,
                     onIntent = viewModel::onIntent,
                     onSessionExpired = onSessionExpired,
@@ -511,12 +517,24 @@ private class MapTopBarActions(
     val onCategorySelected: (PlaceCategory?) -> Unit,
 )
 
+// 탭바를 감춘 시트(장소·게시글 상세, 검색 결과)는 화면 바닥까지 내려와 내비게이션 버튼과 겹친다.
+// 저장 목록 시트는 그 자리를 탭바가 덮으므로 여백이 필요 없다
+@Composable
+private fun mapSheetContentInset(tabBarHidden: Boolean): Dp =
+    if (tabBarHidden) {
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    } else {
+        0.dp
+    }
+
 // 시트 콘텐츠 전환. 상세 > 검색결과 > 저장목록 순
 @Composable
 @Suppress("LongParameterList")
 private fun MapSheet(
     state: MapState,
     sheetHeight: Dp,
+    // 시트 내용 끝에 둘 여백 (내비게이션 버튼 자리)
+    contentBottomInset: Dp,
     // 들어오는 상세가 상태에 닿기 전에는 저장 목록 대신 빈 자리를 둔다
     incomingDetail: Boolean,
     onIntent: (MapIntent) -> Unit,
@@ -538,6 +556,7 @@ private fun MapSheet(
             },
             onPlaceSelected = { onIntent(MapIntent.OpenPostPlaceDetail(it)) },
             onSessionExpired = onSessionExpired,
+            bottomInset = contentBottomInset,
             modifier = Modifier.height(sheetHeight),
         )
         detail != null -> PlaceDetailSheet(
@@ -547,6 +566,7 @@ private fun MapSheet(
             onClose = { onCloseDetail(detail) },
             onSessionExpired = onSessionExpired,
             onOpenContent = { onIntent(MapIntent.OpenPostDetail(it)) },
+            bottomInset = contentBottomInset,
             modifier = Modifier.height(sheetHeight),
         )
         searchResult != null -> SearchResultSheet(
@@ -554,6 +574,7 @@ private fun MapSheet(
             state = state,
             onIntent = onIntent,
             height = sheetHeight,
+            bottomInset = contentBottomInset,
         )
         else -> MapSheetContent(
             state = state,
@@ -703,12 +724,14 @@ private fun SearchResultSheet(
     state: MapState,
     onIntent: (MapIntent) -> Unit,
     height: Dp,
+    bottomInset: Dp,
 ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
             .padding(top = 8.dp),
+        contentPadding = PaddingValues(bottom = bottomInset),
     ) {
         items(result.places, key = { it.id }) { place ->
             SearchResultRow(

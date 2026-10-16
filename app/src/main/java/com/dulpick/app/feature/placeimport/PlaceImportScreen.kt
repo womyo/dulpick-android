@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -94,6 +95,8 @@ fun PlaceImportScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 카드가 길어져도 내비게이션 버튼 위에서 멈춘다
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Colors.commonWhite)

@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +66,8 @@ fun PostDetailSheet(
     onDetailLoaded: (PostDetailContent) -> Unit,
     onPlaceSelected: (String) -> Unit,
     onSessionExpired: () -> Unit,
+    // 시트가 화면 바닥까지 내려와 있을 때 내용 끝에 둘 여백 (내비게이션 버튼 자리)
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
     viewModel: PostDetailViewModel = hiltViewModel(key = "post-$contentId"),
 ) {
@@ -85,7 +88,8 @@ fun PostDetailSheet(
         modifier = modifier
             .fillMaxWidth()
             .background(Colors.commonWhite)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = bottomInset),
     ) {
         Header(state = state, onIntent = viewModel::onIntent, context = context)
         when {

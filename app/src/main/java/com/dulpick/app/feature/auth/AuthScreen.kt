@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.SnackbarHost
@@ -103,7 +104,7 @@ private fun AuthContent(
         Spacer(Modifier.weight(1f))
 
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.navigationBarsPadding().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Providers.forEach { provider ->

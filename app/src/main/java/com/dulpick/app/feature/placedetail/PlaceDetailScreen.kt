@@ -37,6 +37,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,6 +68,8 @@ fun PlaceDetailSheet(
     onSessionExpired: () -> Unit,
     // 관련 게시물 카드 탭 → 지도가 게시글 상세를 이 위에 얹는다
     onOpenContent: (String) -> Unit,
+    // 시트가 화면 바닥까지 내려와 있을 때 내용 끝에 둘 여백 (내비게이션 버튼 자리)
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
     viewModel: PlaceDetailViewModel = hiltViewModel(key = "detail-${target.id}"),
 ) {
@@ -87,13 +90,28 @@ fun PlaceDetailSheet(
 
     val place = state.place ?: target
     Column(modifier = modifier.fillMaxWidth().background(Colors.commonWhite)) {
-        DetailContent(place = place, state = state, onIntent = viewModel::onIntent)
+        DetailContent(
+            place = place,
+            state = state,
+            bottomInset = bottomInset,
+            onIntent = viewModel::onIntent,
+        )
     }
 }
 
 @Composable
-private fun DetailContent(place: Place, state: PlaceDetailState, onIntent: (PlaceDetailIntent) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+private fun DetailContent(
+    place: Place,
+    state: PlaceDetailState,
+    bottomInset: Dp,
+    onIntent: (PlaceDetailIntent) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = bottomInset),
+    ) {
         Header(
             place = place,
             canOpenMap = state.canOpenKakaoMap,

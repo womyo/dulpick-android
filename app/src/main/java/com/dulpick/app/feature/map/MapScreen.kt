@@ -120,6 +120,8 @@ fun MapScreen(
     // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
     pendingPostId: String? = null,
     onPostConsumed: () -> Unit = {},
+    // 지도 탭을 고르거나 홈 전체보기로 들어올 때마다 올라간다. 바뀌면 검색·필터를 풀고 전체를 비춘다
+    showAllNonce: Int = 0,
     // 그렇게 연 게시글 상세가 닫힘 → 온 곳으로 되돌린다
     onClosePostDetail: () -> Unit = {},
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 떠 있는지 위로 알린다.
@@ -145,6 +147,7 @@ fun MapScreen(
         onToast = { toast = it },
     )
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
+    ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -164,7 +167,6 @@ fun MapScreen(
     HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
     val pins = mapPins(state)
-    val camera = mapCamera(state, pins)
     // 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
@@ -197,7 +199,7 @@ fun MapScreen(
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
-                camera = camera,
+                camera = state.camera,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
@@ -243,10 +245,12 @@ fun MapScreen(
 private fun mapPins(state: MapState): List<MapPin> {
     val context = LocalContext.current
     val detail = state.detail
+    val postDetail = state.postDetail
     val searchResult = state.searchResult
     val base = when {
-        // 게시글 상세의 장소들 (iOS contentPlacesApplied 대응). 받아오기 전에는 원래 핀을 둔다
-        state.showsPostPins -> state.postDetail?.places.orEmpty()
+        // 게시글 상세의 장소들 (iOS contentPlacesApplied 대응).
+        // 아직 못 받았으면 빈 목록이다 — 저장 핀으로 떨어지면 남의 핀이 찍힌다 (iOS mode=.content([]) 와 같다)
+        postDetail != null -> postDetail.places
             .map { placePin(context, it.id, it.coordinate, it.category) }
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
         detail != null && detail.contentMode ->
@@ -257,13 +261,6 @@ private fun mapPins(state: MapState): List<MapPin> {
             .map { placePin(context, it.place.id, it.place.coordinate, it.place.category) }
     }
     return base + listOfNotNull(detail?.place?.coordinate?.let { selectedPin(context, it) })
-}
-
-// 카메라: 현재 위치 > 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
-private fun mapCamera(state: MapState, pins: List<MapPin>): MapCamera {
-    state.currentLocation?.let { return MapCamera(it.coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
-    val focus = state.detail?.place?.coordinate ?: pins.firstOrNull()?.coordinate
-    return focus?.let { MapCamera(it, MapCamera.MULTI_PLACE_ZOOM) } ?: MapCamera.SEOUL_CITY_HALL
 }
 
 // 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
@@ -432,6 +429,12 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
     } else {
         filteredPlaces.firstOrNull { it.id == placeId }?.let { MapIntent.OpenSavedDetail(it) }
     }
+}
+
+// 전체 보기 신호를 인텐트로 올린다. 0 은 첫 조합이라 거른다
+@Composable
+private fun ConsumeShowAll(nonce: Int, onShowAll: () -> Unit) {
+    LaunchedEffect(nonce) { if (nonce > 0) onShowAll() }
 }
 
 // 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다

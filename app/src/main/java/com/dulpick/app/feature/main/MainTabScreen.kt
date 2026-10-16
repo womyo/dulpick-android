@@ -78,6 +78,8 @@ fun MainTabScreen(
     var detailReturnTab by remember { mutableStateOf<String?>(null) }
     // 지도에 검색 결과·장소 상세 시트가 떠 있는지. 떠 있으면 탭바를 감춘다
     var mapHidesTabBar by remember { mutableStateOf(false) }
+    // 지도 탭을 고르거나 홈 전체보기로 들어올 때 올린다. 지도가 이 값이 바뀌면 필터를 풀고 전체를 비춘다
+    var mapShowAllNonce by remember { mutableStateOf(0) }
     // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
     val navigateToTab: (String) -> Unit = { route ->
         tabNavController.navigate(route) {
@@ -85,6 +87,13 @@ fun MainTabScreen(
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    // 탭바에서 탭을 고르는 길. 지도를 고르면 전체 보기 신호도 함께 올린다 (iOS showAllSaved 대응).
+    // 상세를 들고 들어오는 길은 이 함수를 쓰지 않아 필터·카메라가 그대로 남는다
+    val selectTab: (String) -> Unit = { route ->
+        if (route == MainTab.MAP.route) mapShowAllNonce++
+        navigateToTab(route)
     }
 
     // 지도 탭 여부. 지도는 이 값으로 재생/멈춤을 가른다
@@ -114,6 +123,7 @@ fun MainTabScreen(
             onLoggedOut = onLoggedOut,
             actions = actions,
             navigateToTab = navigateToTab,
+            onSelectTab = selectTab,
             currentDestination = currentDestination,
             tabBarHeight = tabBarHeight,
             search = MapTabSearch(
@@ -128,6 +138,7 @@ fun MainTabScreen(
                 onPlaceChange = { pendingMapPlace = it },
                 postId = pendingPostId,
                 onPostIdChange = { pendingPostId = it },
+                showAllNonce = mapShowAllNonce,
                 detailReturnTab = detailReturnTab,
                 onDetailReturnTabChange = { detailReturnTab = it },
             ),
@@ -146,6 +157,8 @@ private fun MainTabNavHost(
     onLoggedOut: () -> Unit,
     actions: MainTabActions,
     navigateToTab: (String) -> Unit,
+    // 탭바에서 탭을 고를 때. 지도를 고르면 전체 보기 신호까지 올린다
+    onSelectTab: (String) -> Unit,
     currentDestination: NavDestination?,
     tabBarHeight: Dp,
     mapSheetState: BottomSheetScaffoldState,
@@ -172,6 +185,7 @@ private fun MainTabNavHost(
         mapSheetState = mapSheetState,
         onLoggedOut = onLoggedOut,
         navigateToTab = navigateToTab,
+        onSelectTab = onSelectTab,
         currentDestination = currentDestination,
         tabNavController = tabNavController,
         actions = actions,
@@ -212,12 +226,13 @@ private fun MainTabNavHost(
                 TabWithBottomBar(
                     showBar = true,
                     currentDestination = currentDestination,
-                    onSelectTab = navigateToTab,
+                    onSelectTab = onSelectTab,
                 ) {
                 when (tab) {
                     MainTab.HOME -> HomeTab(
                         onLoggedOut = onLoggedOut,
                         navigateToTab = navigateToTab,
+                        onShowAllSaved = { onSelectTab(MainTab.MAP.route) },
                         actions = actions,
                         pending = pending,
                     )
@@ -259,6 +274,8 @@ private fun MainTabNavHost(
 private fun HomeTab(
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
+    // 전체보기. 지도 탭으로 옮기면서 필터를 풀고 전체를 비추게 한다
+    onShowAllSaved: () -> Unit,
     actions: MainTabActions,
     pending: MapTabPending,
 ) {
@@ -273,8 +290,8 @@ private fun HomeTab(
         onOpenPastDates = actions.onOpenPastDates,
         onOpenCourse = actions.onOpenCourse,
         onOpenPastCourse = actions.onOpenPastCourse,
-        // 전체보기 → 지도 탭 이동만
-        onOpenMap = { navigateToTab(MainTab.MAP.route) },
+        // 전체보기 → 지도 탭으로 옮기고 필터를 풀어 전체를 비춘다 (iOS showAllSavedPlaces 대응)
+        onOpenMap = onShowAllSaved,
         // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
         onOpenPlaceOnMap = { place ->
             pending.onPlaceChange(place)
@@ -297,6 +314,7 @@ private fun MapTabLayer(
     mapSheetState: BottomSheetScaffoldState,
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
+    onSelectTab: (String) -> Unit,
     currentDestination: NavDestination?,
     tabNavController: androidx.navigation.NavHostController,
     actions: MainTabActions,
@@ -307,7 +325,7 @@ private fun MapTabLayer(
     TabWithBottomBar(
         showBar = isCurrent && !hideBar,
         currentDestination = currentDestination,
-        onSelectTab = navigateToTab,
+        onSelectTab = onSelectTab,
     ) {
         MapTab(
             isActive = isCurrent,
@@ -342,6 +360,8 @@ private data class MapTabPending(
     val onPostIdChange: (String?) -> Unit,
     val detailReturnTab: String?,
     val onDetailReturnTabChange: (String?) -> Unit,
+    // 지도 탭을 고르거나 전체보기로 들어올 때마다 올라가는 값
+    val showAllNonce: Int,
 ) {
     // 다른 탭·화면에서 상세를 들고 들어오는 중인지. 지도가 알려주는 값은 한 프레임 늦어,
     // 그사이 탭바가 있었다 없어지며 담는 칸이 커져 시트가 탭바 높이만큼 자리를 다시 잡는다.
@@ -388,6 +408,7 @@ private fun MapTab(
         onPlaceConsumed = { pending.onPlaceChange(null) },
         pendingPostId = pending.postId,
         onPostConsumed = { pending.onPostIdChange(null) },
+        showAllNonce = pending.showAllNonce,
         // 탭에서 왔으면 그 탭으로, 검색 화면에서 왔으면 pop 한다
         onClosePostDetail = {
             val tab = pending.detailReturnTab

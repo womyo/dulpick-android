@@ -35,7 +35,12 @@ class PostDetailViewModel @Inject constructor(
     }
 
     private fun start(id: String) {
-        if (contentId == id) return
+        if (contentId == id) {
+            // 같은 게시글을 다시 열었다. 지도는 시트를 닫을 때 장소를 버리므로,
+            // 받아둔 값이 있으면 핀·카메라를 다시 세우도록 한 번 더 알린다
+            currentState.detail?.let { postSideEffect(PostDetailSideEffect.DetailLoaded(it)) }
+            return
+        }
         contentId = id
         load()
     }

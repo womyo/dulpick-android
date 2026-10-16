@@ -2,4 +2,6 @@
 <resources>
     <!-- 런치스크린 배경. iOS SplashBackground 와 같은 브랜드 색 -->
     <color name="splash_background">#F6465F</color>
+    <!-- 알림 아이콘 틴트. 브랜드 색과 같다 -->
+    <color name="notification_accent">#F6465F</color>
 </resources>

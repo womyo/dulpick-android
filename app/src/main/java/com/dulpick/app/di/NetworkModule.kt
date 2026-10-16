@@ -13,6 +13,7 @@ import com.dulpick.app.data.course.remote.CourseApi
 import com.dulpick.app.data.explore.remote.ExploreApi
 import com.dulpick.app.data.home.remote.HomeApi
 import com.dulpick.app.data.notice.remote.NoticeApi
+import com.dulpick.app.data.notification.remote.PushApi
 import com.dulpick.app.data.place.remote.PlaceApi
 import com.dulpick.app.data.placeimport.remote.PlaceImportApi
 import com.dulpick.app.data.profile.remote.ProfileApi
@@ -121,6 +122,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun noticeApi(@Plain retrofit: Retrofit): NoticeApi = retrofit.create(NoticeApi::class.java)
+
+    @Provides
+    @Singleton
+    @Authed
+    fun pushApi(@Authed retrofit: Retrofit): PushApi = retrofit.create(PushApi::class.java)
 
     @Provides
     @Singleton

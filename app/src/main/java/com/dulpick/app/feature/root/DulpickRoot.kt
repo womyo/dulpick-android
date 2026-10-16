@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dulpick.app.R
+import com.dulpick.app.core.notification.NotificationPermissionEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -115,6 +116,12 @@ private fun DulpickNavHost(
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route.orEmpty()
     val isLoggedIn = currentRoute == RootRoute.MAIN.route ||
         currentRoute.startsWith("${RootRoute.MAIN.route}/")
+
+    // 인트로·로그인을 지나면 인증된 상태다. 그 뒤에 알림 권한을 한 번 묻는다
+    val isAuthenticated = currentRoute.isNotEmpty() &&
+        currentRoute != RootRoute.APP_INTRO.route &&
+        currentRoute != RootRoute.AUTH.route
+    NotificationPermissionEffect(enabled = isAuthenticated)
 
     NavHost(
         navController = navController,

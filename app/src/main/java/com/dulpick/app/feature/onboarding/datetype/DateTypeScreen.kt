@@ -53,6 +53,14 @@ import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 import androidx.compose.ui.text.style.TextAlign
 
+// 말풍선 자리. iOS DateTypeTooltip.placement 의 수치를 그대로 옮긴다.
+// 화살표 뾰족한 끝이 tip 버튼 하단에서 4 아래다 — 버튼 높이 32 + 간격 4
+private val TOOLTIP_TOP_GAP = 36.dp
+
+// 말풍선 왼쪽 끝이 화면 왼쪽에서 42 가 되도록 오른쪽으로 민다.
+// tip 버튼 오른쪽 끝(여백 20 + 제목 폭 233 + 버튼 폭 40 = 293)에 붙인 뒤 42 + 262 - 293 만큼이다
+private val TOOLTIP_TRAILING_SHIFT = 11.dp
+
 private const val TOOLTIP_TEXT =
     "탐색 추천 알고리즘에 선호하시는 유형의 장소를\n우선 추천 하는데 사용되며 그렇지 않은\n데이트 장소도 추천 됩니다."
 
@@ -252,11 +260,14 @@ private fun TipButton(
             )
         }
         if (isTooltipPresented) {
-            // Popup offset 은 px 단위라 dp 를 밀도로 환산한다. 리터럴 96 은 고밀도에서 너무 작아진다
-            val yOffsetPx = with(LocalDensity.current) { 96.dp.roundToPx() }
+            // Popup offset 은 px 단위라 dp 를 밀도로 환산한다
+            val density = LocalDensity.current
+            val offset = with(density) {
+                IntOffset(x = TOOLTIP_TRAILING_SHIFT.roundToPx(), y = TOOLTIP_TOP_GAP.roundToPx())
+            }
             Popup(
                 alignment = Alignment.TopEnd,
-                offset = IntOffset(x = 0, y = yOffsetPx),
+                offset = offset,
                 onDismissRequest = onTooltipDismiss,
                 properties = PopupProperties(focusable = true),
             ) {

@@ -6,6 +6,8 @@
     <!-- 지도의 내 위치 버튼. 정밀 위치를 거부해도 대략 위치로 동작한다 -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- 푸시 알림. 안드로이드 13 부터 런타임에 묻는다 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".DulpickApp"
@@ -39,6 +41,26 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- FCM 수신. 토큰 변경과 포그라운드 메시지가 여기로 온다 -->
+        <service
+            android:name=".core.notification.DulpickMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- 백그라운드에서 시스템이 알림을 띄울 때 쓰는 채널·아이콘·틴트 -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/notification_channel_id" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
 
         <!-- 카카오톡 앱 로그인 리다이렉트. 스킴은 build type 별 네이티브 앱 키로 채운다 -->
         <activity

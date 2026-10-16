@@ -2,6 +2,7 @@ package com.dulpick.app
 
 import android.app.Application
 import com.dulpick.app.core.map.KakaoMapInitializer
+import com.dulpick.app.core.notification.PushNotificationInitializer
 import com.dulpick.app.core.social.CurrentActivityProvider
 import com.dulpick.app.core.social.SocialAuthInitializer
 import dagger.hilt.android.HiltAndroidApp
@@ -18,5 +19,6 @@ class DulpickApp : Application() {
         registerActivityLifecycleCallbacks(activityProvider)
         SocialAuthInitializer.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
         KakaoMapInitializer.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+        PushNotificationInitializer.init(this)
     }
 }

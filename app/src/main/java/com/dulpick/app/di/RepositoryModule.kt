@@ -5,6 +5,7 @@ import com.dulpick.app.data.couple.CoupleRepositoryImpl
 import com.dulpick.app.data.explore.ExploreRepositoryImpl
 import com.dulpick.app.data.course.CourseRepositoryImpl
 import com.dulpick.app.data.notice.NoticeRepositoryImpl
+import com.dulpick.app.data.notification.PushDeviceRepositoryImpl
 import com.dulpick.app.data.home.HomeRepositoryImpl
 import com.dulpick.app.data.location.LocationRepositoryImpl
 import com.dulpick.app.data.placeimport.PlaceImportRepositoryImpl
@@ -15,6 +16,7 @@ import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.explore.ExploreRepository
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.notice.NoticeRepository
+import com.dulpick.app.domain.notification.PushDeviceRepository
 import com.dulpick.app.domain.home.HomeRepository
 import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.PlaceRepository
@@ -71,4 +73,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindNoticeRepository(impl: NoticeRepositoryImpl): NoticeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPushDeviceRepository(impl: PushDeviceRepositoryImpl): PushDeviceRepository
 }

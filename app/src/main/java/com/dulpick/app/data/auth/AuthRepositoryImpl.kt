@@ -7,12 +7,14 @@ import com.dulpick.app.data.auth.mapper.AuthErrorMapper
 import com.dulpick.app.data.auth.mapper.AuthMapper
 import com.dulpick.app.data.auth.remote.AuthRemoteDataSource
 import com.dulpick.app.data.auth.social.SocialAuthProvider
+import com.dulpick.app.data.notification.PushDeviceRegistrar
 import com.dulpick.app.data.profile.remote.ProfileRemoteDataSource
 import com.dulpick.app.domain.auth.AuthBootstrap
 import com.dulpick.app.domain.auth.AuthError
 import com.dulpick.app.domain.auth.AuthProvider
 import com.dulpick.app.domain.auth.AuthRepository
 import com.dulpick.app.domain.auth.AuthSession
+import com.dulpick.app.domain.notification.PushDeviceRepository
 import javax.inject.Inject
 
 @Suppress("TooGenericExceptionCaught", "SwallowedException")
@@ -21,11 +23,14 @@ class AuthRepositoryImpl @Inject constructor(
     private val authLocal: AuthLocalDataSource,
     private val socialAuth: SocialAuthProvider,
     private val profileRemote: ProfileRemoteDataSource,
+    private val pushDevice: PushDeviceRepository,
+    private val pushRegistrar: PushDeviceRegistrar,
 ) : AuthRepository {
 
     override suspend fun restoreSession(): AuthBootstrap? {
         try {
             val stored = authLocal.loadSession() ?: return null
+            pushRegistrar.start()
             return AuthBootstrap(
                 session = AuthMapper.toDomain(stored),
                 isOnboardingCompleted = resolveOnboardingCompleted(stored),
@@ -60,6 +65,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
             val entity = AuthMapper.toEntity(response)
             authLocal.saveSession(entity)
+            pushRegistrar.start()
             return AuthBootstrap(
                 session = AuthMapper.toDomain(entity),
                 isOnboardingCompleted = entity.isOnboardingCompleted ?: false,
@@ -72,6 +78,9 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun logout() {
         try {
+            // 서버 로그아웃이 액세스 토큰을 무효화할 수 있다. 그 전에 불러야 401 을 피한다
+            pushRegistrar.stop()
+            runCatching { pushDevice.unregisterDevice() }
             val session = authLocal.loadSession()
             if (session != null) {
                 // 서버 로그아웃 실패는 삼킨다. 로컬 삭제는 반드시 한다

@@ -26,6 +26,9 @@ signing.properties
 secrets.properties
 # API 키 등은 local.properties 나 secrets 파일로 두고 위에서 무시한다
 
+# Firebase 설정 (FCM). 콘솔에서 내려받아 app/ 에 둔다
+google-services.json
+
 # IntelliJ / Android Studio — 공유하는 몇 개만 남기고 나머지는 무시
 .idea/*
 !.idea/gradle.xml

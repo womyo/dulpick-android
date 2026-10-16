@@ -11,6 +11,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Firebase 설정 파일이 있을 때만 google-services 를 붙인다.
+// 파일이 없는 환경(다른 개발자·CI)에서도 빌드는 되고, 그때는 FCM 이 초기화되지 않는다
+if (file("google-services.json").exists()) {
+    apply(plugin = libs.plugins.google.services.get().pluginId)
+}
+
 // 시크릿은 local.properties 에서 읽는다. 없으면 빈 값 (키 미설정 시에도 빌드는 되게)
 // 템플릿은 local.properties.example, 실제 파일은 gitignore
 val localProperties = Properties().apply {
@@ -168,6 +174,10 @@ dependencies {
 
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)
+
+    // 푸시 알림 (FCM). google-services.json 이 없으면 런타임에 초기화를 건너뛴다
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

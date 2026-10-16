@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +62,7 @@ import com.dulpick.app.ui.component.FilterDropdown
 import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.map.placePin
+import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
@@ -75,7 +77,6 @@ import com.dulpick.app.ui.theme.Typography
 import kotlinx.coroutines.launch
 
 // 지도 화면과 같은 시트 높이 비율
-private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
 private val SHEET_CORNER_RADIUS = 32.dp
 private const val SKELETON_ROW_COUNT = 3
@@ -129,15 +130,16 @@ fun CoursePlacePickScreen(
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Colors.bgDefault)
             .onSizeChanged { rootHeightPx = it.height },
     ) {
+        val sheet = mapSheetMetrics(maxHeight)
         BottomSheetScaffold(
             scaffoldState = scaffoldState,
-            sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+            sheetPeekHeight = sheet.collapsedHeight,
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
@@ -157,6 +159,8 @@ fun CoursePlacePickScreen(
                 KakaoMapView(
                     modifier = Modifier.fillMaxSize(),
                     pins = pins,
+                    // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
+                    collapsedSheetTopPx = sheet.collapsedTopPx,
                     camera = pins.firstOrNull()
                         ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
                         ?: MapCamera.SEOUL_CITY_HALL,

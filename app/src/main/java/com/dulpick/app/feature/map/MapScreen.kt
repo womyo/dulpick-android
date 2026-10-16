@@ -6,16 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -71,6 +69,7 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.selectedPin
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -136,7 +135,8 @@ fun MapScreen(
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val chrome = mapChrome(state, pendingPlace, pendingPostId, pendingContentDetail)
-    val sheetContentBottomInset = mapSheetContentInset(chrome.tabBarHidden)
+    // 탭바가 함께 올라오는 저장 목록 시트의 접힘 높이. 지금까지의 값을 그대로 쓴다
+    val tabBarSheetHeight = (screenHeight * SHEET_PEEK_FRACTION).dp
 
     HandleMapEffects(
         viewModel = viewModel,
@@ -163,18 +163,17 @@ fun MapScreen(
     val dismissDetail = rememberDismissDetail(state, viewModel::onIntent, onCloseContentDetail, onCloseDetail)
     HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
-    val sheetAlpha = rememberSheetAlpha(sheetState)
     val pins = mapPins(state)
-    val camera = state.currentLocation?.let { MapCamera(it.coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
-        ?: mapCamera(state, pins)
+    val camera = mapCamera(state, pins)
     // 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
         BottomSheetScaffold(
-            modifier = Modifier.alpha(sheetAlpha),
+            modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
-            sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+            sheetPeekHeight = sheet.collapsedHeight,
             sheetContainerColor = Colors.commonWhite,
             // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
             containerColor = Color.Transparent,
@@ -185,7 +184,7 @@ fun MapScreen(
                 MapSheet(
                     state = state,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
-                    contentBottomInset = sheetContentBottomInset,
+                    contentBottomInset = sheet.contentBottomInset,
                     incomingDetail = chrome.incomingDetail,
                     onIntent = viewModel::onIntent,
                     onSessionExpired = onSessionExpired,
@@ -207,7 +206,8 @@ fun MapScreen(
                 showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
+                locationButtonBottom = sheet.collapsedHeight + 12.dp,
+                collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
                     // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
@@ -259,8 +259,9 @@ private fun mapPins(state: MapState): List<MapPin> {
     return base + listOfNotNull(detail?.place?.coordinate?.let { selectedPin(context, it) })
 }
 
-// 카메라: 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
+// 카메라: 현재 위치 > 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
 private fun mapCamera(state: MapState, pins: List<MapPin>): MapCamera {
+    state.currentLocation?.let { return MapCamera(it.coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
     val focus = state.detail?.place?.coordinate ?: pins.firstOrNull()?.coordinate
     return focus?.let { MapCamera(it, MapCamera.MULTI_PLACE_ZOOM) } ?: MapCamera.SEOUL_CITY_HALL
 }
@@ -517,16 +518,6 @@ private class MapTopBarActions(
     val onCategorySelected: (PlaceCategory?) -> Unit,
 )
 
-// 탭바를 감춘 시트(장소·게시글 상세, 검색 결과)는 화면 바닥까지 내려와 내비게이션 버튼과 겹친다.
-// 저장 목록 시트는 그 자리를 탭바가 덮으므로 여백이 필요 없다
-@Composable
-private fun mapSheetContentInset(tabBarHidden: Boolean): Dp =
-    if (tabBarHidden) {
-        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    } else {
-        0.dp
-    }
-
 // 시트 콘텐츠 전환. 상세 > 검색결과 > 저장목록 순
 @Composable
 @Suppress("LongParameterList")
@@ -604,6 +595,8 @@ private fun MapBody(
     courseButtonTitle: String,
     // 시트 접힘 높이 위에 띄운다
     locationButtonBottom: Dp,
+    // 접힘 시트 윗면의 y. 지도가 목표 좌표를 이 자리의 초점에 놓는다
+    collapsedSheetTopPx: Float,
     actions: MapTopBarActions,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -616,6 +609,7 @@ private fun MapBody(
             isActive = isActive,
             pins = pins,
             camera = camera,
+            collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
         )
         if (showsLocationButton) {

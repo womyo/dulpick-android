@@ -55,6 +55,11 @@ data class MapState(
         get() = if (currentCourse == null) "데이트 코스 짜러가기" else "데이트 코스 보러가기"
 
 
+    // 게시글 핀 모드 여부. 이때는 지도 검색바·필터 칩을 감춘다 (iOS isContentMode 대응).
+    // 게시글 상세가 열려 있는 동안은 그 위에 장소 상세가 얹혀도 계속 모드가 유지된다
+    val isContentMode: Boolean
+        get() = detail?.contentMode == true || postDetail != null
+
     // 위에 보일 시트가 게시글 상세인지. 둘 다 있으면 나중에 연 쪽이 이긴다
     val showsPostDetail: Boolean
         get() = postDetail != null && (detail == null || topDetail == TopDetail.POST)

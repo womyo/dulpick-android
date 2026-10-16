@@ -201,7 +201,7 @@ fun MapScreen(
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
-                hideTopBar = state.detail?.contentMode == true,
+                hideTopBar = chrome.hidesTopBar,
                 selectedCategory = state.selectedCategory,
                 showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
@@ -287,6 +287,8 @@ private data class MapChrome(
     val incomingDetail: Boolean,
     val tabBarHidden: Boolean,
     val showsFloatingButtons: Boolean,
+    // 검색바·칩을 걷을지. 게시글 핀 모드이거나 그 상세가 들어오는 중이면 걷는다
+    val hidesTopBar: Boolean,
 )
 
 // 다른 탭·화면에서 상세를 들고 들어오면 상태에 반영되는 건 첫 그림 다음 프레임이다.
@@ -306,6 +308,9 @@ private fun mapChrome(
         // 저장 목록이 아닌 시트(검색 결과·상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
         tabBarHidden = hasDetailSheet || state.searchResult != null || incoming,
         showsFloatingButtons = !hasDetailSheet && !incoming,
+        // 들어오는 게시글·탐색 상세도 미리 걷는다. 상태에 닿기 전 한 프레임 검색바가 스친다.
+        // 홈에서 온 저장 장소(pendingPlace)는 content 모드가 아니라 그대로 보인다
+        hidesTopBar = state.isContentMode || pendingPostId != null || pendingContentDetail != null,
     )
 }
 
@@ -629,7 +634,7 @@ private fun MapBody(
                 CurrentLocationButton(onClick = actions.onCurrentLocation)
             }
         }
-        // content 모드(탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
+        // content 모드(게시글 상세·탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
         if (hideTopBar) return@Box
         Column(
             modifier = Modifier

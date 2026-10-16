@@ -188,7 +188,18 @@ private fun MainTabNavHost(
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { ExitTransition.None },
     ) {
-        MainTab.entries.forEach { tab ->
+        // 지도는 아래층이 그린다. 이 자리는 비워 둬야 그 지도가 보인다.
+        // 크기는 화면만큼 채운다 — 크기 0 으로 두면 탭을 옮길 때마다
+        // NavHost 가 담는 칸 크기를 애니메이션해 화면이 위아래로 흔들린다.
+        // 투명한 자리라 손짓은 아래 지도로 그대로 간다.
+        //
+        // 전환은 걸지 않는다. 투명한 자리를 밀어 넣어도 덮을 게 없어 애니메이션이 끝날 때까지
+        // 지도가 도착하지 않은 것처럼 보인다. 검색에서 들어올 때도 홈·탐색에서 게시글 상세로
+        // 들어갈 때처럼 즉시 바뀌고, 상세 시트가 올라오는 것만 보인다
+        composable(route = MainTab.MAP.route) {
+            Spacer(modifier = Modifier.fillMaxSize())
+        }
+        MainTab.entries.filter { it != MainTab.MAP }.forEach { tab ->
             composable(
                 route = tab.route,
                 // 탭 전환은 즉시. 검색 화면과 주고받을 때만 다른 화면 push/pop 과 같은 전환을 쓴다
@@ -197,14 +208,6 @@ private fun MainTabNavHost(
                 popEnterTransition = { fromSearch { slideInHorizontally { -it / PARALLAX_DIVISOR } } },
                 popExitTransition = { toSearch { slideOutHorizontally { it } } },
             ) {
-                // 지도는 아래층이 그린다. 이 자리는 비워 둬야 그 지도가 보인다.
-                // 크기는 화면만큼 채운다 — 크기 0 으로 두면 탭을 옮길 때마다
-                // NavHost 가 담는 칸 크기를 애니메이션해 화면이 위아래로 흔들린다.
-                // 투명한 자리라 손짓은 아래 지도로 그대로 간다
-                if (tab == MainTab.MAP) {
-                    Spacer(modifier = Modifier.fillMaxSize())
-                    return@composable
-                }
                 // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
                 TabWithBottomBar(
                     showBar = true,
@@ -414,8 +417,12 @@ private fun androidx.navigation.NavGraphBuilder.exploreSearchDestination(
     composable(
         route = EXPLORE_SEARCH_ROUTE,
         enterTransition = { slideInHorizontally { it } },
-        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        // 앞으로 나가는 길은 지도(상세)뿐이다. 그 지도는 아래층에 이미 떠 있어 밀려 들어올 화면이
+        // 없으므로 이 화면도 즉시 사라진다 — 홈·탐색에서 게시글 상세로 들어갈 때와 같은 모양
+        exitTransition = { ExitTransition.None },
+        // 상세를 닫고(X) 돌아오는 길도 같다. 지도는 그 자리에서 사라질 뿐 밀려 나가지 않으므로
+        // 이 화면도 즉시 제자리로 돌아온다
+        popEnterTransition = { EnterTransition.None },
         popExitTransition = { slideOutHorizontally { it } },
     ) {
         SearchScreen(

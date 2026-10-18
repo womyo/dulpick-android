@@ -6,7 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,7 +47,7 @@ import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
-import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
@@ -67,6 +69,7 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.selectedPin
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -117,6 +120,8 @@ fun MapScreen(
     // 다른 탭·화면에서 넘어온 게시글. 지도 위에 게시글 상세를 연다
     pendingPostId: String? = null,
     onPostConsumed: () -> Unit = {},
+    // 지도 탭을 고르거나 홈 전체보기로 들어올 때마다 올라간다. 바뀌면 검색·필터를 풀고 전체를 비춘다
+    showAllNonce: Int = 0,
     // 그렇게 연 게시글 상세가 닫힘 → 온 곳으로 되돌린다
     onClosePostDetail: () -> Unit = {},
     // 저장 목록이 아닌 시트(검색 결과·장소 상세)가 떠 있는지 위로 알린다.
@@ -132,6 +137,8 @@ fun MapScreen(
     var toast by remember { mutableStateOf<MapToast?>(null) }
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val chrome = mapChrome(state, pendingPlace, pendingPostId, pendingContentDetail)
+    // 탭바가 함께 올라오는 저장 목록 시트의 접힘 높이. 지금까지의 값을 그대로 쓴다
+    val tabBarSheetHeight = (screenHeight * SHEET_PEEK_FRACTION).dp
 
     HandleMapEffects(
         viewModel = viewModel,
@@ -140,6 +147,7 @@ fun MapScreen(
         onToast = { toast = it },
     )
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
+    ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -158,18 +166,16 @@ fun MapScreen(
     val dismissDetail = rememberDismissDetail(state, viewModel::onIntent, onCloseContentDetail, onCloseDetail)
     HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
-    val sheetAlpha = rememberSheetAlpha(sheetState)
     val pins = mapPins(state)
-    val camera = state.currentLocation?.let { MapCamera(it.coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
-        ?: mapCamera(state, pins)
     // 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
         BottomSheetScaffold(
-            modifier = Modifier.alpha(sheetAlpha),
+            modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
-            sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+            sheetPeekHeight = sheet.collapsedHeight,
             sheetContainerColor = Colors.commonWhite,
             // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
             containerColor = Color.Transparent,
@@ -180,6 +186,7 @@ fun MapScreen(
                 MapSheet(
                     state = state,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
+                    contentBottomInset = sheet.contentBottomInset,
                     incomingDetail = chrome.incomingDetail,
                     onIntent = viewModel::onIntent,
                     onSessionExpired = onSessionExpired,
@@ -192,16 +199,17 @@ fun MapScreen(
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
-                camera = camera,
+                cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
-                hideTopBar = state.detail?.contentMode == true,
+                hideTopBar = chrome.hidesTopBar,
                 selectedCategory = state.selectedCategory,
                 showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = (screenHeight * SHEET_PEEK_FRACTION).dp + 12.dp,
+                locationButtonBottom = sheet.collapsedHeight + 12.dp,
+                collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = MapTopBarActions(
                     onOpenSearch = onOpenSearch,
                     // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
@@ -237,10 +245,12 @@ fun MapScreen(
 private fun mapPins(state: MapState): List<MapPin> {
     val context = LocalContext.current
     val detail = state.detail
+    val postDetail = state.postDetail
     val searchResult = state.searchResult
     val base = when {
-        // 게시글 상세의 장소들 (iOS contentPlacesApplied 대응). 받아오기 전에는 원래 핀을 둔다
-        state.showsPostPins -> state.postDetail?.places.orEmpty()
+        // 게시글 상세의 장소들 (iOS contentPlacesApplied 대응).
+        // 아직 못 받았으면 빈 목록이다 — 저장 핀으로 떨어지면 남의 핀이 찍힌다 (iOS mode=.content([]) 와 같다)
+        postDetail != null -> postDetail.places
             .map { placePin(context, it.id, it.coordinate, it.category) }
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
         detail != null && detail.contentMode ->
@@ -251,12 +261,6 @@ private fun mapPins(state: MapState): List<MapPin> {
             .map { placePin(context, it.place.id, it.place.coordinate, it.place.category) }
     }
     return base + listOfNotNull(detail?.place?.coordinate?.let { selectedPin(context, it) })
-}
-
-// 카메라: 상세 > 첫 핀 > 서울 시청 (iOS overview 대응)
-private fun mapCamera(state: MapState, pins: List<MapPin>): MapCamera {
-    val focus = state.detail?.place?.coordinate ?: pins.firstOrNull()?.coordinate
-    return focus?.let { MapCamera(it, MapCamera.MULTI_PLACE_ZOOM) } ?: MapCamera.SEOUL_CITY_HALL
 }
 
 // 아래로 당기면 접힘 밑으로도 손가락 따라 내려가되(보통 시트처럼), 놓으면 접힘으로 튕겨 올라오고
@@ -280,6 +284,8 @@ private data class MapChrome(
     val incomingDetail: Boolean,
     val tabBarHidden: Boolean,
     val showsFloatingButtons: Boolean,
+    // 검색바·칩을 걷을지. 게시글 핀 모드이거나 그 상세가 들어오는 중이면 걷는다
+    val hidesTopBar: Boolean,
 )
 
 // 다른 탭·화면에서 상세를 들고 들어오면 상태에 반영되는 건 첫 그림 다음 프레임이다.
@@ -299,6 +305,9 @@ private fun mapChrome(
         // 저장 목록이 아닌 시트(검색 결과·상세)가 뜨면 탭바가 사라져 이 화면이 그만큼 길어진다
         tabBarHidden = hasDetailSheet || state.searchResult != null || incoming,
         showsFloatingButtons = !hasDetailSheet && !incoming,
+        // 들어오는 게시글·탐색 상세도 미리 걷는다. 상태에 닿기 전 한 프레임 검색바가 스친다.
+        // 홈에서 온 저장 장소(pendingPlace)는 content 모드가 아니라 그대로 보인다
+        hidesTopBar = state.isContentMode || pendingPostId != null || pendingContentDetail != null,
     )
 }
 
@@ -422,6 +431,12 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
     }
 }
 
+// 전체 보기 신호를 인텐트로 올린다. 0 은 첫 조합이라 거른다
+@Composable
+private fun ConsumeShowAll(nonce: Int, onShowAll: () -> Unit) {
+    LaunchedEffect(nonce) { if (nonce > 0) onShowAll() }
+}
+
 // 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
 @Composable
 private fun ReportTabBarHidden(hidden: Boolean, onChange: (Boolean) -> Unit) {
@@ -517,6 +532,8 @@ private class MapTopBarActions(
 private fun MapSheet(
     state: MapState,
     sheetHeight: Dp,
+    // 시트 내용 끝에 둘 여백 (내비게이션 버튼 자리)
+    contentBottomInset: Dp,
     // 들어오는 상세가 상태에 닿기 전에는 저장 목록 대신 빈 자리를 둔다
     incomingDetail: Boolean,
     onIntent: (MapIntent) -> Unit,
@@ -538,6 +555,7 @@ private fun MapSheet(
             },
             onPlaceSelected = { onIntent(MapIntent.OpenPostPlaceDetail(it)) },
             onSessionExpired = onSessionExpired,
+            bottomInset = contentBottomInset,
             modifier = Modifier.height(sheetHeight),
         )
         detail != null -> PlaceDetailSheet(
@@ -547,6 +565,7 @@ private fun MapSheet(
             onClose = { onCloseDetail(detail) },
             onSessionExpired = onSessionExpired,
             onOpenContent = { onIntent(MapIntent.OpenPostDetail(it)) },
+            bottomInset = contentBottomInset,
             modifier = Modifier.height(sheetHeight),
         )
         searchResult != null -> SearchResultSheet(
@@ -554,6 +573,7 @@ private fun MapSheet(
             state = state,
             onIntent = onIntent,
             height = sheetHeight,
+            bottomInset = contentBottomInset,
         )
         else -> MapSheetContent(
             state = state,
@@ -571,7 +591,7 @@ private fun MapBody(
     isActive: Boolean,
     mapBottomInset: Dp,
     pins: List<MapPin>,
-    camera: MapCamera,
+    cameraRequest: MapCameraRequest,
     onPinTap: (String) -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
@@ -583,6 +603,8 @@ private fun MapBody(
     courseButtonTitle: String,
     // 시트 접힘 높이 위에 띄운다
     locationButtonBottom: Dp,
+    // 접힘 시트 윗면의 y. 지도가 목표 좌표를 이 자리의 초점에 놓는다
+    collapsedSheetTopPx: Float,
     actions: MapTopBarActions,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -594,7 +616,8 @@ private fun MapBody(
                 .padding(bottom = mapBottomInset),
             isActive = isActive,
             pins = pins,
-            camera = camera,
+            cameraRequest = cameraRequest,
+            collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
         )
         if (showsLocationButton) {
@@ -614,7 +637,7 @@ private fun MapBody(
                 CurrentLocationButton(onClick = actions.onCurrentLocation)
             }
         }
-        // content 모드(탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
+        // content 모드(게시글 상세·탐색 검색 상세)에선 검색바·칩을 그리지 않는다 (iOS isContentMode 대응)
         if (hideTopBar) return@Box
         Column(
             modifier = Modifier
@@ -703,12 +726,14 @@ private fun SearchResultSheet(
     state: MapState,
     onIntent: (MapIntent) -> Unit,
     height: Dp,
+    bottomInset: Dp,
 ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .height(height)
             .padding(top = 8.dp),
+        contentPadding = PaddingValues(bottom = bottomInset),
     ) {
         items(result.places, key = { it.id }) { place ->
             SearchResultRow(

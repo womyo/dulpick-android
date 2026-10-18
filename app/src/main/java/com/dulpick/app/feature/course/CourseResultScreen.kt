@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,12 +50,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.map.MapRoute
 import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
+import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -70,7 +73,6 @@ import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 import kotlinx.coroutines.launch
 
-private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
 private val SHEET_CORNER_RADIUS = 32.dp
 private const val SKELETON_ROW_COUNT = 3
@@ -129,15 +131,17 @@ fun CourseResultScreen(
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Colors.bgDefault)
             .onSizeChanged { rootHeightPx = it.height },
     ) {
+        // 접힘(초기) 높이는 담는 층(= 화면 전체) 기준이다. 탭바가 없는 화면이라 항상 이 값이다
+        val collapsedSheetHeight = mapSheetMetrics(maxHeight).collapsedHeight
         BottomSheetScaffold(
             scaffoldState = scaffoldState,
-            sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+            sheetPeekHeight = collapsedSheetHeight,
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
@@ -154,7 +158,7 @@ fun CourseResultScreen(
         ) {
             CourseMap(
                 state = state,
-                sheetPeekHeight = (screenHeight * SHEET_PEEK_FRACTION).dp,
+                sheetPeekHeight = collapsedSheetHeight,
                 onBack = { viewModel.onIntent(CourseResultIntent.BackClicked) },
             )
         }
@@ -213,7 +217,7 @@ private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () 
             modifier = Modifier.fillMaxSize().onSizeChanged { mapSize = it },
             pins = pins,
             routes = routes,
-            camera = camera,
+            cameraRequest = MapCameraRequest(camera),
             collapsedSheetTopPx = collapsedSheetTop,
         )
         BackButton(onClick = onBack)

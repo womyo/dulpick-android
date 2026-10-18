@@ -1,11 +1,13 @@
 package com.dulpick.app.feature.map
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
 import com.dulpick.app.domain.place.SavedPlace
@@ -47,8 +49,12 @@ class MapViewModel @Inject constructor(
         when (intent) {
             MapIntent.OnAppear -> load()
             MapIntent.RetryClicked -> retryLoad()
-            is MapIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
-            is MapIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
+            MapIntent.ShowAllSaved -> showAllSaved()
+            // 필터를 바꾸면 남은 목록의 첫 장소로 옮긴다 (iOS ownershipSelected·categoryTapped 와 같다)
+            is MapIntent.OwnershipSelected ->
+                setState { copy(selectedOwnership = intent.ownership).withOverviewCamera() }
+            is MapIntent.CategorySelected ->
+                setState { copy(selectedCategory = intent.category).withOverviewCamera() }
             is MapIntent.DeleteClicked -> delete(intent.id)
             is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
             MapIntent.CloseDetail -> setState { closingPlaceDetail() }
@@ -111,18 +117,26 @@ class MapViewModel @Inject constructor(
             ?.let { intent.places.getOrNull(it) }
             ?.let { DetailTarget(it, query = intent.searchQuery, serverPlaceId = null) }
         setState {
-            copy(
+            val entered = copy(
                 searchResult = SearchResult(intent.searchQuery, intent.displayQuery, intent.places),
                 detail = detail,
                 bookmarkOverrides = emptyMap(),
             )
+            // 고른 장소가 있으면 그 자리를, 없으면 첫 결과를 비춘다 (iOS searchResultsApplied 와 같다)
+            val focus = detail?.place?.coordinate
+            when {
+                focus != null -> entered.focusing(focus)
+                else -> intent.places.firstOrNull()
+                    ?.let { entered.focusing(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
+                    ?: entered
+            }
         }
     }
 
     // 검색 결과 리스트 행 탭 → 상세. 카카오 조회엔 원본 검색어를 쓴다
     private fun openSearchDetail(place: Place) {
         val query = currentState.searchResult?.searchQuery.orEmpty()
-        setState { copy(detail = DetailTarget(place, query = query, serverPlaceId = null)) }
+        setState { copy(detail = DetailTarget(place, query = query, serverPlaceId = null)).focusing(place.coordinate) }
     }
 
     // 검색 결과 행 북마크. 먼저 뒤집고 서버 저장/해제 후 저장목록을 갱신, 실패하면 되돌린다
@@ -156,7 +170,10 @@ class MapViewModel @Inject constructor(
     // 저장 장소는 서버 placeId 로 조회한다(검색어 불필요)
     private fun openSavedDetail(place: SavedPlace) {
         val serverPlaceId = place.place.id.toLongOrNull()
-        setState { copy(detail = DetailTarget(place.place, query = "", serverPlaceId = serverPlaceId)) }
+        setState {
+            copy(detail = DetailTarget(place.place, query = "", serverPlaceId = serverPlaceId))
+                .focusing(place.place.coordinate)
+        }
     }
 
     // 탐색 검색에서 온 장소. 상세 전용(content) 모드 — 검색바 없이 그 장소 핀+상세만 (iOS mode=.content 대응)
@@ -165,7 +182,7 @@ class MapViewModel @Inject constructor(
             copy(
                 searchResult = null,
                 detail = DetailTarget(place, query = query, serverPlaceId = null, contentMode = true),
-            )
+            ).focusing(place.coordinate)
         }
     }
 
@@ -175,7 +192,7 @@ class MapViewModel @Inject constructor(
             copy(
                 searchResult = null,
                 detail = DetailTarget(place, query = "", serverPlaceId = place.id.toLongOrNull()),
-            )
+            ).focusing(place.coordinate)
         }
     }
 
@@ -237,6 +254,21 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    // 검색·필터를 풀고 저장 목록 전체를 비춘다 (iOS showAllSaved = searchClearTapped + filtersReset).
+    // 열려 있는 상세·게시글 시트는 닫지 않는다 — 그건 X 버튼의 일이다.
+    // 시트가 떠 있으면 카메라도 그대로 둬, 뒤에서 지도만 움직이는 모양이 되지 않게 한다
+    private fun showAllSaved() {
+        setState {
+            val reset = copy(
+                searchResult = null,
+                bookmarkOverrides = emptyMap(),
+                selectedCategory = null,
+                selectedOwnership = PlaceOwnership.TOGETHER,
+            )
+            if (reset.showsSavedOverview) reset.withOverviewCamera() else reset
+        }
+    }
+
     // 실패를 다시 시도한다. 빈 목록으로 두지 않고 로딩부터 다시 보여준다
     private fun retryLoad() {
         setState { copy(isLoading = true, loadFailed = false) }
@@ -244,10 +276,18 @@ class MapViewModel @Inject constructor(
     }
 
     private fun loadPlaces() {
+        // 응답을 기다리는 동안 내 위치·상세 등으로 카메라가 정해졌는지 보는 기준
+        val nonceBeforeLoad = currentState.cameraNonce
         viewModelScope.launch {
             try {
                 val places = placeRepository.savedPlaces()
-                setState { copy(places = places, isLoading = false, loadFailed = false) }
+                setState {
+                    val loaded = copy(places = places, isLoading = false, loadFailed = false)
+                    // 게시글·상세·검색을 보는 중이거나, 기다리는 동안 카메라가 정해졌으면 뺏지 않는다
+                    // (iOS savedPlacesResponse 와 같은 자리에 늦은 응답 보호를 더한 것이다)
+                    val keepsCamera = !loaded.showsSavedOverview || loaded.cameraNonce != nonceBeforeLoad
+                    if (keepsCamera) loaded else loaded.withOverviewCamera()
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {

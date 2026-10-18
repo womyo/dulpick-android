@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -34,6 +35,9 @@ fun CtaContainer(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Colors.bgDefault)
+                // 내비게이션 영역(3버튼 48dp·제스처 24dp 쯤)만큼 버튼을 올린다.
+                // 배경을 먼저 깔아 바닥까지 채우고 내용만 밀어 올린다
+                .navigationBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {

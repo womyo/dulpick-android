@@ -1,5 +1,6 @@
 package com.dulpick.app.feature.map
 
+import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.domain.place.Place
 
 // 지도 위 두 상세(장소·게시글)를 여닫는 상태 전이. 뷰모델이 커지지 않게 여기에 모은다
@@ -16,7 +17,10 @@ fun MapState.openingPostDetail(contentId: String, returnsOnClose: Boolean): MapS
 // 지금 열린 게시글의 것일 때만 올린다 — 앞 게시글의 응답이 늦게 닿으면 남의 핀을 그리게 된다
 fun MapState.withPostPlaces(contentId: String, places: List<Place>): MapState {
     if (postDetail?.contentId != contentId) return this
-    return copy(postDetail = postDetail.copy(places = places))
+    val applied = copy(postDetail = postDetail.copy(places = places))
+    // 카메라는 맨 첫 장소를 가운데로 둔다 (iOS contentPlacesApplied 와 같다)
+    val first = places.firstOrNull() ?: return applied
+    return applied.focusing(first.coordinate, MapCamera.MULTI_PLACE_ZOOM)
 }
 
 // 게시글 속 장소 행 탭. 핀 탭과 똑같이 그 장소 상세를 위에 얹는다
@@ -25,12 +29,16 @@ fun MapState.openingPostPlaceDetail(placeId: String): MapState {
     return copy(
         detail = DetailTarget(place, query = "", serverPlaceId = place.id.toLongOrNull()),
         topDetail = TopDetail.PLACE,
-    )
+    ).focusing(place.coordinate)
 }
 
 // 게시글을 닫는다. 아래에 장소 상세가 남아 있으면 그 자리로 돌아간다
-fun MapState.closingPostDetail(): MapState =
-    copy(postDetail = null, topDetail = if (detail != null) TopDetail.PLACE else null)
+fun MapState.closingPostDetail(): MapState {
+    val closed = copy(postDetail = null, topDetail = if (detail != null) TopDetail.PLACE else null)
+    // 아래 장소 상세가 드러나면 그 장소를 다시 비춘다 (iOS modeRestored 와 같다)
+    val place = closed.detail?.place ?: return closed
+    return closed.focusing(place.coordinate, MapCamera.MULTI_PLACE_ZOOM)
+}
 
 // 장소 상세를 닫는다. 아래에 게시글 상세가 남아 있으면 그 자리로 돌아간다
 fun MapState.closingPlaceDetail(): MapState =

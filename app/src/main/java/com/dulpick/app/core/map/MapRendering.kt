@@ -28,7 +28,8 @@ internal fun RenderMap(
     kakaoMap: KakaoMap?,
     revision: Int,
     pins: List<MapPin>,
-    camera: MapCamera?,
+    // 보여줄 자리와 요청 번호. 자리가 같아도 번호가 다르면 다시 옮긴다
+    cameraRequest: MapCameraRequest?,
     // 접힘 시트 윗면의 y 픽셀. 0 이면 목표 좌표를 화면 한가운데에 둔다
     collapsedSheetTopPx: Float,
 ) {
@@ -44,9 +45,9 @@ internal fun RenderMap(
         renderPins(map, pins)
     }
 
-    LaunchedEffect(kakaoMap, revision, camera) {
+    LaunchedEffect(kakaoMap, revision, cameraRequest) {
         val map = kakaoMap ?: return@LaunchedEffect
-        val target = camera ?: return@LaunchedEffect
+        val target = cameraRequest?.camera ?: return@LaunchedEffect
         // 새 목표가 왔으니 앞서 사용자가 움직인 기록은 지운다
         userMovedCamera.set(false)
         moveUntilSettled(map, target, collapsedSheetTopPx, userMovedCamera)

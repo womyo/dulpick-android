@@ -45,7 +45,7 @@ fun KakaoMapView(
     // 코스 순서를 잇는 선
     routes: List<MapRoute> = emptyList(),
     // 지도가 보여줄 자리. null 이면 카메라를 건드리지 않는다
-    camera: MapCamera? = null,
+    cameraRequest: MapCameraRequest? = null,
     // 이 뷰가 화면 전체를 덮는다고 보고, 접힘 시트 윗면의 y 픽셀을 받는다.
     // 목표 좌표를 그 자리의 초점에 놓는다. 0 이면 화면 한가운데다
     collapsedSheetTopPx: Float = 0f,
@@ -128,7 +128,7 @@ fun KakaoMapView(
     }
 
     HandlePinTaps(kakaoMap, pins, onPinTap)
-    RenderMap(kakaoMap, renderRevision, pins, camera, collapsedSheetTopPx)
+    RenderMap(kakaoMap, renderRevision, pins, cameraRequest, collapsedSheetTopPx)
     RenderRoutes(kakaoMap, renderRevision, routes)
 
     // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다.

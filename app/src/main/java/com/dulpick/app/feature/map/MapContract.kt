@@ -1,10 +1,10 @@
 package com.dulpick.app.feature.map
 
+import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.course.DateCourseSummary
-import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
@@ -32,8 +32,12 @@ data class MapState(
     val detail: DetailTarget? = null,
     // 진행 중인 데이트 코스. 있으면 코스 버튼이 '보러가기' 가 된다
     val currentCourse: DateCourseSummary? = null,
-    // 내 위치 버튼이 잡은 좌표. 지도가 이 좌표로 카메라를 옮긴다
-    val currentLocation: CurrentLocation? = null,
+    // 지도가 보여줄 자리. 이벤트가 생길 때마다 갈아 끼운다 (iOS MapFeature.camera 대응)
+    val camera: MapCamera = MapCamera.SEOUL_CITY_HALL,
+    // 카메라를 정한 횟수. 값이 같아도 올라가 지도가 다시 그 자리로 간다.
+    // iOS 는 사용자가 지도를 움직인 자리를 state.camera 에 담아 값이 저절로 달라지는데,
+    // 안드로이드는 제스처를 상태로 올리지 않아 이 번호가 그 역할을 한다
+    val cameraNonce: Long = 0,
     // 위치 권한 설정 안내 모달 표시 여부
     val showsLocationPermissionModal: Boolean = false,
     // null 이 아니면 게시글 상세 시트를 띄운다. 장소 상세와 함께 있을 수 있다 (iOS postDetail 대응)
@@ -55,13 +59,14 @@ data class MapState(
         get() = if (currentCourse == null) "데이트 코스 짜러가기" else "데이트 코스 보러가기"
 
 
+    // 게시글 핀 모드 여부. 이때는 지도 검색바·필터 칩을 감춘다 (iOS isContentMode 대응).
+    // 게시글 상세가 열려 있는 동안은 그 위에 장소 상세가 얹혀도 계속 모드가 유지된다
+    val isContentMode: Boolean
+        get() = detail?.contentMode == true || postDetail != null
+
     // 위에 보일 시트가 게시글 상세인지. 둘 다 있으면 나중에 연 쪽이 이긴다
     val showsPostDetail: Boolean
         get() = postDetail != null && (detail == null || topDetail == TopDetail.POST)
-
-    // 게시글 핀을 그릴지. 상세를 받아오기 전에는 원래 핀을 그대로 둔다
-    val showsPostPins: Boolean
-        get() = postDetail != null && postDetail.places.isNotEmpty()
 
     // 저장한 장소 자체가 없다(필터 때문에 빈 것과 문구가 다르다)
     val hasNoSavedPlace: Boolean get() = !isLoading && places.isEmpty()
@@ -78,8 +83,6 @@ data class MapState(
 }
 
 // 내 위치로 옮길 카메라 목표. nonce 로 같은 좌표를 다시 눌러도 카메라가 움직인다
-data class CurrentLocation(val coordinate: Coordinate, val nonce: Long)
-
 // 지도 검색 결과 모드 상태. searchQuery 는 상세 조회용 원본, displayQuery 는 검색바 표시용
 data class SearchResult(
     val searchQuery: String,
@@ -152,6 +155,8 @@ sealed interface MapIntent : UiIntent {
     data class OpenContentDetail(val place: Place, val query: String) : MapIntent
     data object CloseDetail : MapIntent
     // 내 위치 버튼. 권한 상태에 따라 요청·조회·안내로 갈린다
+    // 지도 탭을 고르거나 홈 전체보기로 들어왔다. 검색·필터를 풀고 전체를 비춘다 (iOS showAllSaved 대응)
+    data object ShowAllSaved : MapIntent
     data object CurrentLocationClicked : MapIntent
     // 권한 요청 결과. granted 면 좌표를 조회하고, 영구 거부면 설정 안내를 띄운다
     data class LocationPermissionResult(val granted: Boolean, val permanentlyDenied: Boolean) : MapIntent

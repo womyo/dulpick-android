@@ -25,7 +25,8 @@ fun DateTypeTooltip(text: String) {
         modifier = Modifier.width(262.dp),
         horizontalAlignment = Alignment.End,
     ) {
-        UpArrow(modifier = Modifier.padding(end = 24.dp))
+        // 화살표 중심이 말풍선 오른쪽 끝에서 31 (iOS arrowTrailingInset). 폭 18 의 절반을 뺀 값이 끝 여백이다
+        UpArrow(modifier = Modifier.padding(end = 22.dp))
         Text(
             text = text,
             style = Typography.caption2M,

@@ -1,5 +1,6 @@
 package com.dulpick.app.feature.map
 
+import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.domain.location.LocationAuthorization
 import com.dulpick.app.domain.location.LocationRepository
 import kotlinx.coroutines.CancellationException
@@ -48,7 +49,7 @@ class MapLocationController(
         scope.launch {
             try {
                 val coordinate = repository.currentCoordinate()
-                update { copy(currentLocation = CurrentLocation(coordinate, System.nanoTime())) }
+                update { focusing(coordinate, MapCamera.SINGLE_PLACE_ZOOM) }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {

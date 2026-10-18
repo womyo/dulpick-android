@@ -78,6 +78,8 @@ fun MainTabScreen(
     var detailReturnTab by remember { mutableStateOf<String?>(null) }
     // 지도에 검색 결과·장소 상세 시트가 떠 있는지. 떠 있으면 탭바를 감춘다
     var mapHidesTabBar by remember { mutableStateOf(false) }
+    // 지도 탭을 고르거나 홈 전체보기로 들어올 때 올린다. 지도가 이 값이 바뀌면 필터를 풀고 전체를 비춘다
+    var mapShowAllNonce by remember { mutableStateOf(0) }
     // 탭 전환. 같은 탭 재선택은 무시하고 각 탭 스택 상태를 보존한다
     val navigateToTab: (String) -> Unit = { route ->
         tabNavController.navigate(route) {
@@ -85,6 +87,13 @@ fun MainTabScreen(
             launchSingleTop = true
             restoreState = true
         }
+    }
+
+    // 탭바에서 탭을 고르는 길. 지도를 고르면 전체 보기 신호도 함께 올린다 (iOS showAllSaved 대응).
+    // 상세를 들고 들어오는 길은 이 함수를 쓰지 않아 필터·카메라가 그대로 남는다
+    val selectTab: (String) -> Unit = { route ->
+        if (route == MainTab.MAP.route) mapShowAllNonce++
+        navigateToTab(route)
     }
 
     // 지도 탭 여부. 지도는 이 값으로 재생/멈춤을 가른다
@@ -114,6 +123,7 @@ fun MainTabScreen(
             onLoggedOut = onLoggedOut,
             actions = actions,
             navigateToTab = navigateToTab,
+            onSelectTab = selectTab,
             currentDestination = currentDestination,
             tabBarHeight = tabBarHeight,
             search = MapTabSearch(
@@ -128,6 +138,7 @@ fun MainTabScreen(
                 onPlaceChange = { pendingMapPlace = it },
                 postId = pendingPostId,
                 onPostIdChange = { pendingPostId = it },
+                showAllNonce = mapShowAllNonce,
                 detailReturnTab = detailReturnTab,
                 onDetailReturnTabChange = { detailReturnTab = it },
             ),
@@ -146,6 +157,8 @@ private fun MainTabNavHost(
     onLoggedOut: () -> Unit,
     actions: MainTabActions,
     navigateToTab: (String) -> Unit,
+    // 탭바에서 탭을 고를 때. 지도를 고르면 전체 보기 신호까지 올린다
+    onSelectTab: (String) -> Unit,
     currentDestination: NavDestination?,
     tabBarHeight: Dp,
     mapSheetState: BottomSheetScaffoldState,
@@ -172,6 +185,7 @@ private fun MainTabNavHost(
         mapSheetState = mapSheetState,
         onLoggedOut = onLoggedOut,
         navigateToTab = navigateToTab,
+        onSelectTab = onSelectTab,
         currentDestination = currentDestination,
         tabNavController = tabNavController,
         actions = actions,
@@ -188,7 +202,18 @@ private fun MainTabNavHost(
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { ExitTransition.None },
     ) {
-        MainTab.entries.forEach { tab ->
+        // 지도는 아래층이 그린다. 이 자리는 비워 둬야 그 지도가 보인다.
+        // 크기는 화면만큼 채운다 — 크기 0 으로 두면 탭을 옮길 때마다
+        // NavHost 가 담는 칸 크기를 애니메이션해 화면이 위아래로 흔들린다.
+        // 투명한 자리라 손짓은 아래 지도로 그대로 간다.
+        //
+        // 전환은 걸지 않는다. 투명한 자리를 밀어 넣어도 덮을 게 없어 애니메이션이 끝날 때까지
+        // 지도가 도착하지 않은 것처럼 보인다. 검색에서 들어올 때도 홈·탐색에서 게시글 상세로
+        // 들어갈 때처럼 즉시 바뀌고, 상세 시트가 올라오는 것만 보인다
+        composable(route = MainTab.MAP.route) {
+            Spacer(modifier = Modifier.fillMaxSize())
+        }
+        MainTab.entries.filter { it != MainTab.MAP }.forEach { tab ->
             composable(
                 route = tab.route,
                 // 탭 전환은 즉시. 검색 화면과 주고받을 때만 다른 화면 push/pop 과 같은 전환을 쓴다
@@ -197,24 +222,17 @@ private fun MainTabNavHost(
                 popEnterTransition = { fromSearch { slideInHorizontally { -it / PARALLAX_DIVISOR } } },
                 popExitTransition = { toSearch { slideOutHorizontally { it } } },
             ) {
-                // 지도는 아래층이 그린다. 이 자리는 비워 둬야 그 지도가 보인다.
-                // 크기는 화면만큼 채운다 — 크기 0 으로 두면 탭을 옮길 때마다
-                // NavHost 가 담는 칸 크기를 애니메이션해 화면이 위아래로 흔들린다.
-                // 투명한 자리라 손짓은 아래 지도로 그대로 간다
-                if (tab == MainTab.MAP) {
-                    Spacer(modifier = Modifier.fillMaxSize())
-                    return@composable
-                }
                 // 탭바를 탭 화면 안에 둔다. 그래야 검색 화면이 밀려 들어올 때 탭바가 화면과 함께 밀린다
                 TabWithBottomBar(
                     showBar = true,
                     currentDestination = currentDestination,
-                    onSelectTab = navigateToTab,
+                    onSelectTab = onSelectTab,
                 ) {
                 when (tab) {
                     MainTab.HOME -> HomeTab(
                         onLoggedOut = onLoggedOut,
                         navigateToTab = navigateToTab,
+                        onShowAllSaved = { onSelectTab(MainTab.MAP.route) },
                         actions = actions,
                         pending = pending,
                     )
@@ -256,6 +274,8 @@ private fun MainTabNavHost(
 private fun HomeTab(
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
+    // 전체보기. 지도 탭으로 옮기면서 필터를 풀고 전체를 비추게 한다
+    onShowAllSaved: () -> Unit,
     actions: MainTabActions,
     pending: MapTabPending,
 ) {
@@ -270,8 +290,8 @@ private fun HomeTab(
         onOpenPastDates = actions.onOpenPastDates,
         onOpenCourse = actions.onOpenCourse,
         onOpenPastCourse = actions.onOpenPastCourse,
-        // 전체보기 → 지도 탭 이동만
-        onOpenMap = { navigateToTab(MainTab.MAP.route) },
+        // 전체보기 → 지도 탭으로 옮기고 필터를 풀어 전체를 비춘다 (iOS showAllSavedPlaces 대응)
+        onOpenMap = onShowAllSaved,
         // 장소 클릭 → 지도 탭 이동 + 그 장소 상세
         onOpenPlaceOnMap = { place ->
             pending.onPlaceChange(place)
@@ -294,6 +314,7 @@ private fun MapTabLayer(
     mapSheetState: BottomSheetScaffoldState,
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
+    onSelectTab: (String) -> Unit,
     currentDestination: NavDestination?,
     tabNavController: androidx.navigation.NavHostController,
     actions: MainTabActions,
@@ -304,7 +325,7 @@ private fun MapTabLayer(
     TabWithBottomBar(
         showBar = isCurrent && !hideBar,
         currentDestination = currentDestination,
-        onSelectTab = navigateToTab,
+        onSelectTab = onSelectTab,
     ) {
         MapTab(
             isActive = isCurrent,
@@ -339,6 +360,8 @@ private data class MapTabPending(
     val onPostIdChange: (String?) -> Unit,
     val detailReturnTab: String?,
     val onDetailReturnTabChange: (String?) -> Unit,
+    // 지도 탭을 고르거나 전체보기로 들어올 때마다 올라가는 값
+    val showAllNonce: Int,
 ) {
     // 다른 탭·화면에서 상세를 들고 들어오는 중인지. 지도가 알려주는 값은 한 프레임 늦어,
     // 그사이 탭바가 있었다 없어지며 담는 칸이 커져 시트가 탭바 높이만큼 자리를 다시 잡는다.
@@ -385,6 +408,7 @@ private fun MapTab(
         onPlaceConsumed = { pending.onPlaceChange(null) },
         pendingPostId = pending.postId,
         onPostConsumed = { pending.onPostIdChange(null) },
+        showAllNonce = pending.showAllNonce,
         // 탭에서 왔으면 그 탭으로, 검색 화면에서 왔으면 pop 한다
         onClosePostDetail = {
             val tab = pending.detailReturnTab
@@ -414,8 +438,12 @@ private fun androidx.navigation.NavGraphBuilder.exploreSearchDestination(
     composable(
         route = EXPLORE_SEARCH_ROUTE,
         enterTransition = { slideInHorizontally { it } },
-        exitTransition = { slideOutHorizontally { -it / PARALLAX_DIVISOR } },
-        popEnterTransition = { slideInHorizontally { -it / PARALLAX_DIVISOR } },
+        // 앞으로 나가는 길은 지도(상세)뿐이다. 그 지도는 아래층에 이미 떠 있어 밀려 들어올 화면이
+        // 없으므로 이 화면도 즉시 사라진다 — 홈·탐색에서 게시글 상세로 들어갈 때와 같은 모양
+        exitTransition = { ExitTransition.None },
+        // 상세를 닫고(X) 돌아오는 길도 같다. 지도는 그 자리에서 사라질 뿐 밀려 나가지 않으므로
+        // 이 화면도 즉시 제자리로 돌아온다
+        popEnterTransition = { EnterTransition.None },
         popExitTransition = { slideOutHorizontally { it } },
     ) {
         SearchScreen(

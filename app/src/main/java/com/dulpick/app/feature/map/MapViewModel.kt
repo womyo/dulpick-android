@@ -276,14 +276,17 @@ class MapViewModel @Inject constructor(
     }
 
     private fun loadPlaces() {
+        // 응답을 기다리는 동안 내 위치·상세 등으로 카메라가 정해졌는지 보는 기준
+        val nonceBeforeLoad = currentState.cameraNonce
         viewModelScope.launch {
             try {
                 val places = placeRepository.savedPlaces()
                 setState {
                     val loaded = copy(places = places, isLoading = false, loadFailed = false)
-                    // 게시글·상세·검색을 보는 중이면 저장 목록 로딩이 카메라를 뺏지 않는다
-                    // (iOS savedPlacesResponse 와 같다)
-                    if (loaded.showsSavedOverview) loaded.withOverviewCamera() else loaded
+                    // 게시글·상세·검색을 보는 중이거나, 기다리는 동안 카메라가 정해졌으면 뺏지 않는다
+                    // (iOS savedPlacesResponse 와 같은 자리에 늦은 응답 보호를 더한 것이다)
+                    val keepsCamera = !loaded.showsSavedOverview || loaded.cameraNonce != nonceBeforeLoad
+                    if (keepsCamera) loaded else loaded.withOverviewCamera()
                 }
             } catch (error: CancellationException) {
                 throw error

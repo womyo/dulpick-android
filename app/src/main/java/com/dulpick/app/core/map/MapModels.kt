@@ -48,6 +48,10 @@ class MapPin(
 // 코스 순서를 잇는 선 (iOS MapRoute 대응)
 data class MapRoute(val id: String, val coordinates: List<Coordinate>)
 
+// 지도에 보내는 카메라 요청. 자리가 같아도 nonce 가 다르면 다시 옮긴다 —
+// 사용자가 손으로 지도를 옮긴 뒤 같은 자리를 다시 요청하는 경우를 위해 둔다
+data class MapCameraRequest(val camera: MapCamera, val nonce: Long = 0)
+
 // 지도가 보여줄 자리 (iOS MapCamera 대응)
 data class MapCamera(val center: Coordinate, val zoomLevel: Int) {
     companion object {

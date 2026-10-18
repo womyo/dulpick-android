@@ -12,10 +12,11 @@ import com.dulpick.app.domain.place.Coordinate
 // 그 좌표를 보여 준다. 줌을 적지 않으면 보던 배율을 지킨다 —
 // 상세로 들어갈 때 확대하면 보던 지도가 달라져 방향을 잃는다 (iOS rowTapped·presentPlaceDetail 과 같은 규칙)
 fun MapState.focusing(coordinate: Coordinate, zoomLevel: Int = camera.zoomLevel): MapState =
-    copy(camera = MapCamera(coordinate, zoomLevel))
+    copy(camera = MapCamera(coordinate, zoomLevel), cameraNonce = cameraNonce + 1)
 
 // 저장 목록 전체를 비추는 자리로 옮긴다 (iOS overview(of:) 대응)
-fun MapState.withOverviewCamera(): MapState = copy(camera = overviewCamera())
+fun MapState.withOverviewCamera(): MapState =
+    copy(camera = overviewCamera(), cameraNonce = cameraNonce + 1)
 
 // 상세·게시글·검색 중이 아닌, 저장 목록을 그대로 보고 있는 상태인지.
 // 이때만 저장 목록 로딩·필터가 카메라를 옮긴다 (iOS mode == .saved && selectedPlace == nil)

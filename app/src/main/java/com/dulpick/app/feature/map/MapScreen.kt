@@ -47,7 +47,7 @@ import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
-import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
@@ -199,7 +199,7 @@ fun MapScreen(
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
-                camera = state.camera,
+                cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
@@ -591,7 +591,7 @@ private fun MapBody(
     isActive: Boolean,
     mapBottomInset: Dp,
     pins: List<MapPin>,
-    camera: MapCamera,
+    cameraRequest: MapCameraRequest,
     onPinTap: (String) -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
@@ -616,7 +616,7 @@ private fun MapBody(
                 .padding(bottom = mapBottomInset),
             isActive = isActive,
             pins = pins,
-            camera = camera,
+            cameraRequest = cameraRequest,
             collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
         )

@@ -34,6 +34,10 @@ data class MapState(
     val currentCourse: DateCourseSummary? = null,
     // 지도가 보여줄 자리. 이벤트가 생길 때마다 갈아 끼운다 (iOS MapFeature.camera 대응)
     val camera: MapCamera = MapCamera.SEOUL_CITY_HALL,
+    // 카메라를 정한 횟수. 값이 같아도 올라가 지도가 다시 그 자리로 간다.
+    // iOS 는 사용자가 지도를 움직인 자리를 state.camera 에 담아 값이 저절로 달라지는데,
+    // 안드로이드는 제스처를 상태로 올리지 않아 이 번호가 그 역할을 한다
+    val cameraNonce: Long = 0,
     // 위치 권한 설정 안내 모달 표시 여부
     val showsLocationPermissionModal: Boolean = false,
     // null 이 아니면 게시글 상세 시트를 띄운다. 장소 상세와 함께 있을 수 있다 (iOS postDetail 대응)

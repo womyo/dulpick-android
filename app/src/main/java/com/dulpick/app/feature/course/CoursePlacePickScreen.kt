@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
@@ -161,9 +162,11 @@ fun CoursePlacePickScreen(
                     pins = pins,
                     // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
                     collapsedSheetTopPx = sheet.collapsedTopPx,
-                    camera = pins.firstOrNull()
-                        ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
-                        ?: MapCamera.SEOUL_CITY_HALL,
+                    cameraRequest = MapCameraRequest(
+                        pins.firstOrNull()
+                            ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
+                            ?: MapCamera.SEOUL_CITY_HALL,
+                    ),
                     // 핀 탭도 목록 행 탭과 같은 토글이다 (iOS markerTapped 대응)
                     onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PlaceToggled(it)) },
                 )

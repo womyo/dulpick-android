@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.map.MapRoute
 import com.dulpick.app.core.map.MapZoom
@@ -216,7 +217,7 @@ private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () 
             modifier = Modifier.fillMaxSize().onSizeChanged { mapSize = it },
             pins = pins,
             routes = routes,
-            camera = camera,
+            cameraRequest = MapCameraRequest(camera),
             collapsedSheetTopPx = collapsedSheetTop,
         )
         BackButton(onClick = onBack)

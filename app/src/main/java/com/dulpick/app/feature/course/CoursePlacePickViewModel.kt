@@ -11,6 +11,7 @@ import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseContent
 import com.dulpick.app.domain.place.Coordinate
+import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -33,22 +34,43 @@ class CoursePlacePickViewModel @Inject constructor(
     // 낙관적 락 번호(version)도 여기서 본다
     private var course: DateCourse? = null
 
+    // 시트의 장소 검색. 상태·효과만 넘겨 받아 스스로 처리한다
+    private val search = CoursePlaceSearchController(
+        repository = courseRepository,
+        scope = viewModelScope,
+        state = { currentState },
+        update = { reducer -> setState(reducer) },
+        effect = { postSideEffect(it) },
+    )
+
     override fun onIntent(intent: CoursePlacePickIntent) {
         when (intent) {
             is CoursePlacePickIntent.Start -> start(intent)
             CoursePlacePickIntent.RetryClicked -> load()
-            is CoursePlacePickIntent.OwnershipSelected ->
-                setState { copy(selectedOwnership = intent.ownership) }
-            is CoursePlacePickIntent.CategorySelected ->
-                setState { copy(selectedCategory = intent.category) }
+            is CoursePlacePickIntent.OwnershipSelected -> selectOwnership(intent.ownership)
+            is CoursePlacePickIntent.CategorySelected -> selectCategory(intent.category)
             is CoursePlacePickIntent.RowClicked -> clickRow(intent.id)
             is CoursePlacePickIntent.PinTapped -> tapPin(intent.markerId)
-            // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
-            CoursePlacePickIntent.BuildClicked ->
-                if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
+            CoursePlacePickIntent.BuildClicked -> build()
             CoursePlacePickIntent.ConflictDismissed -> setState { copy(conflictMessage = null) }
             CoursePlacePickIntent.BackClicked -> postSideEffect(CoursePlacePickSideEffect.Dismissed)
+            else -> search.onIntent(intent)
         }
+    }
+
+    // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
+    private fun build() {
+        if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
+    }
+
+    private fun selectOwnership(ownership: PlaceOwnership) {
+        setState { copy(selectedOwnership = ownership) }
+        search.onFilterChanged()
+    }
+
+    private fun selectCategory(category: PlaceCategory?) {
+        setState { copy(selectedCategory = category) }
+        search.onFilterChanged()
     }
 
     private fun start(intent: CoursePlacePickIntent.Start) {

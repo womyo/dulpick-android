@@ -38,6 +38,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.course.DateCourse
@@ -202,6 +203,7 @@ private fun InfoSection(state: CourseEditState, onIntent: (CourseEditIntent) -> 
             value = state.title,
             onValueChange = { onIntent(CourseEditIntent.TitleChanged(it)) },
             placeholder = "데이트명 입력",
+            modifier = Modifier.analyticsMasked(),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             CourseInputField(

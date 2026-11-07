@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
@@ -138,7 +139,9 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, onSubmit
                 modifier = Modifier.size(20.dp),
             )
         },
-        modifier = Modifier.padding(horizontal = HORIZONTAL_PADDING, vertical = 20.dp),
+        modifier = Modifier
+            .padding(horizontal = HORIZONTAL_PADDING, vertical = 20.dp)
+            .analyticsMasked(),
     )
 }
 
@@ -199,7 +202,9 @@ private fun RecentChip(term: String, onTap: () -> Unit, onDelete: () -> Unit) {
             text = term,
             style = Typography.body1M,
             color = Colors.textTertiary,
-            modifier = Modifier.clickable(onClick = onTap),
+            modifier = Modifier
+                .clickable(onClick = onTap)
+                .analyticsMasked(),
         )
         Image(
             painter = painterResource(R.drawable.x),

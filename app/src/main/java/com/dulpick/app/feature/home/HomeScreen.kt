@@ -35,6 +35,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.home.DateSchedule
@@ -175,7 +176,9 @@ private fun RecommendationSection(state: HomeState, onIntent: (HomeIntent) -> Un
             // 닉네임 로드 전 빈 값이 그려졌다 리플로우되는 걸 막고, 자리만 잡아둔다
             modifier = Modifier
                 .padding(horizontal = HORIZONTAL_PADDING)
-                .alpha(if (state.didLoadSummary) 1f else 0f),
+                .alpha(if (state.didLoadSummary) 1f else 0f)
+                // 닉네임이 문장에 섞여 있다. 떼어내면 줄바꿈을 잃어 제목 줄째로 가린다
+                .analyticsMasked(),
         )
 
         if (!state.didLoadRecommendations) {

@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -40,7 +41,12 @@ fun HomeHeader(nickname: String, partnerName: String?, onCalendarClick: () -> Un
             modifier = Modifier.padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = nickname, style = Typography.body2M, color = Colors.textInverse)
+            Text(
+                text = nickname,
+                style = Typography.body2M,
+                color = Colors.textInverse,
+                modifier = Modifier.analyticsMasked(),
+            )
             if (partnerName != null) {
                 Image(
                     painter = painterResource(R.drawable.heart),
@@ -50,7 +56,12 @@ fun HomeHeader(nickname: String, partnerName: String?, onCalendarClick: () -> Un
                         .padding(horizontal = 2.dp)
                         .size(20.dp),
                 )
-                Text(text = partnerName, style = Typography.body2M, color = Colors.textInverse)
+                Text(
+                    text = partnerName,
+                    style = Typography.body2M,
+                    color = Colors.textInverse,
+                    modifier = Modifier.analyticsMasked(),
+                )
             }
         }
 

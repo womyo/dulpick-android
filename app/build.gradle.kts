@@ -103,6 +103,9 @@ android {
             manifestPlaceholders["kakaoNativeAppKey"] = kakaoKey
             buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoKey\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID_DEBUG")}\"")
+            // 분석 키는 비어 있으면 초기화를 건너뛴다. 디버그에서 대시보드를 더럽히지 않으려면 비워 둔다
+            buildConfigField("String", "CLARITY_PROJECT_ID", "\"${secret("CLARITY_PROJECT_ID_DEBUG")}\"")
+            buildConfigField("String", "MIXPANEL_PROJECT_TOKEN", "\"${secret("MIXPANEL_PROJECT_TOKEN_DEBUG")}\"")
         }
         release {
             applicationIdSuffix = ".app"
@@ -121,6 +124,8 @@ android {
             manifestPlaceholders["kakaoNativeAppKey"] = kakaoKey
             buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoKey\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID_RELEASE")}\"")
+            buildConfigField("String", "CLARITY_PROJECT_ID", "\"${secret("CLARITY_PROJECT_ID_RELEASE")}\"")
+            buildConfigField("String", "MIXPANEL_PROJECT_TOKEN", "\"${secret("MIXPANEL_PROJECT_TOKEN_RELEASE")}\"")
         }
     }
     compileOptions {
@@ -188,6 +193,9 @@ dependencies {
     // 푸시 알림 (FCM). google-services.json 이 없으면 런타임에 초기화를 건너뛴다
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    // 세션 녹화(클라리티) · 이벤트 분석(믹스패널). 키가 비면 런타임에 초기화를 건너뛴다
+    implementation(libs.clarity.compose)
+    implementation(libs.mixpanel.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

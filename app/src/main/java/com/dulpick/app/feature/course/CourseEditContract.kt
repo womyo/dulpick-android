@@ -4,17 +4,21 @@ import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.course.DateCourse
+import com.dulpick.app.domain.place.Coordinate
+import com.dulpick.app.domain.place.PlaceCategory
 import java.time.LocalDate
 import java.time.LocalTime
 
 enum class CourseEditLoad { LOADING, LOADED, FAILED }
 
-// 목록에 서는 장소 한 곳. 화면에 찍히는 글자만 담는다 (iOS EditablePlace 대응)
+// 목록에 서는 장소 한 곳 (iOS EditablePlace 대응).
+// 좌표는 장소 추가 화면이 기존 코스를 지도에 그릴 때 쓴다
 data class EditablePlace(
     val id: String,
     val name: String,
-    val category: String,
+    val category: PlaceCategory,
     val address: String,
+    val coordinate: Coordinate,
 )
 
 // 들어올 때의 값. 바뀐 게 있는지 이것과 비교해 가른다 (iOS Snapshot 대응)
@@ -110,8 +114,8 @@ sealed interface CourseEditIntent : UiIntent {
 }
 
 sealed interface CourseEditSideEffect : UiSideEffect {
-    // 이미 담긴 장소를 빼고 고르게 한다
-    data class AddPlaceRequested(val excluding: List<String>) : CourseEditSideEffect
+    // 이미 담긴 장소를 목록에서 빼고, 지도에는 기존 코스로 그리게 한다
+    data class AddPlaceRequested(val existing: List<ExistingCoursePlace>) : CourseEditSideEffect
     data class Saved(val course: DateCourse) : CourseEditSideEffect
     // 상대가 먼저 고쳤다. 결과 화면이 다시 불러와야 한다
     data object Conflicted : CourseEditSideEffect

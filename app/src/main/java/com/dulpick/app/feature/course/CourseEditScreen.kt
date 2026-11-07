@@ -54,6 +54,7 @@ import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppTextField
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.CtaContainer
+import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.component.ModalContent
 import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
@@ -78,7 +79,7 @@ fun CourseEditScreen(
     onSessionExpired: () -> Unit,
     onSaved: (DateCourse) -> Unit,
     onConflicted: () -> Unit,
-    onAddPlace: (excluding: List<String>) -> Unit,
+    onAddPlace: (existing: List<ExistingCoursePlace>) -> Unit,
     // 장소 추가 화면이 돌려준 장소. 반영한 뒤 지운다
     pickedPlaces: String? = null,
     onPickedConsumed: () -> Unit = {},
@@ -92,7 +93,7 @@ fun CourseEditScreen(
             CourseEditSideEffect.SessionExpired -> onSessionExpired()
             CourseEditSideEffect.Conflicted -> onConflicted()
             is CourseEditSideEffect.Saved -> onSaved(effect.course)
-            is CourseEditSideEffect.AddPlaceRequested -> onAddPlace(effect.excluding)
+            is CourseEditSideEffect.AddPlaceRequested -> onAddPlace(effect.existing)
         }
     }
     LaunchedEffect(dateCourseId) {
@@ -234,7 +235,7 @@ private fun PlaceSection(state: CourseEditState, onIntent: (CourseEditIntent) ->
             itemKey = { it.id },
             title = { it.name },
             subtitle = { it.address },
-            category = { it.category },
+            category = { it.category.displayName() },
             onMove = { from, to -> onIntent(CourseEditIntent.PlaceMoved(from, to)) },
             modifier = Modifier.padding(top = 12.dp),
         ) { place ->

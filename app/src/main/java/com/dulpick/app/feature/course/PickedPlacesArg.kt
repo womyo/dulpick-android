@@ -1,5 +1,7 @@
 package com.dulpick.app.feature.course
 
+import com.dulpick.app.domain.place.Coordinate
+import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.SavedPlace
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -16,14 +18,16 @@ data class PickedPlacesArg(
     fun encode(): String = Json.encodeToString(this)
 
     companion object {
-        fun from(places: List<SavedPlace>, category: (SavedPlace) -> String): PickedPlacesArg =
+        fun from(places: List<SavedPlace>): PickedPlacesArg =
             PickedPlacesArg(
                 places = places.map {
                     PickedPlaceArg(
                         id = it.id,
                         name = it.place.name,
-                        category = category(it),
+                        category = it.place.category,
                         address = it.place.roadAddress.ifEmpty { it.place.address },
+                        latitude = it.place.coordinate.latitude,
+                        longitude = it.place.coordinate.longitude,
                     )
                 },
                 nonce = System.nanoTime(),
@@ -38,13 +42,16 @@ data class PickedPlacesArg(
 data class PickedPlaceArg(
     val id: String,
     val name: String,
-    val category: String,
+    val category: PlaceCategory,
     val address: String,
+    val latitude: Double,
+    val longitude: Double,
 ) {
     fun toEditable(): EditablePlace = EditablePlace(
         id = id,
         name = name,
         category = category,
         address = address,
+        coordinate = Coordinate(latitude, longitude),
     )
 }

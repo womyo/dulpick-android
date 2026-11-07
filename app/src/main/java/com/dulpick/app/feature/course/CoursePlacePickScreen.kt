@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,20 +50,19 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.map.KakaoMapView
-import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.feature.course.component.CoursePlaceRow
-import com.dulpick.app.ui.map.candidatePin
 import com.dulpick.app.ui.component.CATEGORY_ORDER
 import com.dulpick.app.ui.component.CATEGORY_PLACEHOLDER
 import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.ui.component.FilterDropdown
 import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
+import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -100,8 +100,8 @@ fun CoursePlacePickScreen(
     // 코스를 처음 짤 때만 있다. 더하기로 열면 null 이다
     dateCourseId: String? = null,
     mode: CoursePlacePickMode = CoursePlacePickMode.CREATE,
-    // 더하기로 열 때 이미 담긴 장소. 목록에서 뺀다
-    excluding: List<String> = emptyList(),
+    // 더하기로 열 때 이미 담긴 장소. 목록에서 빼고 지도에는 기존 코스로 그린다
+    existing: List<ExistingCoursePlace> = emptyList(),
     onBuilt: (dateCourseId: String) -> Unit = {},
     // 더하기로 열렸을 때 고른 장소를 코스 수정 화면으로 돌려준다
     onPicked: (List<SavedPlace>) -> Unit = {},
@@ -123,7 +123,7 @@ fun CoursePlacePickScreen(
         }
     }
     LaunchedEffect(dateCourseId, mode) {
-        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, excluding))
+        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, existing))
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
@@ -156,20 +156,15 @@ fun CoursePlacePickScreen(
                 )
             },
         ) {
-            val pins = coursePins(state)
             Box(modifier = Modifier.fillMaxSize()) {
                 KakaoMapView(
                     modifier = Modifier.fillMaxSize(),
-                    pins = pins,
+                    pins = coursePins(state),
+                    routes = state.routes,
                     // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
                     collapsedSheetTopPx = sheet.collapsedTopPx,
-                    cameraRequest = MapCameraRequest(
-                        pins.firstOrNull()
-                            ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
-                            ?: MapCamera.SEOUL_CITY_HALL,
-                    ),
-                    // 핀 탭도 목록 행 탭과 같은 토글이다 (iOS markerTapped 대응)
-                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PlaceToggled(it)) },
+                    cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
+                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
                 )
                 BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
@@ -206,18 +201,35 @@ fun CoursePlacePickScreen(
     }
 }
 
-// 카테고리 핀을 먼저 두고 고른 물방울을 뒤에 둔다. 지도가 배열 순서로 그려 물방울이 위에 온다.
-// 고른 물방울은 필터를 타지 않는다 — 목록에서 사라져도 핀으로 해제할 수 있어야 한다 (iOS markers 대응)
+// 기존 코스 핀, 목록의 카테고리 핀, 고른 숫자 핀 순서다.
+// 겹침은 배열 순서가 아니라 핀 종류가 정한다 — 숫자 핀이 카테고리 핀 위에 앉는다.
+// 숫자 핀은 필터를 타지 않는다. 목록에서 사라져도 핀으로 뺄 수 있어야 한다 (iOS markers 대응)
 @Composable
 private fun coursePins(state: CoursePlacePickState): List<MapPin> {
     val context = LocalContext.current
+    val existingPins = state.existingPlaces.flatMapIndexed { index, stop ->
+        listOf(
+            placePin(context, CourseMarkerId.existingCategory(stop.id), stop.coordinate, stop.category),
+            numberedPin(
+                context,
+                CourseMarkerId.existingNumbered(stop.id),
+                stop.coordinate,
+                index + 1,
+            ),
+        )
+    }
     val categoryPins = state.filteredPlaces.map {
         placePin(context, it.id, it.place.coordinate, it.place.category)
     }
-    val selectedPins = state.places
-        .filter { it.id in state.selectedPlaceIds }
-        .map { candidatePin(context, it.id, it.place.coordinate) }
-    return categoryPins + selectedPins
+    val numberedPins = state.selectedPlaces.mapIndexed { index, candidate ->
+        numberedPin(
+            context,
+            CourseMarkerId.numbered(candidate.id),
+            candidate.place.coordinate,
+            state.existingPlaces.size + index + 1,
+        )
+    }
+    return existingPins + categoryPins + numberedPins
 }
 
 @Composable
@@ -306,6 +318,7 @@ private fun PlaceList(
 ) {
     val places = state.filteredPlaces
     val listState = rememberLazyListState()
+    ScrollToRequestedRow(request = state.rowScrollRequest, places = places, listState = listState)
     LazyColumn(
         state = listState,
         userScrollEnabled = false,
@@ -319,11 +332,26 @@ private fun PlaceList(
                 place = place,
                 number = state.badgeNumber(place.id),
                 showsDivider = index != places.lastIndex,
-                onClick = { onIntent(CoursePlacePickIntent.PlaceToggled(place.id)) },
+                onClick = { onIntent(CoursePlacePickIntent.RowClicked(place.id)) },
             )
         }
         // 마지막 행이 CTA 버튼에 가리지 않게 비운다
         item { Spacer(modifier = Modifier.height(CTA_COVER_PADDING)) }
+    }
+}
+
+// 핀을 누르면 리듀서가 남긴 요청대로 목록을 그 행까지 올린다.
+// 요청 번호까지 보므로 같은 행을 다시 눌러도 다시 맞춘다. 시트 높이는 건드리지 않는다
+@Composable
+private fun ScrollToRequestedRow(
+    request: RowScrollRequest?,
+    places: List<SavedPlace>,
+    listState: LazyListState,
+) {
+    LaunchedEffect(request) {
+        val target = request ?: return@LaunchedEffect
+        val index = places.indexOfFirst { it.id == target.placeId }
+        if (index >= 0) listState.animateScrollToItem(index)
     }
 }
 

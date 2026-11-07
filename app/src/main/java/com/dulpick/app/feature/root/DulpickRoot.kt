@@ -58,8 +58,8 @@ import com.dulpick.app.feature.course.CourseEditScreen
 import com.dulpick.app.feature.course.CourseReloadReason
 import com.dulpick.app.feature.course.CoursePlacePickMode
 import com.dulpick.app.feature.course.CoursePlacePickScreen
+import com.dulpick.app.feature.course.ExistingPlacesArg
 import com.dulpick.app.feature.course.PickedPlacesArg
-import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.feature.course.CourseResultOrigin
 import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
@@ -489,12 +489,12 @@ private fun NavGraphBuilder.noticeRoutes(navController: NavHostController) {
 }
 
 // 코스 수정 중 장소 더하기(push). 같은 장소 고르기 화면을 더하기 모드로 쓴다.
-// 이미 담긴 장소는 빼고 보여주고, 고른 것만 수정 화면으로 돌려준다
+// 이미 담긴 장소는 목록에서 빼고 지도에 기존 코스로 그리고, 고른 것만 수정 화면으로 돌려준다
 private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING={$ARG_EXCLUDING}",
+        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXISTING={$ARG_EXISTING}",
         arguments = listOf(
-            navArgument(ARG_EXCLUDING) {
+            navArgument(ARG_EXISTING) {
                 type = NavType.StringType
                 defaultValue = ""
             },
@@ -508,12 +508,9 @@ private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController
             onBack = { navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
             mode = CoursePlacePickMode.ADD,
-            excluding = entry.arguments?.getString(ARG_EXCLUDING)
-                .orEmpty()
-                .split(",")
-                .filter { it.isNotBlank() },
+            existing = ExistingPlacesArg.decode(entry.arguments?.getString(ARG_EXISTING).orEmpty()),
             onPicked = { picked ->
-                val arg = PickedPlacesArg.from(picked) { it.place.category.displayName() }
+                val arg = PickedPlacesArg.from(picked)
                 navController.previousBackStackEntry
                     ?.savedStateHandle
                     ?.set(KEY_COURSE_PICKED, arg.encode())
@@ -544,10 +541,9 @@ private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
             // 저장도 충돌도 결과 화면이 서버에서 다시 읽는다. 충돌은 그 사실을 알린다
             onSaved = { navController.popBackWithCourseReload(CourseReloadReason.SAVED) },
             onConflicted = { navController.popBackWithCourseReload(CourseReloadReason.CONFLICT) },
-            onAddPlace = { excluding ->
-                navController.navigate(
-                    "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING=${Uri.encode(excluding.joinToString(","))}",
-                )
+            onAddPlace = { existing ->
+                val arg = Uri.encode(ExistingPlacesArg.from(existing).encode())
+                navController.navigate("$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXISTING=$arg")
             },
             pickedPlaces = picked,
             onPickedConsumed = { entry.savedStateHandle[KEY_COURSE_PICKED] = null },
@@ -626,8 +622,8 @@ internal const val MAIN_NOTICE_ROUTE = "main/notices"
 internal const val MAIN_NOTICE_DETAIL_ROUTE_BASE = "main/notices/detail"
 // 상세로 넘기는 공지 한 건(JSON)
 private const val ARG_NOTICE = "notice"
-// 이미 코스에 담긴 장소 번호를 쉼표로 이어 넘긴다
-private const val ARG_EXCLUDING = "excluding"
+// 이미 코스에 담긴 장소(번호·분류·좌표)를 JSON 으로 넘긴다
+private const val ARG_EXISTING = "existing"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
 
 // 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다

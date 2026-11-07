@@ -41,9 +41,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
-import com.dulpick.app.domain.place.Place
+import com.dulpick.app.core.analytics.analyticsMasked
+import com.dulpick.app.domain.place.PlaceSearchResult
+import com.dulpick.app.domain.place.SavedPlace
+import com.dulpick.app.ui.component.AppToggle
 import com.dulpick.app.ui.component.ShimmerBox
-import com.dulpick.app.ui.component.iconRes
+import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -52,15 +55,18 @@ private const val SKELETON_ROWS = 3
 private val SKELETON_ROW_HEIGHT = 64.dp
 private val FIELD_HEIGHT = 48.dp
 
-// 지도 전용 장소 검색 화면 (iOS PlaceSearchView 대응)
 @Composable
+@Suppress("LongParameterList")
 fun MapSearchScreen(
     onBack: () -> Unit,
-    onSearchConfirmed: (query: String, places: List<Place>) -> Unit,
-    onPlaceSelected: (query: String, place: Place) -> Unit,
+    onSearchConfirmed: (query: String, results: List<PlaceSearchResult>, isSavedOnly: Boolean) -> Unit,
+    onPlaceSelected: (query: String, result: PlaceSearchResult) -> Unit,
+    onSavedPlaceSelected: (SavedPlace) -> Unit,
     onSessionExpired: () -> Unit,
     // 상세에서 뒤로가기로 재진입할 때 넘어온 검색어. 있으면 그 검색어로 곧장 검색해 결과를 복원한다
     initialQuery: String? = null,
+    // 지도에 깔린 결과가 「저장한 곳만 보기」로 찾은 것이면 그 상태로 다시 연다
+    initialSavedOnly: Boolean = false,
     viewModel: MapSearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,13 +74,16 @@ fun MapSearchScreen(
     BackHandler { onBack() }
     CollectSideEffect(viewModel.sideEffect) { effect ->
         when (effect) {
-            is MapSearchSideEffect.SearchConfirmed -> onSearchConfirmed(effect.query, effect.places)
-            is MapSearchSideEffect.PlaceSelected -> onPlaceSelected(effect.query, effect.place)
+            is MapSearchSideEffect.SearchConfirmed ->
+                onSearchConfirmed(effect.query, effect.results, effect.isSavedOnly)
+            is MapSearchSideEffect.PlaceSelected -> onPlaceSelected(effect.query, effect.result)
+            is MapSearchSideEffect.SavedPlaceSelected -> onSavedPlaceSelected(effect.savedPlace)
             MapSearchSideEffect.SessionExpired -> onSessionExpired()
         }
     }
     LaunchedEffect(Unit) {
         viewModel.onIntent(MapSearchIntent.OnAppear)
+        if (initialSavedOnly) viewModel.onIntent(MapSearchIntent.SavedOnlyChanged(true))
         if (!initialQuery.isNullOrBlank()) viewModel.onIntent(MapSearchIntent.QueryChanged(initialQuery))
     }
 
@@ -89,6 +98,10 @@ fun MapSearchScreen(
             onQueryChange = { viewModel.onIntent(MapSearchIntent.QueryChanged(it)) },
             onSubmit = { viewModel.onIntent(MapSearchIntent.SearchSubmitted) },
             onBack = onBack,
+        )
+        SavedOnlyRow(
+            isOn = state.isSavedOnly,
+            onChange = { viewModel.onIntent(MapSearchIntent.SavedOnlyChanged(it)) },
         )
         Content(state = state, onIntent = viewModel::onIntent)
     }
@@ -182,11 +195,29 @@ private fun SearchField(
     )
 }
 
+// 검색창 아래 오른쪽. 아래 띠가 목록과 가른다
+@Composable
+private fun SavedOnlyRow(isOn: Boolean, onChange: (Boolean) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = HORIZONTAL, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "저장한 곳만 보기", style = Typography.body2M, color = Colors.textPrimary)
+            Spacer(modifier = Modifier.size(8.dp))
+            AppToggle(checked = isOn, onCheckedChange = onChange)
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(Colors.borderWeak))
+    }
+}
+
 @Composable
 private fun Content(state: MapSearchState, onIntent: (MapSearchIntent) -> Unit) {
     when {
         state.showRecent -> RecentContent(state = state, onIntent = onIntent)
-        state.isSearching || !state.hasSearched -> Skeleton()
+        state.isSearching || !state.hasSearched || state.isAwaitingResults -> Skeleton()
+        state.isFailed -> EmptyState(title = "검색에 실패했어요", message = "잠시 뒤 다시 시도해주세요")
         state.results.isEmpty() -> EmptyState(title = "검색 결과가 없어요", message = "다른 검색어를 입력해주세요")
         else -> ResultList(state = state, onIntent = onIntent)
     }
@@ -273,25 +304,27 @@ private fun RecentRow(term: String, onTap: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
-// 검색 결과 행: 아이콘 + 이름 + 주소 + 구분선 (사진·우측슬롯 없음) (iOS PlaceListRow 검색 변형 대응)
 @Composable
 private fun ResultList(state: MapSearchState, onIntent: (MapSearchIntent) -> Unit) {
-    LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        itemsIndexed(state.results, key = { _, place -> place.id }) { index, place ->
+    // 토글 줄 아래 띠에 바로 붙는다
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(state.results, key = { _, result -> result.id }) { index, result ->
             if (index == (state.results.size - 3).coerceAtLeast(0) && state.hasNext && !state.isLoadingMore) {
                 LaunchedEffect(index, state.results.size) { onIntent(MapSearchIntent.ReachedEnd) }
             }
             ResultRow(
-                place = place,
-                showsDivider = place.id != state.results.last().id,
-                onClick = { onIntent(MapSearchIntent.PlaceClicked(place.id)) },
+                result = result,
+                showsDivider = result.id != state.results.last().id,
+                onClick = { onIntent(MapSearchIntent.PlaceClicked(result.id)) },
             )
         }
     }
 }
 
+// 저장한 곳은 빨간 북마크, 아닌 곳은 연한 핀이다.
+// 별칭이 있으면 이름 대신 별칭을 보이고 녹화에서 가린다
 @Composable
-private fun ResultRow(place: Place, showsDivider: Boolean, onClick: () -> Unit) {
+private fun ResultRow(result: PlaceSearchResult, showsDivider: Boolean, onClick: () -> Unit) {
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier
@@ -301,20 +334,35 @@ private fun ResultRow(place: Place, showsDivider: Boolean, onClick: () -> Unit) 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
-                painter = painterResource(place.category.iconRes()),
+                painter = painterResource(
+                    if (result.isSaved) R.drawable.bookmarkfillcolor else R.drawable.mappin,
+                ),
                 contentDescription = null,
+                colorFilter = if (result.isSaved) null else ColorFilter.tint(Colors.gray200),
                 modifier = Modifier.size(24.dp),
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = result.alias ?: result.place.name,
+                        style = Typography.body1M,
+                        color = Colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).analyticsMasked(result.alias != null),
+                    )
+                    Text(
+                        text = result.place.category.displayName(),
+                        style = Typography.body2M,
+                        color = Colors.textTertiary,
+                        maxLines = 1,
+                    )
+                }
                 Text(
-                    text = place.name,
-                    style = Typography.body1M,
-                    color = Colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = place.address,
+                    text = result.place.address,
                     style = Typography.caption1R,
                     color = Colors.textTertiary,
                     maxLines = 1,
@@ -336,11 +384,11 @@ private fun ResultRow(place: Place, showsDivider: Boolean, onClick: () -> Unit) 
 
 @Composable
 private fun Skeleton() {
+    // 결과 목록과 같은 자리에 서야 로딩이 끝날 때 내용이 튀지 않는다
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = HORIZONTAL)
-            .padding(top = 8.dp),
+            .padding(horizontal = HORIZONTAL),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         repeat(SKELETON_ROWS) {

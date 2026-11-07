@@ -13,6 +13,7 @@ import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.SavedPlace
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -44,17 +45,6 @@ class MapViewModel @Inject constructor(
         scope = viewModelScope,
         update = { reducer -> setState(reducer) },
         effect = { postSideEffect(it) },
-    )
-
-    // 검색 결과 행 북마크 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
-    private val bookmark = MapBookmarkController(
-        repository = placeRepository,
-        analytics = analytics,
-        scope = viewModelScope,
-        state = { currentState },
-        update = { reducer -> setState(reducer) },
-        effect = { postSideEffect(it) },
-        reloadPlaces = { loadPlaces() },
     )
 
     // 낙관적으로 뺀 행. 서버 삭제가 실패하면 이 자리로 되돌린다
@@ -124,42 +114,50 @@ class MapViewModel @Inject constructor(
             is MapIntent.OpenPlaceDetail -> openPlaceDetail(intent.place)
             is MapIntent.OpenContentDetail -> openContentDetail(intent.place, intent.query)
             is MapIntent.EnterSearchResult -> enterSearchResult(intent)
-            is MapIntent.SearchRowClicked -> openSearchDetail(intent.place)
-            is MapIntent.SearchBookmarkClicked -> bookmark.toggle(intent.place)
-            MapIntent.ClearSearch -> setState {
-                copy(searchResult = null, detail = null, bookmarkOverrides = emptyMap())
-            }
+            is MapIntent.SearchRowClicked -> openSearchDetail(intent.result)
+            MapIntent.ClearSearch -> setState { copy(searchResult = null, detail = null) }
             else -> Unit
         }
     }
 
     // 검색 화면에서 돌아온 결과로 검색 결과 모드에 들어간다. selectedIndex 있으면 그 장소 상세도 함께 연다
     private fun enterSearchResult(intent: MapIntent.EnterSearchResult) {
-        val detail = intent.selectedIndex
-            ?.let { intent.places.getOrNull(it) }
-            ?.let { DetailTarget(it, query = intent.searchQuery, serverPlaceId = null) }
+        val selected = intent.selectedIndex?.let { intent.results.getOrNull(it) }
         setState {
             val entered = copy(
-                searchResult = SearchResult(intent.searchQuery, intent.displayQuery, intent.places),
-                detail = detail,
-                bookmarkOverrides = emptyMap(),
+                searchResult = SearchResult(
+                    searchQuery = intent.searchQuery,
+                    displayQuery = intent.displayQuery,
+                    results = intent.results,
+                    isSavedOnly = intent.isSavedOnly,
+                ),
+                detail = selected?.let { detailTarget(it, intent.searchQuery, intent.isSavedOnly) },
             )
-            // 고른 장소가 있으면 그 자리를, 없으면 첫 결과를 비춘다 (iOS searchResultsApplied 와 같다)
-            val focus = detail?.place?.coordinate
+            // 고른 장소가 있으면 그 자리를, 없으면 첫 결과를 비춘다
+            val focus = selected?.place?.coordinate
             when {
                 focus != null -> entered.focusing(focus)
-                else -> intent.places.firstOrNull()
-                    ?.let { entered.focusing(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
+                else -> intent.results.firstOrNull()
+                    ?.let { entered.focusing(it.place.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
                     ?: entered
             }
         }
     }
 
     // 검색 결과 리스트 행 탭 → 상세. 카카오 조회엔 원본 검색어를 쓴다
-    private fun openSearchDetail(place: Place) {
-        val query = currentState.searchResult?.searchQuery.orEmpty()
-        setState { copy(detail = DetailTarget(place, query = query, serverPlaceId = null)).focusing(place.coordinate) }
+    private fun openSearchDetail(result: PlaceSearchResult) {
+        val search = currentState.searchResult
+        val target = detailTarget(result, search?.searchQuery.orEmpty(), search?.isSavedOnly == true)
+        setState { copy(detail = target).focusing(result.place.coordinate) }
     }
+
+    // 「저장한 곳만 보기」 결과는 카카오 번호가 없다. 저장 목록에서 연 것처럼 장소 번호로 조회한다
+    private fun detailTarget(result: PlaceSearchResult, query: String, isSavedOnly: Boolean): DetailTarget =
+        if (isSavedOnly) {
+            DetailTarget(result.place, query = "", serverPlaceId = result.place.id.toLongOrNull())
+        } else {
+            DetailTarget(result.place, query = query, serverPlaceId = null)
+        }
 
     // 저장 장소는 서버 placeId 로 조회한다(검색어 불필요)
     private fun openSavedDetail(place: SavedPlace) {
@@ -255,7 +253,6 @@ class MapViewModel @Inject constructor(
         setState {
             val reset = copy(
                 searchResult = null,
-                bookmarkOverrides = emptyMap(),
                 selectedCategory = null,
                 selectedOwnership = PlaceOwnership.TOGETHER,
             )

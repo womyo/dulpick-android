@@ -86,6 +86,15 @@ data class RoutePointResponseDto(
     val longitude: Double,
 )
 
+// 코스 장소 검색 한 페이지. 항목은 코스 후보와 같은 모양이다
+@Serializable
+data class DateCoursePlaceSearchPageResponseDto(
+    val places: List<DateCoursePlaceCandidateResponseDto> = emptyList(),
+    // 0 부터 센다
+    val page: Int = 0,
+    val hasNext: Boolean = false,
+)
+
 @Serializable
 data class CurrentDateCourseResponseDto(
     val currentDateCourse: DateCourseSummaryResponseDto? = null,

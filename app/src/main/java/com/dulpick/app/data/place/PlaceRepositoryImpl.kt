@@ -4,9 +4,10 @@ import com.dulpick.app.data.explore.mapper.ExploreErrorMapper
 import com.dulpick.app.data.place.mapper.PlaceDtoMapper
 import com.dulpick.app.data.place.mapper.PlaceErrorMapper
 import com.dulpick.app.data.place.remote.PlaceRemoteDataSource
+import com.dulpick.app.domain.common.Page
 import com.dulpick.app.domain.place.PlaceDetail
-import com.dulpick.app.domain.place.PlacePage
 import com.dulpick.app.domain.place.PlaceRepository
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.SavedPlace
 import javax.inject.Inject
 
@@ -15,7 +16,7 @@ class PlaceRepositoryImpl @Inject constructor(
     private val placeRemote: PlaceRemoteDataSource,
 ) : PlaceRepository {
 
-    override suspend fun searchPlaces(query: String, page: Int, size: Int): PlacePage {
+    override suspend fun searchPlaces(query: String, page: Int, size: Int): Page<PlaceSearchResult> {
         try {
             return PlaceDtoMapper.toDomain(placeRemote.search(query, page, size))
         } catch (error: Throwable) {

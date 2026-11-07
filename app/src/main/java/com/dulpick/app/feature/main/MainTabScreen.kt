@@ -64,7 +64,7 @@ fun MainTabScreen(
     pendingMapSearchArg: String? = null,
     onMapSearchConsumed: () -> Unit = {},
     // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 지도 검색을 다시 연다
-    onReopenMapSearch: (String) -> Unit = {},
+    onReopenMapSearch: (query: String, isSavedOnly: Boolean) -> Unit = { _, _ -> },
     viewModel: MainTabViewModel = hiltViewModel(),
 ) {
     val tabNavController = rememberNavController()
@@ -354,7 +354,7 @@ private fun MapTabLayer(
 private data class MapTabSearch(
     val pendingArg: String?,
     val onConsumed: () -> Unit,
-    val onReopen: (String) -> Unit,
+    val onReopen: (query: String, isSavedOnly: Boolean) -> Unit,
 )
 
 // 다른 탭·화면에서 지도로 넘겨 둔 대기 값 묶음

@@ -5,6 +5,7 @@ import com.dulpick.app.core.network.safeApiCall
 import com.dulpick.app.data.course.remote.dto.CreateDateCourseRequestDto
 import com.dulpick.app.data.course.remote.dto.CurrentDateCourseResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCoursePlacePoolResponseDto
+import com.dulpick.app.data.course.remote.dto.DateCoursePlaceSearchPageResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseResponseDto
 import com.dulpick.app.data.course.remote.dto.SaveDateCourseRequestDto
 import javax.inject.Inject
@@ -17,6 +18,9 @@ class CourseRemoteDataSource @Inject constructor(
 
     suspend fun placePool(): DateCoursePlacePoolResponseDto =
         safeApiCall { courseApi.placePool() }
+
+    suspend fun placeSearch(query: String?, page: Int): DateCoursePlaceSearchPageResponseDto =
+        safeApiCall { courseApi.placeSearch(query?.takeIf { it.isNotEmpty() }, page) }
 
     suspend fun detail(id: String): DateCourseResponseDto =
         safeApiCall { courseApi.detail(id) }

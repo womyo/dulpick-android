@@ -2,12 +2,14 @@ package com.dulpick.app.data.course.mapper
 
 import com.dulpick.app.data.course.remote.dto.DateCoursePlaceCandidateResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCoursePlaceResponseDto
+import com.dulpick.app.data.course.remote.dto.DateCoursePlaceSearchPageResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseSummaryResponseDto
 import com.dulpick.app.data.course.remote.dto.RoutePointResponseDto
 import com.dulpick.app.data.course.remote.dto.TransitToNextResponseDto
 import com.dulpick.app.data.course.remote.dto.WalkToNextResponseDto
 import com.dulpick.app.data.place.mapper.PlaceCategoryMapper
+import com.dulpick.app.domain.common.Page
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseLeg
 import com.dulpick.app.domain.course.CourseStatus
@@ -22,6 +24,7 @@ import com.dulpick.app.domain.place.SavedPlace
 import kotlin.math.roundToInt
 
 private const val SECONDS_PER_MINUTE = 60.0
+private const val MAX_SEARCH_PAGE = 100
 
 object CourseDtoMapper {
 
@@ -68,6 +71,12 @@ object CourseDtoMapper {
             title = dto.title,
             totalPlaceCount = dto.totalPlaceCount,
         )
+
+    // 명세의 page 최대값이 100 이다. 101 을 요청하면 서버가 400 을 주므로 여기서 끊는다
+    fun toSearchPage(dto: DateCoursePlaceSearchPageResponseDto): Page<SavedPlace> = Page(
+        items = dto.places.map(::toSavedPlace),
+        hasNext = dto.hasNext && dto.page < MAX_SEARCH_PAGE,
+    )
 
     // 코스에 담을 후보. 저장 장소 응답과 거의 같아 SavedPlace 로 옮긴다.
     // 이 응답에 없는 카카오 번호·저장 수·저장 시각은 비워 둔다

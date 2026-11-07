@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.analytics.AnalyticsScreen
 import com.dulpick.app.core.analytics.AnalyticsScreenName
@@ -53,6 +55,7 @@ import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.ui.component.CATEGORY_ORDER
@@ -102,12 +105,12 @@ fun MapScreen(
     // 탭 밖에서 들고 있는 시트 상태. 여기서 만들면 탭을 옮길 때마다 새로 만들어져 시트가 위에서 떨어진다
     sheetState: BottomSheetScaffoldState = rememberMapSheetState(),
     onSessionExpired: () -> Unit,
-    onOpenSearch: () -> Unit,
+    onOpenSearch: (isSavedOnly: Boolean) -> Unit,
     // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
     pendingSearchArg: String? = null,
     onSearchConsumed: () -> Unit = {},
     // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 검색 화면을 다시 연다
-    onReopenSearch: (String) -> Unit = {},
+    onReopenSearch: (query: String, isSavedOnly: Boolean) -> Unit = { _, _ -> },
     // 홈 등 다른 탭에서 넘어온 저장 장소. 지도 탭 진입 시 그 장소 상세를 연다
     pendingPlace: Place? = null,
     onPlaceConsumed: () -> Unit = {},
@@ -247,7 +250,7 @@ private fun mapPins(state: MapState): List<MapPin> {
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
         detail != null && detail.contentMode ->
             listOf(placePin(context, detail.place.id, detail.place.coordinate, detail.place.category))
-        searchResult != null -> searchResult.places
+        searchResult != null -> searchResult.results.map { it.place }
             .map { placePin(context, it.id, it.coordinate, it.category) }
         else -> state.filteredPlaces
             .map { placePin(context, it.place.id, it.place.coordinate, it.place.category) }
@@ -417,7 +420,7 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
     if (placeId == null || detail?.contentMode == true) return null
     val result = searchResult
     return if (result != null) {
-        result.places.firstOrNull { it.id == placeId }?.let { MapIntent.SearchRowClicked(it) }
+        result.results.firstOrNull { it.id == placeId }?.let { MapIntent.SearchRowClicked(it) }
     } else {
         filteredPlaces.firstOrNull { it.id == placeId }?.let { MapIntent.OpenSavedDetail(it) }
     }
@@ -427,15 +430,16 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
 private fun mapTopBarActions(
     state: MapState,
     viewModel: MapViewModel,
-    onOpenSearch: () -> Unit,
-    onReopenSearch: (String) -> Unit,
+    onOpenSearch: (isSavedOnly: Boolean) -> Unit,
+    onReopenSearch: (query: String, isSavedOnly: Boolean) -> Unit,
     onOpenCourse: (dateCourseId: String?) -> Unit,
 ): MapTopBarActions = MapTopBarActions(
-    onOpenSearch = onOpenSearch,
+    // 결과에서 검색창을 누르면 그 결과의 토글을 이어받는다
+    onOpenSearch = { onOpenSearch(state.searchResult?.isSavedOnly == true) },
     // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
     // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
     onReopenSearch = {
-        state.searchResult?.let { onReopenSearch(it.searchQuery) }
+        state.searchResult?.let { onReopenSearch(it.searchQuery, it.isSavedOnly) }
         viewModel.onIntent(MapIntent.ClearSearch)
     },
     onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
@@ -512,8 +516,9 @@ private fun ConsumeExternalInputs(
             MapIntent.EnterSearchResult(
                 searchQuery = arg.searchQuery,
                 displayQuery = arg.displayQuery,
-                places = arg.places.map { it.toPlace() },
+                results = arg.results.map { it.toResult() },
                 selectedIndex = arg.selectedIndex,
+                isSavedOnly = arg.isSavedOnly,
             ),
         )
     }
@@ -766,27 +771,26 @@ private fun SearchResultSheet(
             .padding(top = 8.dp),
         contentPadding = PaddingValues(bottom = bottomInset),
     ) {
-        items(result.places, key = { it.id }) { place ->
+        items(result.results, key = { it.id }) { searchResult ->
             SearchResultRow(
-                place = place,
-                isBookmarked = state.isBookmarked(place),
-                showsDivider = place.id != result.places.last().id,
-                onClick = { onIntent(MapIntent.SearchRowClicked(place)) },
-                onBookmark = { onIntent(MapIntent.SearchBookmarkClicked(place)) },
+                result = searchResult,
+                isBookmarked = state.isBookmarked(searchResult),
+                showsDivider = searchResult.id != result.results.last().id,
+                onClick = { onIntent(MapIntent.SearchRowClicked(searchResult)) },
             )
         }
     }
 }
 
-// 검색 결과 한 줄: 아이콘 + 이름 + 주소 + 우측 북마크 + 하단 구분선 (iOS PlaceListRow 검색 변형 대응)
+// 저장 여부는 보여 주기만 한다. 저장·취소는 상세에서만 한다
 @Composable
 private fun SearchResultRow(
-    place: Place,
+    result: PlaceSearchResult,
     isBookmarked: Boolean,
     showsDivider: Boolean,
     onClick: () -> Unit,
-    onBookmark: () -> Unit,
 ) {
+    val place = result.place
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier
@@ -802,11 +806,12 @@ private fun SearchResultRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = place.name,
+                    text = result.alias ?: place.name,
                     style = Typography.body1SB,
                     color = Colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.analyticsMasked(result.alias != null),
                 )
                 Text(
                     text = place.roadAddress.ifEmpty { place.address },
@@ -816,13 +821,14 @@ private fun SearchResultRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val bookmarkRes = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke
             Image(
-                painter = painterResource(bookmarkRes),
-                contentDescription = if (isBookmarked) "저장 취소" else "저장",
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable(onClick = onBookmark),
+                painter = painterResource(
+                    if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
+                ),
+                contentDescription = if (isBookmarked) "저장한 장소" else "저장하지 않은 장소",
+                // 빈 북마크 에셋은 상세·게시글도 검정으로 쓴다. 누를 수 없는 이 자리만 연하게 칠한다
+                colorFilter = if (isBookmarked) null else ColorFilter.tint(Colors.textTertiary),
+                modifier = Modifier.size(24.dp),
             )
         }
         if (showsDivider) {

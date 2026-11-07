@@ -222,8 +222,8 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             pendingMapSearchArg = pendingSearchJson,
             onMapSearchConsumed = { entry.savedStateHandle[KEY_MAP_SEARCH] = null },
             // 검색 결과 모드에서 검색바 뒤로 → 같은 검색어로 지도 검색을 다시 연다
-            onReopenMapSearch = { query ->
-                navController.navigate("$MAIN_MAP_SEARCH_ROUTE?query=${Uri.encode(query)}")
+            onReopenMapSearch = { query, isSavedOnly ->
+                navController.navigateToMapSearch(query, isSavedOnly)
             },
             // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
             onLoggedOut = {
@@ -243,7 +243,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                 onOpenCoupleConnectFromHome = { nickname ->
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
-                onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
+                onOpenMapSearch = { isSavedOnly -> navController.navigateToMapSearch(null, isSavedOnly) },
                 onOpenCourse = { dateCourseId ->
                     if (dateCourseId == null) {
                         navController.navigate(MAIN_COURSE_DATE_ROUTE)
@@ -561,12 +561,16 @@ private fun NavHostController.popBackWithCourseReload(reason: CourseReloadReason
 // query 를 넘기면(검색바 뒤로로 재진입) 그 검색어로 곧장 검색해 결과를 복원한다
 private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_MAP_SEARCH_ROUTE?query={$ARG_MAP_SEARCH_QUERY}",
+        route = "$MAIN_MAP_SEARCH_ROUTE?query={$ARG_MAP_SEARCH_QUERY}&savedOnly={$ARG_MAP_SEARCH_SAVED_ONLY}",
         arguments = listOf(
             navArgument(ARG_MAP_SEARCH_QUERY) {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = null
+            },
+            navArgument(ARG_MAP_SEARCH_SAVED_ONLY) {
+                type = NavType.BoolType
+                defaultValue = false
             },
         ),
         enterTransition = { slideInHorizontally { it } },
@@ -576,18 +580,28 @@ private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     ) { entry ->
         MapSearchScreen(
             initialQuery = entry.arguments?.getString(ARG_MAP_SEARCH_QUERY),
+            initialSavedOnly = entry.arguments?.getBoolean(ARG_MAP_SEARCH_SAVED_ONLY) == true,
             onBack = { navController.popBackStack() },
-            // 검색 제출 → 전체 결과를 지도 검색 결과 모드로 (iOS searchConfirmed 대응)
-            onSearchConfirmed = { query, places ->
-                navController.returnSearchResult(MapSearchReturnArg.confirming(query, places))
+            onSearchConfirmed = { query, results, isSavedOnly ->
+                navController.returnSearchResult(
+                    MapSearchReturnArg.confirming(query, results, isSavedOnly),
+                )
             },
-            // 결과 행 탭 → 그 장소만 남기고 상세를 연다 (iOS placeSelected 대응)
-            onPlaceSelected = { query, place ->
-                navController.returnSearchResult(MapSearchReturnArg.selecting(place, query))
+            // 결과 행 탭 → 그 장소만 남기고 상세를 연다
+            onPlaceSelected = { query, result ->
+                navController.returnSearchResult(MapSearchReturnArg.selecting(result, query))
+            },
+            onSavedPlaceSelected = { savedPlace ->
+                navController.returnSearchResult(MapSearchReturnArg.selectingSaved(savedPlace))
             },
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
+}
+
+private fun NavHostController.navigateToMapSearch(query: String?, isSavedOnly: Boolean) {
+    val encoded = query?.let { Uri.encode(it) }.orEmpty()
+    navigate("$MAIN_MAP_SEARCH_ROUTE?query=$encoded&savedOnly=$isSavedOnly")
 }
 
 // 검색 결과를 MAIN 의 savedStateHandle 로 되돌리고 검색 화면을 pop 한다
@@ -612,6 +626,7 @@ internal const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
 internal const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 // 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
 private const val ARG_MAP_SEARCH_QUERY = "query"
+private const val ARG_MAP_SEARCH_SAVED_ONLY = "savedOnly"
 internal const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
 internal const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
 internal const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"

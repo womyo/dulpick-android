@@ -65,10 +65,7 @@ data class DateCourse(
     val stops: List<CourseStop>,
     // 서버가 계산해 보낸 구간 값. 항상 stops.size - 1 개. 못 받은 구간은 null
     val legs: List<CourseLeg?>,
-) {
-    val totalWalkingMinutes: Int get() = legs.filterNotNull().sumOf { it.walkingMinutes }
-    val totalDistanceMeters: Int get() = legs.filterNotNull().sumOf { it.distanceMeters }
-}
+)
 
 // 코스 저장에 실리는 제목·날짜·시간·장소. 어느 코스의 몇 번째 판인지는 안 담는다
 data class DateCourseContent(

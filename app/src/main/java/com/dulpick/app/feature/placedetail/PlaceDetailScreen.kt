@@ -1,9 +1,5 @@
 package com.dulpick.app.feature.placedetail
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
+import com.dulpick.app.core.link.openAppOrWeb
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
@@ -80,7 +77,7 @@ fun PlaceDetailSheet(
         when (effect) {
             PlaceDetailSideEffect.Close -> onClose()
             PlaceDetailSideEffect.SessionExpired -> onSessionExpired()
-            is PlaceDetailSideEffect.OpenKakaoMap -> context.openKakaoMap(effect.appUri, effect.webUrl)
+            is PlaceDetailSideEffect.OpenKakaoMap -> context.openAppOrWeb(effect.appUri, effect.webUrl)
             is PlaceDetailSideEffect.OpenContent -> onOpenContent(effect.id)
         }
     }
@@ -395,24 +392,6 @@ private fun AddressRow(
 }
 
 // 카카오맵 앱 우선, 실패하면 웹으로 (iOS openURL 폴백 대응)
-private fun Context.openKakaoMap(appUri: String?, webUrl: String?) {
-    if (appUri != null) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(appUri)))
-            return
-        } catch (ignored: ActivityNotFoundException) {
-            // 앱이 없으면 웹으로 떨어진다
-        }
-    }
-    if (webUrl != null) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
-        } catch (ignored: ActivityNotFoundException) {
-            // 열 수 있는 앱이 없으면 무시
-        }
-    }
-}
-
 // 장소 카테고리 한글명 (iOS PlaceCategory.displayName 대응). 상세 전용으로 로컬에 둔다
 private fun PlaceCategory.categoryName(): String = when (this) {
     PlaceCategory.FOOD -> "맛집"

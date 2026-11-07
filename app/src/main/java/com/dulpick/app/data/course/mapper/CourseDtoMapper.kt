@@ -4,11 +4,15 @@ import com.dulpick.app.data.course.remote.dto.DateCoursePlaceCandidateResponseDt
 import com.dulpick.app.data.course.remote.dto.DateCoursePlaceResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseSummaryResponseDto
+import com.dulpick.app.data.course.remote.dto.RoutePointResponseDto
+import com.dulpick.app.data.course.remote.dto.TransitToNextResponseDto
+import com.dulpick.app.data.course.remote.dto.WalkToNextResponseDto
 import com.dulpick.app.data.place.mapper.PlaceCategoryMapper
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseLeg
 import com.dulpick.app.domain.course.CourseStatus
 import com.dulpick.app.domain.course.CourseStop
+import com.dulpick.app.domain.course.CourseTransit
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseSummary
 import com.dulpick.app.domain.place.Coordinate
@@ -34,16 +38,29 @@ object CourseDtoMapper {
             version = dto.version,
             stops = sorted.map { CourseStop(place = toPlace(it)) },
             // 구간은 항상 장소 수 - 1 개. 못 받은 구간은 null
-            legs = sorted.dropLast(1).map { place ->
-                place.walkToNext?.let {
-                    CourseLeg(
-                        walkingMinutes = (it.durationSeconds / SECONDS_PER_MINUTE).roundToInt(),
-                        distanceMeters = it.distanceMeters,
-                    )
-                }
-            },
+            legs = sorted.dropLast(1).map { place -> place.walkToNext?.let { toLeg(it) } },
         )
     }
+
+    private fun toLeg(dto: WalkToNextResponseDto): CourseLeg = CourseLeg(
+        walkingMinutes = minutes(dto.durationSeconds),
+        distanceMeters = dto.distanceMeters,
+        walkingPath = dto.path.map { toCoordinate(it) },
+        transit = dto.transit?.let { toTransit(it) },
+    )
+
+    // 대중교통 합계와, 구간들의 좌표를 이동 순서대로 이어 붙인 경로
+    private fun toTransit(dto: TransitToNextResponseDto): CourseTransit = CourseTransit(
+        minutes = minutes(dto.durationSeconds),
+        distanceMeters = dto.distanceMeters,
+        path = dto.legs.flatMap { it.path }.map { toCoordinate(it) },
+    )
+
+    private fun toCoordinate(dto: RoutePointResponseDto): Coordinate =
+        Coordinate(dto.latitude, dto.longitude)
+
+    // 서버는 초를 준다. 분으로 반올림한다. 도보·대중교통이 같은 방식이다
+    private fun minutes(seconds: Int): Int = (seconds / SECONDS_PER_MINUTE).roundToInt()
 
     fun toSummary(dto: DateCourseSummaryResponseDto): DateCourseSummary =
         DateCourseSummary(

@@ -1,6 +1,8 @@
 package com.dulpick.app.feature.course
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseError
@@ -19,6 +21,7 @@ import javax.inject.Inject
 class CourseDateViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
     private val coupleRepository: CoupleRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<CourseDateState, CourseDateIntent, CourseDateSideEffect>(initialState()) {
 
     private var createJob: Job? = null
@@ -83,6 +86,7 @@ class CourseDateViewModel @Inject constructor(
             return
         }
         if (createJob?.isActive == true) return
+        analytics.track(AnalyticsEvent.CourseScheduleCompleted)
         setState { copy(showsDateError = false, isCreatingCourse = true) }
         val time = currentState.time
         createJob = viewModelScope.launch {

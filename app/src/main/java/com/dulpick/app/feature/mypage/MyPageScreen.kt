@@ -48,6 +48,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.AnalyticsScreen
+import com.dulpick.app.core.analytics.AnalyticsScreenName
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.core.terms.TermsType
@@ -177,10 +180,24 @@ fun MyPageScreen(
     MyPageOverlays(state = state, onIntent = viewModel::onIntent)
 }
 
+// 프로필 수정 시트·탈퇴 모달은 라우트가 없다. 상태에서 이름을 정해 녹화에 알린다
+// (iOS MyPageFlowFeature.currentScreenName 대응)
+@Composable
+private fun ReportMyPageScreenName(state: MyPageState) {
+    val screen = when {
+        state.isWithdrawDialogPresented -> AnalyticsScreenName.WITHDRAW
+        state.isProfileEditPresented -> AnalyticsScreenName.PROFILE_EDIT
+        else -> AnalyticsScreenName.MY_PAGE
+    }
+    LaunchedEffect(screen) { AnalyticsScreen.set(screen) }
+}
+
 // 회원탈퇴 모달·프로필 수정 바텀시트. MyPageScreen 길이를 줄이려 분리한다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MyPageOverlays(state: MyPageState, onIntent: (MyPageIntent) -> Unit) {
+    ReportMyPageScreenName(state)
+
     if (state.isWithdrawDialogPresented) {
         WithdrawDialog(
             onConfirm = { onIntent(MyPageIntent.WithdrawConfirmed) },
@@ -252,7 +269,12 @@ private fun ProfileSection(nickname: String, iconId: Int, onEdit: () -> Unit) {
                 .size(100.dp)
                 .clip(CircleShape),
         )
-        Text(text = nickname, style = Typography.headline, color = Colors.textPrimary)
+        Text(
+            text = nickname,
+            style = Typography.headline,
+            color = Colors.textPrimary,
+            modifier = Modifier.analyticsMasked(),
+        )
         AppButton(
             text = "프로필 수정",
             onClick = onEdit,

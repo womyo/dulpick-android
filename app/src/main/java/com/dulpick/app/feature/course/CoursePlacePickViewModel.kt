@@ -1,6 +1,8 @@
 package com.dulpick.app.feature.course
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseError
@@ -18,6 +20,7 @@ import javax.inject.Inject
 class CoursePlacePickViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
     private val coupleRepository: CoupleRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<CoursePlacePickState, CoursePlacePickIntent, CoursePlacePickSideEffect>(
     CoursePlacePickState(),
 ) {
@@ -96,6 +99,8 @@ class CoursePlacePickViewModel @Inject constructor(
 
     // 고른 순서가 곧 번호다. 다시 누르면 빼고 뒤 번호가 당겨진다
     private fun toggle(id: String) {
+        // 새로 고르는 경우만 센다 (iOS rowTapped·markerTapped 와 같다)
+        if (id !in currentState.selectedPlaceIds) analytics.track(AnalyticsEvent.PlaceAddedToCourse)
         setState {
             copy(
                 selectedPlaceIds = if (id in selectedPlaceIds) {
@@ -120,6 +125,7 @@ class CoursePlacePickViewModel @Inject constructor(
         val saved = course ?: return
         val placeIds = currentState.selectedPlaceIds
         if (placeIds.isEmpty() || currentState.isSavingCourse) return
+        analytics.track(AnalyticsEvent.CourseCreated)
         setState { copy(isSavingCourse = true) }
         val content = DateCourseContent(
             title = saved.title,

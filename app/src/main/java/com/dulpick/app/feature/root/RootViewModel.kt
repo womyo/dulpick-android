@@ -2,6 +2,8 @@ package com.dulpick.app.feature.root
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.storage.AppIntroStore
 import com.dulpick.app.domain.auth.AuthError
 import com.dulpick.app.domain.auth.AuthRepository
@@ -17,13 +19,26 @@ import javax.inject.Inject
 class RootViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val appIntroStore: AppIntroStore,
+    private val analytics: Analytics,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<RootState>(RootState.Loading)
     val state: StateFlow<RootState> = _state.asStateFlow()
 
     init {
+        analytics.track(AnalyticsEvent.AppOpened)
         resolveStart()
+    }
+
+    // 공유로 들어온 URL 을 받았다 (iOS RootFlow 의 shareImportStarted 대응)
+    fun onShareImportStarted() {
+        analytics.track(AnalyticsEvent.ShareImportStarted)
+    }
+
+    // 로그아웃·탈퇴·세션 만료로 로그인 화면까지 물러났다. 믹스패널의 사람 묶음을 끊는다
+    // (iOS moveToSignIn 과 같은 자리다)
+    fun onSignedOut() {
+        analytics.reset()
     }
 
     // Error 상태에서 사용자가 다시 시도할 때 호출한다
@@ -37,6 +52,8 @@ class RootViewModel @Inject constructor(
             _state.value = RootState.Loading
             _state.value = try {
                 val bootstrap = authRepository.restoreSession()
+                // 앱을 다시 켜서 세션이 복구된 때도 사람을 묶는다 (iOS moveAfterAuthentication 대응)
+                bootstrap?.session?.userId?.let(analytics::identify)
                 val route = when {
                     bootstrap == null -> signedOutRoute()
                     !bootstrap.isOnboardingCompleted -> RootRoute.ONBOARDING

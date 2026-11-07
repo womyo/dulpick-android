@@ -40,6 +40,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.dulpick.app.core.analytics.AnalyticsScreen
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.feature.explore.ExploreScreen
 import com.dulpick.app.feature.home.HomeScreen
@@ -63,10 +65,14 @@ fun MainTabScreen(
     onMapSearchConsumed: () -> Unit = {},
     // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 지도 검색을 다시 연다
     onReopenMapSearch: (String) -> Unit = {},
+    viewModel: MainTabViewModel = hiltViewModel(),
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    // 탭·검색 화면이 바뀌면 녹화에 이름을 남긴다
+    val tabRoute = currentDestination?.route.orEmpty()
+    LaunchedEffect(tabRoute) { tabScreenName(tabRoute)?.let(AnalyticsScreen::set) }
 
     // 홈에서 저장 장소 클릭 시 지도 탭이 읽어 상세를 여는 대상. 지도가 소비하면 비운다
     var pendingMapPlace by remember { mutableStateOf<Place?>(null) }
@@ -93,6 +99,7 @@ fun MainTabScreen(
     // 상세를 들고 들어오는 길은 이 함수를 쓰지 않아 필터·카메라가 그대로 남는다
     val selectTab: (String) -> Unit = { route ->
         if (route == MainTab.MAP.route) mapShowAllNonce++
+        viewModel.trackTabSelected(route)
         navigateToTab(route)
     }
 
@@ -466,7 +473,7 @@ private fun androidx.navigation.NavGraphBuilder.exploreSearchDestination(
 }
 
 // 탐색 탭 안의 검색 화면
-private const val EXPLORE_SEARCH_ROUTE = "main/explore/search"
+internal const val EXPLORE_SEARCH_ROUTE = "main/explore/search"
 // 뒤 화면이 살짝 따라 밀리는 패럴랙스 정도(1/4). 루트 화면 전환과 같은 값
 private const val PARALLAX_DIVISOR = 4
 // Material3 NavigationBar 의 높이(NavigationBarTokens.ContainerHeight). 시스템 인셋은 별도로 더한다

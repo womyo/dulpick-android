@@ -1,6 +1,9 @@
 package com.dulpick.app.feature.home
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEntryPoint
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ContentSort
 import com.dulpick.app.domain.explore.ExploreRepository
@@ -19,6 +22,7 @@ class HomeViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val exploreRepository: ExploreRepository,
     private val profileRepository: ProfileRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<HomeState, HomeIntent, HomeSideEffect>(HomeState()) {
 
     private var loadJob: Job? = null
@@ -37,7 +41,7 @@ class HomeViewModel @Inject constructor(
         when (intent) {
             HomeIntent.CalendarClicked -> handleCalendar()
             HomeIntent.ConnectFlowRequested -> requestConnect()
-            HomeIntent.CourseFlowRequested -> postSideEffect(HomeSideEffect.OpenCourseFlow)
+            HomeIntent.CourseFlowRequested -> requestCourseFlow()
             HomeIntent.BannerClicked -> openUpcomingCourse()
             is HomeIntent.RecommendationClicked -> postSideEffect(HomeSideEffect.OpenContentDetail(intent.id))
             is HomeIntent.PastScheduleClicked -> postSideEffect(HomeSideEffect.OpenPastSchedule(intent.id))
@@ -63,8 +67,16 @@ class HomeViewModel @Inject constructor(
         if (!currentState.isConnected) postSideEffect(HomeSideEffect.OpenConnectFlow)
     }
 
+    // 홈 배너에서 코스 만들기 (iOS courseFlowRequested 대응)
+    private fun requestCourseFlow() {
+        analytics.track(AnalyticsEvent.CourseCreateStarted(AnalyticsEntryPoint.HOME_BANNER))
+        postSideEffect(HomeSideEffect.OpenCourseFlow)
+    }
+
     private fun openUpcomingCourse() {
-        currentState.upcomingSchedule?.let { postSideEffect(HomeSideEffect.OpenUpcomingCourse(it.id)) }
+        val schedule = currentState.upcomingSchedule ?: return
+        analytics.track(AnalyticsEvent.CourseViewed(AnalyticsEntryPoint.HOME_BANNER))
+        postSideEffect(HomeSideEffect.OpenUpcomingCourse(schedule.id))
     }
 
     // 요약·저장장소·추천을 동시에 받는다. didLoad 를 false 로 되돌리지 않아

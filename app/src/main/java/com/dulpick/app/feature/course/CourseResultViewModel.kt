@@ -1,6 +1,8 @@
 package com.dulpick.app.feature.course
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseError
@@ -15,6 +17,7 @@ import javax.inject.Inject
 class CourseResultViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
     private val coupleRepository: CoupleRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<CourseResultState, CourseResultIntent, CourseResultSideEffect>(CourseResultState()) {
 
     private var dateCourseId: String? = null
@@ -30,6 +33,7 @@ class CourseResultViewModel @Inject constructor(
             }
             CourseResultIntent.NotifyClicked -> notifyPartner()
             CourseResultIntent.EditClicked -> dateCourseId?.let {
+                analytics.track(AnalyticsEvent.CourseEditStarted)
                 postSideEffect(CourseResultSideEffect.EditRequested(it))
             }
             CourseResultIntent.BackClicked -> postSideEffect(CourseResultSideEffect.Dismissed)
@@ -79,6 +83,7 @@ class CourseResultViewModel @Inject constructor(
     private fun notifyPartner() {
         val id = dateCourseId ?: return
         if (currentState.isNotifyingPartner) return
+        analytics.track(AnalyticsEvent.CourseAlarmStarted(analytics.userId))
         setState { copy(isNotifyingPartner = true) }
         viewModelScope.launch {
             try {

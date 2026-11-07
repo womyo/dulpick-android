@@ -1,6 +1,9 @@
 package com.dulpick.app.feature.map
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEntryPoint
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
@@ -23,6 +26,7 @@ class MapViewModel @Inject constructor(
     private val coupleRepository: CoupleRepository,
     private val courseRepository: CourseRepository,
     private val locationRepository: LocationRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<MapState, MapIntent, MapSideEffect>(MapState()) {
 
     // 별칭 편집 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
@@ -42,6 +46,17 @@ class MapViewModel @Inject constructor(
         effect = { postSideEffect(it) },
     )
 
+    // 검색 결과 행 북마크 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
+    private val bookmark = MapBookmarkController(
+        repository = placeRepository,
+        analytics = analytics,
+        scope = viewModelScope,
+        state = { currentState },
+        update = { reducer -> setState(reducer) },
+        effect = { postSideEffect(it) },
+        reloadPlaces = { loadPlaces() },
+    )
+
     // 낙관적으로 뺀 행. 서버 삭제가 실패하면 이 자리로 되돌린다
     private val pendingDeletes = mutableMapOf<String, PendingDelete>()
 
@@ -50,6 +65,13 @@ class MapViewModel @Inject constructor(
             MapIntent.OnAppear -> load()
             MapIntent.RetryClicked -> retryLoad()
             MapIntent.ShowAllSaved -> showAllSaved()
+            // 떠 있는 코스 버튼. 진행 중인 코스가 있으면 보기, 없으면 만들기다
+            MapIntent.CourseButtonClicked -> analytics.track(
+                AnalyticsEvent.courseButton(
+                    entryPoint = AnalyticsEntryPoint.MAP_FLOATING_BUTTON,
+                    hasCourse = currentState.currentCourse != null,
+                ),
+            )
             // 필터를 바꾸면 남은 목록의 첫 장소로 옮긴다 (iOS ownershipSelected·categoryTapped 와 같다)
             is MapIntent.OwnershipSelected ->
                 setState { copy(selectedOwnership = intent.ownership).withOverviewCamera() }
@@ -103,7 +125,7 @@ class MapViewModel @Inject constructor(
             is MapIntent.OpenContentDetail -> openContentDetail(intent.place, intent.query)
             is MapIntent.EnterSearchResult -> enterSearchResult(intent)
             is MapIntent.SearchRowClicked -> openSearchDetail(intent.place)
-            is MapIntent.SearchBookmarkClicked -> toggleSearchBookmark(intent.place)
+            is MapIntent.SearchBookmarkClicked -> bookmark.toggle(intent.place)
             MapIntent.ClearSearch -> setState {
                 copy(searchResult = null, detail = null, bookmarkOverrides = emptyMap())
             }
@@ -137,34 +159,6 @@ class MapViewModel @Inject constructor(
     private fun openSearchDetail(place: Place) {
         val query = currentState.searchResult?.searchQuery.orEmpty()
         setState { copy(detail = DetailTarget(place, query = query, serverPlaceId = null)).focusing(place.coordinate) }
-    }
-
-    // 검색 결과 행 북마크. 먼저 뒤집고 서버 저장/해제 후 저장목록을 갱신, 실패하면 되돌린다
-    private fun toggleSearchBookmark(place: Place) {
-        val kakaoId = place.kakaoPlaceId ?: return
-        val wasBookmarked = currentState.isBookmarked(place)
-        setState { copy(bookmarkOverrides = bookmarkOverrides + (kakaoId to !wasBookmarked)) }
-        viewModelScope.launch {
-            try {
-                if (wasBookmarked) {
-                    val serverId = currentState.places
-                        .firstOrNull { it.place.kakaoPlaceId == kakaoId }?.place?.id?.toLongOrNull()
-                    if (serverId != null) placeRepository.removePlace(serverId)
-                } else {
-                    placeRepository.savePlace(kakaoId, place.name, null)
-                }
-                loadPlaces()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                setState { copy(bookmarkOverrides = bookmarkOverrides - kakaoId) }
-                if (error == PlaceError.Unauthorized) {
-                    postSideEffect(MapSideEffect.SessionExpired)
-                } else {
-                    postSideEffect(MapSideEffect.ShowToast("저장을 변경하지 못했어요", isError = true))
-                }
-            }
-        }
     }
 
     // 저장 장소는 서버 placeId 로 조회한다(검색어 불필요)

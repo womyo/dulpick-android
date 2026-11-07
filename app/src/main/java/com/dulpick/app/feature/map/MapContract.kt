@@ -154,9 +154,11 @@ sealed interface MapIntent : UiIntent {
     // 탐색 검색에서 온 장소 → 상세 전용(content) 모드로 연다. 검색바 없이 그 장소 핀+상세만
     data class OpenContentDetail(val place: Place, val query: String) : MapIntent
     data object CloseDetail : MapIntent
-    // 내 위치 버튼. 권한 상태에 따라 요청·조회·안내로 갈린다
+    // 떠 있는 코스 버튼을 눌렀다. 이동은 화면이 하고 여기선 이벤트만 센다
+    data object CourseButtonClicked : MapIntent
     // 지도 탭을 고르거나 홈 전체보기로 들어왔다. 검색·필터를 풀고 전체를 비춘다 (iOS showAllSaved 대응)
     data object ShowAllSaved : MapIntent
+    // 내 위치 버튼. 권한 상태에 따라 요청·조회·안내로 갈린다
     data object CurrentLocationClicked : MapIntent
     // 권한 요청 결과. granted 면 좌표를 조회하고, 영구 거부면 설정 안내를 띄운다
     data class LocationPermissionResult(val granted: Boolean, val permanentlyDenied: Boolean) : MapIntent

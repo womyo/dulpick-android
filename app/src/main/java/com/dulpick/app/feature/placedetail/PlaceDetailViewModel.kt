@@ -1,6 +1,9 @@
 package com.dulpick.app.feature.placedetail
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
+import com.dulpick.app.core.analytics.AnalyticsSaveSource
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
 import com.dulpick.app.domain.explore.ExploreRepository
@@ -22,6 +25,7 @@ private const val CONTENTS_PAGE_SIZE = 4
 class PlaceDetailViewModel @Inject constructor(
     private val placeRepository: PlaceRepository,
     private val exploreRepository: ExploreRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<PlaceDetailState, PlaceDetailIntent, PlaceDetailSideEffect>(PlaceDetailState()) {
 
     // 진입 시 넘겨받은 장소·소스. Start 로 세팅한다 (iOS init(place:) 대응)
@@ -100,6 +104,8 @@ class PlaceDetailViewModel @Inject constructor(
                 isBookmarked = if (bookmarkToggled) isBookmarked else detail.savedByMe,
             )
         }
+        // 저장된 장소를 열어본 것만 센다 (iOS savedPlaceDetailViewed 와 같다)
+        if (detail.savedByMe) analytics.track(AnalyticsEvent.SavedPlaceDetailViewed)
         if (currentState.serverPlaceId != null) loadContents()
     }
 
@@ -144,6 +150,8 @@ class PlaceDetailViewModel @Inject constructor(
         if (!wasBookmarked && place.kakaoPlaceId == null) return
 
         bookmarkToggled = true
+        // 저장으로 뒤집는 경우만 센다
+        if (!wasBookmarked) analytics.track(AnalyticsEvent.PlaceSaveStarted(AnalyticsSaveSource.IN_APP))
         setState {
             copy(
                 isBookmarked = !wasBookmarked,
@@ -175,6 +183,7 @@ class PlaceDetailViewModel @Inject constructor(
     private suspend fun addBookmark(place: Place) {
         val kakaoId = place.kakaoPlaceId ?: return
         savedServerId = placeRepository.savePlace(kakaoId, place.name, null).place.id
+        analytics.track(AnalyticsEvent.PlaceSaveCompleted(AnalyticsSaveSource.IN_APP, analytics.userId))
     }
 
     private fun rollbackBookmark(wasBookmarked: Boolean) {

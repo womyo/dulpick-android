@@ -47,6 +47,8 @@ import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.core.map.KakaoMapView
+import com.dulpick.app.core.analytics.AnalyticsScreen
+import com.dulpick.app.core.analytics.AnalyticsScreenName
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
@@ -148,6 +150,7 @@ fun MapScreen(
     )
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
     ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
+    ReportMapScreenName(isActive, state)
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -210,19 +213,7 @@ fun MapScreen(
                 courseButtonTitle = state.courseButtonTitle,
                 locationButtonBottom = sheet.collapsedHeight + 12.dp,
                 collapsedSheetTopPx = sheet.collapsedTopPx,
-                actions = MapTopBarActions(
-                    onOpenSearch = onOpenSearch,
-                    // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
-                    // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
-                    onReopenSearch = {
-                        state.searchResult?.let { onReopenSearch(it.searchQuery) }
-                        viewModel.onIntent(MapIntent.ClearSearch)
-                    },
-                    onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
-                    onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
-                    onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
-                    onOpenCourse = { onOpenCourse(state.currentCourse?.id) },
-                ),
+                actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )
         }
 
@@ -429,6 +420,45 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
     } else {
         filteredPlaces.firstOrNull { it.id == placeId }?.let { MapIntent.OpenSavedDetail(it) }
     }
+}
+
+// 상단바·떠 있는 버튼이 올리는 동작 묶음
+private fun mapTopBarActions(
+    state: MapState,
+    viewModel: MapViewModel,
+    onOpenSearch: () -> Unit,
+    onReopenSearch: (String) -> Unit,
+    onOpenCourse: (dateCourseId: String?) -> Unit,
+): MapTopBarActions = MapTopBarActions(
+    onOpenSearch = onOpenSearch,
+    // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
+    // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
+    onReopenSearch = {
+        state.searchResult?.let { onReopenSearch(it.searchQuery) }
+        viewModel.onIntent(MapIntent.ClearSearch)
+    },
+    onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
+    onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+    onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
+    onOpenCourse = {
+        // 이동 전에 이벤트를 센다. 진행 중인 코스 유무로 만들기/보기가 갈린다
+        viewModel.onIntent(MapIntent.CourseButtonClicked)
+        onOpenCourse(state.currentCourse?.id)
+    },
+)
+
+// 지도 위 시트는 라우트가 없어 탭 NavHost 가 이름을 알릴 수 없다.
+// 상태에서 지금 보이는 화면을 정해 녹화에 알린다 (iOS MapFlowFeature.currentScreenName 대응)
+@Composable
+private fun ReportMapScreenName(isActive: Boolean, state: MapState) {
+    val screen = when {
+        state.aliasEdit != null -> AnalyticsScreenName.PLACE_ALIAS
+        state.showsPostDetail -> AnalyticsScreenName.POST_DETAIL
+        state.detail != null -> AnalyticsScreenName.PLACE_DETAIL
+        else -> AnalyticsScreenName.MAP
+    }
+    // 탭을 다시 열 때도 다시 알린다. 그사이 다른 탭이 전역 이름을 바꿔 뒀다
+    LaunchedEffect(isActive, screen) { if (isActive) AnalyticsScreen.set(screen) }
 }
 
 // 전체 보기 신호를 인텐트로 올린다. 0 은 첫 조합이라 거른다

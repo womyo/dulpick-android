@@ -2,6 +2,8 @@ package com.dulpick.app.feature.onboarding.couple
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.Couple
 import com.dulpick.app.domain.couple.CoupleError
@@ -19,6 +21,7 @@ const val ARG_COUPLE_SHOWS_SKIP = "showsSkip"
 @HiltViewModel
 class CoupleViewModel @Inject constructor(
     private val coupleRepository: CoupleRepository,
+    private val analytics: Analytics,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<CoupleState, CoupleIntent, CoupleSideEffect>(
     CoupleState(
@@ -52,6 +55,7 @@ class CoupleViewModel @Inject constructor(
     }
 
     private fun onAppear() {
+        analytics.track(AnalyticsEvent.CoupleConnectStarted)
         loadInviteCodeIfNeeded()
         checkConnectionIfNeeded()
     }
@@ -111,6 +115,7 @@ class CoupleViewModel @Inject constructor(
         if (currentState.connectedCouple != null) return
         // 상대 정보가 비면 완료 화면 이름 칸이 빈다. 그 상태로는 안 넘긴다
         val partner = status?.takeIf { it.connected }?.partner ?: return
+        analytics.track(AnalyticsEvent.CoupleConnected)
         setState { copy(connectedCouple = Couple(partner.nickname, partner.iconId), step = CoupleStep.COMPLETE) }
     }
 

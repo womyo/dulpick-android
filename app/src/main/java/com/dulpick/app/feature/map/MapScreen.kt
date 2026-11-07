@@ -56,6 +56,7 @@ import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.CATEGORY_PLACEHOLDER
 import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
 import com.dulpick.app.ui.component.FilterDropdown
@@ -716,7 +717,7 @@ private fun MapSheetContent(
                     )
                 }
                 FilterDropdown(
-                    label = state.selectedCategory?.displayName() ?: CATEGORY_UNFILTERED,
+                    label = state.selectedCategory?.displayName() ?: CATEGORY_PLACEHOLDER,
                     isActive = state.selectedCategory != null,
                     options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
                     selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,

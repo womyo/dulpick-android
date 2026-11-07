@@ -58,6 +58,7 @@ import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.feature.course.component.CoursePlaceRow
 import com.dulpick.app.ui.map.candidatePin
 import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.CATEGORY_PLACEHOLDER
 import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.ui.component.FilterDropdown
 import com.dulpick.app.ui.component.OWNERSHIP_ORDER
@@ -280,7 +281,7 @@ private fun Header(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent
                 )
             }
             FilterDropdown(
-                label = state.selectedCategory?.displayName() ?: CATEGORY_UNFILTERED,
+                label = state.selectedCategory?.displayName() ?: CATEGORY_PLACEHOLDER,
                 isActive = state.selectedCategory != null,
                 options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
                 selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,

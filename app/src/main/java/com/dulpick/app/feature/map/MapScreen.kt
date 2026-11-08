@@ -54,6 +54,7 @@ import com.dulpick.app.core.analytics.AnalyticsScreenName
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.PlaceCategory
@@ -155,6 +156,8 @@ fun MapScreen(
     LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
     ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
     ReportMapScreenName(isActive, state)
+    // 지도 탭이 보이는 동안만 내 위치를 받는다. 다른 탭으로 가면 끊는다
+    LaunchedEffect(isActive) { viewModel.onIntent(MapIntent.MapVisibilityChanged(isActive)) }
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -207,6 +210,7 @@ fun MapScreen(
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
                 cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
+                userLocation = state.userLocation,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
@@ -628,6 +632,7 @@ private fun MapBody(
     mapBottomInset: Dp,
     pins: List<MapPin>,
     cameraRequest: MapCameraRequest,
+    userLocation: Coordinate?,
     onPinTap: (String) -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
@@ -653,6 +658,7 @@ private fun MapBody(
             isActive = isActive,
             pins = pins,
             cameraRequest = cameraRequest,
+            userLocation = userLocation,
             collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
         )

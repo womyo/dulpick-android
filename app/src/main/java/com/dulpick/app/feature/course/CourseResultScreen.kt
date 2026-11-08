@@ -116,6 +116,7 @@ fun CourseResultScreen(
     }
     LaunchedEffect(dateCourseId) {
         viewModel.onIntent(CourseResultIntent.Start(dateCourseId, origin))
+        viewModel.onIntent(CourseResultIntent.MapAppeared)
     }
     LaunchedEffect(reloadReason) {
         reloadReason ?: return@LaunchedEffect
@@ -212,6 +213,7 @@ private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () 
             modifier = Modifier.fillMaxSize().onSizeChanged { mapSize = it },
             pins = pins,
             routes = state.routes,
+            userLocation = state.userLocation,
             cameraRequest = MapCameraRequest(camera),
             collapsedSheetTopPx = collapsedSheetTop,
         )

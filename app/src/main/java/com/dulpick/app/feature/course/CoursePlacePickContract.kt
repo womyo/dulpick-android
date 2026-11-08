@@ -5,6 +5,7 @@ import com.dulpick.app.core.map.MapRoute
 import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
@@ -55,6 +56,8 @@ data class CoursePlacePickState(
     // 순서가 곧 번호다. Set 을 쓰면 번호를 못 매긴다
     val selectedPlaceIds: List<String> = emptyList(),
     val search: CoursePlaceSearch = CoursePlaceSearch(),
+    // 내 위치 점. 위치 흐름만 채운다
+    val userLocation: Coordinate? = null,
     val camera: MapCamera = MapCamera.SEOUL_CITY_HALL,
     // 같은 자리를 다시 요청해도 지도가 움직이도록 요청마다 하나씩 올린다
     val cameraNonce: Long = 0,
@@ -174,6 +177,8 @@ sealed interface CoursePlacePickIntent : UiIntent {
     data object SearchFieldDismissed : CoursePlacePickIntent
     data object SearchCancelClicked : CoursePlacePickIntent
     data object SearchChipClearClicked : CoursePlacePickIntent
+    // 지도가 보이기 시작했다. 내 위치 흐름을 연다. 화면을 떠나면 뷰모델이 사라져 함께 끊긴다
+    data object MapAppeared : CoursePlacePickIntent
 }
 
 sealed interface CoursePlacePickSideEffect : UiSideEffect {

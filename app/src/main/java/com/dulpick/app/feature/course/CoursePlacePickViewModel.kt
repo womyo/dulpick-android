@@ -4,14 +4,15 @@ import androidx.lifecycle.viewModelScope
 import com.dulpick.app.core.analytics.Analytics
 import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.UserLocationTracker
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
+import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseContent
 import com.dulpick.app.domain.place.Coordinate
-import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class CoursePlacePickViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
     private val coupleRepository: CoupleRepository,
+    private val locationRepository: LocationRepository,
     private val analytics: Analytics,
 ) : MviViewModel<CoursePlacePickState, CoursePlacePickIntent, CoursePlacePickSideEffect>(
     CoursePlacePickState(),
@@ -33,6 +35,12 @@ class CoursePlacePickViewModel @Inject constructor(
     // 앞 화면이 만든 코스. 제목·날짜·시간을 그대로 다시 올려야 해서 들고 있는다.
     // 낙관적 락 번호(version)도 여기서 본다
     private var course: DateCourse? = null
+
+    private val userLocation = UserLocationTracker(
+        repository = locationRepository,
+        scope = viewModelScope,
+        onChange = { coordinate -> setState { copy(userLocation = coordinate) } },
+    )
 
     // 시트의 장소 검색. 상태·효과만 넘겨 받아 스스로 처리한다
     private val search = CoursePlaceSearchController(
@@ -47,15 +55,21 @@ class CoursePlacePickViewModel @Inject constructor(
         when (intent) {
             is CoursePlacePickIntent.Start -> start(intent)
             CoursePlacePickIntent.RetryClicked -> load()
-            is CoursePlacePickIntent.OwnershipSelected -> selectOwnership(intent.ownership)
-            is CoursePlacePickIntent.CategorySelected -> selectCategory(intent.category)
+            is CoursePlacePickIntent.OwnershipSelected,
+            is CoursePlacePickIntent.CategorySelected,
+            -> selectFilter(intent)
             is CoursePlacePickIntent.RowClicked -> clickRow(intent.id)
             is CoursePlacePickIntent.PinTapped -> tapPin(intent.markerId)
             CoursePlacePickIntent.BuildClicked -> build()
-            CoursePlacePickIntent.ConflictDismissed -> setState { copy(conflictMessage = null) }
+            CoursePlacePickIntent.ConflictDismissed -> dismissConflict()
             CoursePlacePickIntent.BackClicked -> postSideEffect(CoursePlacePickSideEffect.Dismissed)
+            CoursePlacePickIntent.MapAppeared -> userLocation.start()
             else -> search.onIntent(intent)
         }
+    }
+
+    private fun dismissConflict() {
+        setState { copy(conflictMessage = null) }
     }
 
     // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
@@ -63,13 +77,13 @@ class CoursePlacePickViewModel @Inject constructor(
         if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
     }
 
-    private fun selectOwnership(ownership: PlaceOwnership) {
-        setState { copy(selectedOwnership = ownership) }
-        search.onFilterChanged()
-    }
-
-    private fun selectCategory(category: PlaceCategory?) {
-        setState { copy(selectedCategory = category) }
+    // 필터가 바뀌면 걸러진 결과가 비어 다음 페이지가 필요할 수 있다
+    private fun selectFilter(intent: CoursePlacePickIntent) {
+        when (intent) {
+            is CoursePlacePickIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
+            is CoursePlacePickIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
+            else -> return
+        }
         search.onFilterChanged()
     }
 

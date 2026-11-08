@@ -5,13 +5,20 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.os.Looper
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -63,6 +70,24 @@ class LocationDataSource @Inject constructor(
                 .addOnSuccessListener { continuation.resumeIfActive(it) }
                 .addOnFailureListener { continuation.resumeIfActive(null) }
         }
+    }
+
+    // 정밀 권한이 있을 때만 켠다. 대략 위치로는 점을 찍지 않는다
+    fun hasPrecisePermission(): Boolean = granted(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    // 좌표가 바뀔 때마다 흘린다. 구독을 끊으면 갱신이 멈춘다
+    @SuppressLint("MissingPermission")
+    fun updates(intervalMillis: Long, minDistanceMeters: Float): Flow<Location> = callbackFlow {
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMillis)
+            .setMinUpdateDistanceMeters(minDistanceMeters)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { trySend(it) }
+            }
+        }
+        client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        awaitClose { client.removeLocationUpdates(callback) }
     }
 
     private fun granted(permission: String): Boolean =

@@ -15,6 +15,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.dulpick.app.domain.place.Coordinate
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.MapLifeCycleCallback
@@ -44,6 +45,8 @@ fun KakaoMapView(
     pins: List<MapPin> = emptyList(),
     // 코스 순서를 잇는 선
     routes: List<MapRoute> = emptyList(),
+    // 내 위치 점. null 이면 그리지 않는다
+    userLocation: Coordinate? = null,
     // 지도가 보여줄 자리. null 이면 카메라를 건드리지 않는다
     cameraRequest: MapCameraRequest? = null,
     // 이 뷰가 화면 전체를 덮는다고 보고, 접힘 시트 윗면의 y 픽셀을 받는다.
@@ -130,6 +133,7 @@ fun KakaoMapView(
     HandlePinTaps(kakaoMap, pins, onPinTap)
     RenderMap(kakaoMap, renderRevision, pins, cameraRequest, collapsedSheetTopPx)
     RenderRoutes(kakaoMap, renderRevision, routes)
+    RenderUserLocation(kakaoMap, renderRevision, userLocation)
 
     // 앱 전면/후면 전환에도 재생/멈춤을 맞춘다. 파괴(finish)는 이 컴포지션이 떠날 때 한 번만 한다.
     // 복귀는 여기서 직접 resume 하지 않고 신호만 올려, 위의 재개 완료 확인·알림 경로를 함께 탄다

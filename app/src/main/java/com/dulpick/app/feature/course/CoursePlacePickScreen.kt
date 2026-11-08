@@ -127,6 +127,7 @@ fun CoursePlacePickScreen(
     }
     LaunchedEffect(dateCourseId, mode) {
         viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, existing))
+        viewModel.onIntent(CoursePlacePickIntent.MapAppeared)
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
@@ -164,6 +165,7 @@ fun CoursePlacePickScreen(
                     modifier = Modifier.fillMaxSize(),
                     pins = coursePins(state),
                     routes = state.routes,
+                    userLocation = state.userLocation,
                     // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
                     collapsedSheetTopPx = sheet.collapsedTopPx,
                     cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),

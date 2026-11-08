@@ -42,6 +42,8 @@ data class CourseResultState(
     val origin: CourseResultOrigin = CourseResultOrigin.COURSE_BUILT,
     val load: CourseResultLoad = CourseResultLoad.LOADING,
     val isNotifyingPartner: Boolean = false,
+    // 내 위치 점. 위치 흐름만 채운다
+    val userLocation: Coordinate? = null,
 ) : UiState {
     val stops: List<CourseStop> get() = course?.stops.orEmpty()
 
@@ -156,6 +158,8 @@ sealed interface CourseResultIntent : UiIntent {
     data object NotifyClicked : CourseResultIntent
     data object EditClicked : CourseResultIntent
     data object BackClicked : CourseResultIntent
+    // 지도가 보이기 시작했다. 내 위치 흐름을 연다
+    data object MapAppeared : CourseResultIntent
 }
 
 sealed interface CourseResultSideEffect : UiSideEffect {

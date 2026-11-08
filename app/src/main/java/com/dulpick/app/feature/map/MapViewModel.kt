@@ -5,6 +5,7 @@ import com.dulpick.app.core.analytics.Analytics
 import com.dulpick.app.core.analytics.AnalyticsEntryPoint
 import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.UserLocationTracker
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseRepository
@@ -47,6 +48,12 @@ class MapViewModel @Inject constructor(
         effect = { postSideEffect(it) },
     )
 
+    private val userLocation = UserLocationTracker(
+        repository = locationRepository,
+        scope = viewModelScope,
+        onChange = { coordinate -> setState { copy(userLocation = coordinate) } },
+    )
+
     // 낙관적으로 뺀 행. 서버 삭제가 실패하면 이 자리로 되돌린다
     private val pendingDeletes = mutableMapOf<String, PendingDelete>()
 
@@ -81,6 +88,8 @@ class MapViewModel @Inject constructor(
                 alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
+            is MapIntent.MapVisibilityChanged ->
+                if (intent.isVisible) userLocation.start() else userLocation.stop()
             MapIntent.CurrentLocationClicked, is MapIntent.LocationPermissionResult,
             MapIntent.LocationModalDismissed -> location.handle(intent)
             else -> onSearchIntent(intent)

@@ -5,6 +5,7 @@ import com.dulpick.app.core.mvi.UiIntent
 import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.course.DateCourseSummary
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
@@ -39,6 +40,8 @@ data class MapState(
     val cameraNonce: Long = 0,
     // 위치 권한 설정 안내 모달 표시 여부
     val showsLocationPermissionModal: Boolean = false,
+    // 내 위치 점. 위치 흐름만 채운다. 현위치 버튼이 받은 좌표로는 바꾸지 않는다
+    val userLocation: Coordinate? = null,
     // null 이 아니면 게시글 상세 시트를 띄운다. 장소 상세와 함께 있을 수 있다 (iOS postDetail 대응)
     val postDetail: PostDetail? = null,
     // 두 상세가 같이 있을 때 위에 있는 쪽. 나중에 연 쪽이다 (iOS topDetail 대응)
@@ -160,6 +163,8 @@ sealed interface MapIntent : UiIntent {
     data object ShowAllSaved : MapIntent
     // 내 위치 버튼. 권한 상태에 따라 요청·조회·안내로 갈린다
     data object CurrentLocationClicked : MapIntent
+    // 지도가 보이기 시작했다·보이지 않게 됐다. 내 위치 흐름을 열고 닫는다
+    data class MapVisibilityChanged(val isVisible: Boolean) : MapIntent
     // 권한 요청 결과. granted 면 좌표를 조회하고, 영구 거부면 설정 안내를 띄운다
     data class LocationPermissionResult(val granted: Boolean, val permanentlyDenied: Boolean) : MapIntent
     data object LocationModalDismissed : MapIntent

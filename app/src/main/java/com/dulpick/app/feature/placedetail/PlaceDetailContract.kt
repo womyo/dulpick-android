@@ -33,6 +33,8 @@ data class PlaceDetailState(
     val detailCategory: String? = null,
     // 「지도로 보기」 로 띄우는 지도 앱 고르기 시트
     val showsMapSheet: Boolean = false,
+    // null 이 아니면 그 순번의 사진부터 전체 화면 뷰어를 띄운다
+    val photoViewerIndex: Int? = null,
 ) : UiState {
     // 서버가 아는 장소여야 게시물을 부른다. 있고, 결과가 있거나 로딩·실패면 섹션을 보인다(0건이면 숨김)
     val showsRelatedSection: Boolean
@@ -67,6 +69,8 @@ sealed interface PlaceDetailIntent : UiIntent {
     data object RetryContentsClicked : PlaceDetailIntent
     data class ContentClicked(val id: String) : PlaceDetailIntent
     data object BookmarkClicked : PlaceDetailIntent
+    data class PhotoClicked(val index: Int) : PlaceDetailIntent
+    data object PhotoViewerDismissed : PlaceDetailIntent
 }
 
 sealed interface PlaceDetailSideEffect : UiSideEffect {

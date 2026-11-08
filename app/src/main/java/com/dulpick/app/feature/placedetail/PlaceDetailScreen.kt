@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.link.openAppOrWeb
 import com.dulpick.app.feature.placedetail.component.PlaceMapSheet
+import com.dulpick.app.feature.placedetail.component.PlacePhotoViewer
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
@@ -90,6 +91,15 @@ fun PlaceDetailSheet(
     }
 
     val place = state.place ?: target
+    state.photoViewerIndex?.let { index ->
+        PlacePhotoViewer(
+            urls = place.thumbnailUrls,
+            initialIndex = index,
+            // 녹화 가리기가 없는 화면이라 별칭이 아닌 실제 이름을 보인다
+            title = place.name,
+            onClose = { viewModel.onIntent(PlaceDetailIntent.PhotoViewerDismissed) },
+        )
+    }
     if (state.showsMapSheet) {
         MapAppSheet(
             title = place.name,
@@ -129,7 +139,11 @@ private fun DetailContent(
         )
         if (place.thumbnailUrls.isNotEmpty()) {
             // 지도 버튼과 사진 사이 16 (iOS PlacePhotoStrip 상단 패딩), 사진 아래 12
-            PhotoStrip(urls = place.thumbnailUrls, modifier = Modifier.padding(top = 16.dp, bottom = 12.dp))
+            PhotoStrip(
+                urls = place.thumbnailUrls,
+                onClick = { index -> onIntent(PlaceDetailIntent.PhotoClicked(index)) },
+                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
+            )
         }
         // 사진 줄이 없으면 주소 위에 20 만큼 띄운다 (iOS 동일)
         val addressTop = if (place.thumbnailUrls.isEmpty()) 20.dp else 0.dp
@@ -366,7 +380,7 @@ private fun MapButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PhotoStrip(urls: List<String>, modifier: Modifier = Modifier) {
+private fun PhotoStrip(urls: List<String>, onClick: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -374,11 +388,11 @@ private fun PhotoStrip(urls: List<String>, modifier: Modifier = Modifier) {
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        urls.forEach { url ->
+        urls.forEachIndexed { index, url ->
             RemoteImage(
                 url = url,
                 cornerRadius = 12.dp,
-                modifier = Modifier.size(PHOTO_SIZE),
+                modifier = Modifier.size(PHOTO_SIZE).clickable { onClick(index) },
             )
         }
     }

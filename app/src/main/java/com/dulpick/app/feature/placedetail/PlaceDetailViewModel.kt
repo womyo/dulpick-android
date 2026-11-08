@@ -51,10 +51,11 @@ class PlaceDetailViewModel @Inject constructor(
             PlaceDetailIntent.AddressToggled -> setState { copy(isAddressExpanded = !isAddressExpanded) }
             PlaceDetailIntent.MapClicked -> setState { copy(showsMapSheet = true) }
             PlaceDetailIntent.MapSheetDismissed -> setState { copy(showsMapSheet = false) }
+            is PlaceDetailIntent.PhotoClicked, PlaceDetailIntent.PhotoViewerDismissed ->
+                showPhotoViewer((intent as? PlaceDetailIntent.PhotoClicked)?.index)
             is PlaceDetailIntent.MapAppSelected -> openMap(intent.app)
             PlaceDetailIntent.CloseClicked -> postSideEffect(PlaceDetailSideEffect.Close)
-            PlaceDetailIntent.MoreContentsClicked -> loadContents()
-            PlaceDetailIntent.RetryContentsClicked -> loadContents()
+            PlaceDetailIntent.MoreContentsClicked, PlaceDetailIntent.RetryContentsClicked -> loadContents()
             is PlaceDetailIntent.ContentClicked -> postSideEffect(PlaceDetailSideEffect.OpenContent(intent.id))
             PlaceDetailIntent.BookmarkClicked -> toggleBookmark()
         }
@@ -202,6 +203,10 @@ class PlaceDetailViewModel @Inject constructor(
                 bookmarkCount = (bookmarkCount + if (wasBookmarked) 1 else -1).coerceAtLeast(0),
             )
         }
+    }
+
+    private fun showPhotoViewer(index: Int?) {
+        setState { copy(photoViewerIndex = index) }
     }
 
     // 고른 지도 앱을 연다. 검색어는 별칭이 아니라 실제 장소 이름이다

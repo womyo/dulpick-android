@@ -44,7 +44,9 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,7 +69,9 @@ import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
+import com.dulpick.app.ui.map.MapSheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
+import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
@@ -132,6 +136,7 @@ fun CoursePlacePickScreen(
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
     val scaffoldState = rememberMapSheetState()
+    val sheetStep = rememberMapSheetStep()
     val scope = rememberCoroutineScope()
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
@@ -143,12 +148,14 @@ fun CoursePlacePickScreen(
             .onSizeChanged { rootHeightPx = it.height },
     ) {
         val sheet = mapSheetMetrics(maxHeight)
+        val minimumHeight = sheetStep.minimumHeight()
         BottomSheetScaffold(
             scaffoldState = scaffoldState,
-            sheetPeekHeight = sheet.collapsedHeight,
+            sheetPeekHeight = sheetStep.peekHeight(sheet.collapsedHeight, minimumHeight),
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
+            sheetDragHandle = { MapSheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 SheetBody(
@@ -157,6 +164,8 @@ fun CoursePlacePickScreen(
                     rootHeightPx = rootHeightPx,
                     onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
                     onIntent = viewModel::onIntent,
+                    onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
+                    onMenuOpened = { sheetStep.isMinimized = false },
                 )
             },
         ) {
@@ -170,24 +179,19 @@ fun CoursePlacePickScreen(
                     collapsedSheetTopPx = sheet.collapsedTopPx,
                     cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                     onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
+                    onUserGestureBegan = { if (minimumHeight != null) sheetStep.isMinimized = true },
                 )
                 BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
         }
 
-        // 화면 아래에 고정된 CTA. 시트를 올려도 자리가 안 바뀐다
-        Column(modifier = Modifier.align(Alignment.BottomCenter)) {
-            CtaContainer {
-                AppButton(
-                    text = state.ctaTitle,
-                    onClick = { viewModel.onIntent(CoursePlacePickIntent.BuildClicked) },
-                    variant = AppButtonVariant.DARK,
-                    size = AppButtonSize.XL,
-                    enabled = state.isCtaEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
+        BuildCta(
+            title = state.ctaTitle,
+            isEnabled = state.isCtaEnabled,
+            onClick = { viewModel.onIntent(CoursePlacePickIntent.BuildClicked) },
+            onHeightChange = { height -> sheetStep.obstacleHeight = height },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         AppToast(message = toastMessage, onDismiss = { toastMessage = null }, bottomInset = 100)
     }
@@ -237,6 +241,30 @@ private fun coursePins(state: CoursePlacePickState): List<MapPin> {
     return existingPins + categoryPins + numberedPins
 }
 
+// 화면 아래에 고정된 CTA. 시트를 올려도 자리가 안 바뀐다
+@Composable
+private fun BuildCta(
+    title: String,
+    isEnabled: Boolean,
+    onClick: () -> Unit,
+    onHeightChange: (Dp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    Column(modifier = modifier.onSizeChanged { onHeightChange(with(density) { it.height.toDp() }) }) {
+        CtaContainer {
+            AppButton(
+                text = title,
+                onClick = onClick,
+                variant = AppButtonVariant.DARK,
+                size = AppButtonSize.XL,
+                enabled = isEnabled,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
 @Composable
 private fun BackButton(onClick: () -> Unit) {
     Box(modifier = Modifier.statusBarsPadding().padding(top = 8.dp, start = 8.dp)) {
@@ -255,15 +283,23 @@ private fun BackButton(onClick: () -> Unit) {
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun SheetBody(
     state: CoursePlacePickState,
     height: androidx.compose.ui.unit.Dp,
     rootHeightPx: Int,
     onCollapse: () -> Unit,
     onIntent: (CoursePlacePickIntent) -> Unit,
+    onHeaderHeightChange: (androidx.compose.ui.unit.Dp) -> Unit,
+    onMenuOpened: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
-        Header(state = state, onIntent = onIntent)
+        Header(
+            state = state,
+            onIntent = onIntent,
+            onHeightChange = onHeaderHeightChange,
+            onMenuOpened = onMenuOpened,
+        )
         when (state.listContent) {
             CoursePlaceListContent.SKELETON -> Skeleton()
             CoursePlaceListContent.LOAD_FAILED -> Failure(
@@ -288,20 +324,33 @@ private fun SheetBody(
 }
 
 @Composable
-private fun Header(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
+private fun Header(
+    state: CoursePlacePickState,
+    onIntent: (CoursePlacePickIntent) -> Unit,
+    onHeightChange: (androidx.compose.ui.unit.Dp) -> Unit,
+    onMenuOpened: () -> Unit,
+) {
+    val density = LocalDensity.current
     Column(
-        modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp),
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 8.dp)
+            .onSizeChanged { onHeightChange(with(density) { it.height.toDp() }) },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
-        FilterRow(state = state, onIntent = onIntent)
+        FilterRow(state = state, onIntent = onIntent, onMenuOpened = onMenuOpened)
     }
 }
 
 // 검색창이 열리면 「검색」 칩이 줄 너비로 늘어나 검색창이 되고 나머지 칩은 사라진다.
 // 두 모양이 같은 높이라 바뀌어도 머리 높이가 그대로다
 @Composable
-private fun FilterRow(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
+private fun FilterRow(
+    state: CoursePlacePickState,
+    onIntent: (CoursePlacePickIntent) -> Unit,
+    onMenuOpened: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().height(SAVED_PLACE_SEARCH_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -327,7 +376,10 @@ private fun FilterRow(state: CoursePlacePickState, onIntent: (CoursePlacePickInt
         SavedPlaceSearchChip(
             query = state.search.query,
             isEnabled = state.isSearchAvailable,
-            onClick = { onIntent(CoursePlacePickIntent.SearchChipClicked) },
+            onClick = {
+                onMenuOpened()
+                onIntent(CoursePlacePickIntent.SearchChipClicked)
+            },
             onClear = { onIntent(CoursePlacePickIntent.SearchChipClearClicked) },
             modifier = Modifier.weight(1f, fill = false),
         )
@@ -338,6 +390,7 @@ private fun FilterRow(state: CoursePlacePickState, onIntent: (CoursePlacePickInt
                 options = OWNERSHIP_ORDER.map { it.displayName() },
                 selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
                 onSelect = { onIntent(CoursePlacePickIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
+                onExpand = onMenuOpened,
             )
         }
         FilterDropdown(

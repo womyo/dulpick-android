@@ -2,7 +2,9 @@ package com.dulpick.app.core.map
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import com.kakao.vectormap.GestureType
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.LatLng
@@ -51,6 +53,18 @@ internal fun RenderMap(
         // 새 목표가 왔으니 앞서 사용자가 움직인 기록은 지운다
         userMovedCamera.set(false)
         moveUntilSettled(map, target, collapsedSheetTopPx, userMovedCamera)
+    }
+}
+
+// 사용자가 손으로 지도를 움직이기 시작했을 때만 알린다. 코드가 옮기면 Unknown 으로 온다
+@Composable
+internal fun HandleUserGesture(kakaoMap: KakaoMap?, revision: Int, onBegan: () -> Unit) {
+    val callback by rememberUpdatedState(onBegan)
+    LaunchedEffect(kakaoMap, revision) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        map.setOnCameraMoveStartListener { _, gestureType ->
+            if (gestureType != GestureType.Unknown) callback()
+        }
     }
 }
 

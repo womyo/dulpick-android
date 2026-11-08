@@ -58,6 +58,7 @@ import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
+import com.dulpick.app.ui.map.MapSheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
@@ -147,6 +148,7 @@ fun CourseResultScreen(
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
+            sheetDragHandle = { MapSheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 SheetBody(

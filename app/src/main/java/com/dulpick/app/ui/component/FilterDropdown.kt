@@ -59,6 +59,8 @@ fun FilterDropdown(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    // 메뉴를 열 때 부른다. 최소 시트에서 열면 메뉴가 가려 화면이 시트를 올린다
+    onExpand: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
     var pillHeightPx by remember { mutableIntStateOf(0) }
@@ -72,7 +74,10 @@ fun FilterDropdown(
                 .clip(CircleShape)
                 .background(if (isActive) Colors.bgSubtle else Colors.bgDefault)
                 .border(1.dp, if (isActive) Colors.textPrimary else Colors.borderDefault, CircleShape)
-                .clickable { expanded = true }
+                .clickable {
+                    onExpand()
+                    expanded = true
+                }
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),

@@ -54,6 +54,9 @@ fun KakaoMapView(
     collapsedSheetTopPx: Float = 0f,
     // 핀 탭. id 가 있는 핀만 온다
     onPinTap: (String) -> Unit = {},
+    // 사용자가 손으로 지도를 움직이기 시작하면 불린다. 앱이 카메라를 옮길 때는 안 불린다.
+    // 한 손짓에 여러 번 올 수 있다
+    onUserGestureBegan: () -> Unit = {},
     onMapReady: (KakaoMap) -> Unit = {},
     // 렌더링이 실제로 재개된 뒤 불린다. pause 중에 쌓인 카메라·라벨 명령은 프레임을 못 잡으므로
     // 화면은 이 신호를 받아 다시 그려야 한다
@@ -132,6 +135,7 @@ fun KakaoMapView(
 
     HandlePinTaps(kakaoMap, pins, onPinTap)
     RenderMap(kakaoMap, renderRevision, pins, cameraRequest, collapsedSheetTopPx)
+    HandleUserGesture(kakaoMap, renderRevision, onUserGestureBegan)
     RenderRoutes(kakaoMap, renderRevision, routes)
     RenderUserLocation(kakaoMap, renderRevision, userLocation)
 

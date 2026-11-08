@@ -201,14 +201,14 @@ class MyPageViewModel @Inject constructor(
         }
     }
 
-    // 탈퇴 성공 시 로그아웃(로컬 정리)까지 하고 로그인으로. 실패하면 모달만 닫고 알린다
+    // 탈퇴하면 이 기기의 세션 정리는 profileRepository.withdraw 가 함께 한다.
+    // 로그아웃을 따로 부르지 않는다 — 계정이 사라져 서버 로그아웃이 401 이다
     private fun withdraw() {
         if (currentState.isWithdrawing) return
         setState { copy(isWithdrawing = true) }
         viewModelScope.launch {
             runCatching { profileRepository.withdraw() }
                 .onSuccess {
-                    runCatching { authRepository.logout() }
                     setState { copy(isWithdrawing = false, isWithdrawDialogPresented = false) }
                     postSideEffect(MyPageSideEffect.LoggedOut)
                 }

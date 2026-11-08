@@ -78,7 +78,8 @@ data class SavedPlaceResponseDto(
     val roadAddress: String? = null,
     val latitude: Double,
     val longitude: Double,
-    val category: String,
+    // 카카오 분류 경로. 명세가 null 을 허용한다
+    val category: String? = null,
     val categoryName: String,
     val ownershipStatus: String,
     val alias: String? = null,

@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +42,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.link.openAppOrWeb
+import com.dulpick.app.feature.placedetail.component.PlaceMapSheet
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceCategory
@@ -77,7 +81,7 @@ fun PlaceDetailSheet(
         when (effect) {
             PlaceDetailSideEffect.Close -> onClose()
             PlaceDetailSideEffect.SessionExpired -> onSessionExpired()
-            is PlaceDetailSideEffect.OpenKakaoMap -> context.openAppOrWeb(effect.appUri, effect.webUrl)
+            is PlaceDetailSideEffect.OpenMap -> context.openAppOrWeb(effect.appUri, effect.webUrl)
             is PlaceDetailSideEffect.OpenContent -> onOpenContent(effect.id)
         }
     }
@@ -86,6 +90,13 @@ fun PlaceDetailSheet(
     }
 
     val place = state.place ?: target
+    if (state.showsMapSheet) {
+        MapAppSheet(
+            title = place.name,
+            onSelect = { app -> viewModel.onIntent(PlaceDetailIntent.MapAppSelected(app)) },
+            onDismiss = { viewModel.onIntent(PlaceDetailIntent.MapSheetDismissed) },
+        )
+    }
     Column(modifier = modifier.fillMaxWidth().background(Colors.commonWhite)) {
         DetailContent(
             place = place,
@@ -111,7 +122,7 @@ private fun DetailContent(
     ) {
         Header(
             place = place,
-            canOpenMap = state.canOpenKakaoMap,
+            detailCategory = state.detailCategoryText,
             isBookmarked = state.isBookmarked,
             bookmarkCount = state.bookmarkCount,
             onIntent = onIntent,
@@ -245,48 +256,79 @@ private fun MoreButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier
 @Composable
 private fun Header(
     place: Place,
-    canOpenMap: Boolean,
+    detailCategory: String?,
     isBookmarked: Boolean,
     bookmarkCount: Int,
     onIntent: (PlaceDetailIntent) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).padding(vertical = 5.dp)) {
                 Text(text = place.name, style = Typography.title3SB, color = Colors.textPrimary)
-                Subtitle(category = place.category, bookmarkCount = bookmarkCount)
+                Subtitle(
+                    category = place.category,
+                    detailCategory = detailCategory,
+                    bookmarkCount = bookmarkCount,
+                )
             }
-            HeaderIcon(
-                res = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
-                description = "저장",
-                onClick = { onIntent(PlaceDetailIntent.BookmarkClicked) },
-            )
             HeaderIcon(res = R.drawable.x, description = "닫기", onClick = { onIntent(PlaceDetailIntent.CloseClicked) })
         }
-        MapButton(
-            enabled = canOpenMap,
-            onClick = { onIntent(PlaceDetailIntent.MapClicked) },
-            modifier = Modifier.padding(start = 20.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SaveButton(
+                isBookmarked = isBookmarked,
+                onClick = { onIntent(PlaceDetailIntent.BookmarkClicked) },
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            MapButton(onClick = { onIntent(PlaceDetailIntent.MapClicked) })
+        }
     }
 }
 
 @Composable
-private fun Subtitle(category: PlaceCategory, bookmarkCount: Int) {
+private fun Subtitle(category: PlaceCategory, detailCategory: String?, bookmarkCount: Int) {
     val text = buildAnnotatedString {
         withStyle(SpanStyle(color = Colors.textTertiary)) {
-            append("${category.categoryName()} · 저장한 사람 ")
+            append(category.categoryName())
+            detailCategory?.let { append(" · $it") }
+            append(" · 저장한 사람 ")
         }
         withStyle(SpanStyle(color = Colors.brandPrimary)) {
             append("$bookmarkCount")
         }
     }
     Text(text = text, style = Typography.body2M)
+}
+
+// 시안 「저장」. 저장 전에는 빈 아이콘을 회색으로, 저장 뒤에는 분홍 채움 아이콘을 쓴다
+@Composable
+private fun SaveButton(isBookmarked: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Colors.commonWhite)
+            .border(1.dp, Colors.gray200, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Image(
+            painter = painterResource(
+                if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
+            ),
+            contentDescription = null,
+            colorFilter = if (isBookmarked) null else ColorFilter.tint(Colors.textTertiary),
+            modifier = Modifier.size(16.dp),
+        )
+        Text(text = "저장", style = Typography.caption1M, color = Colors.textSecondary)
+    }
 }
 
 @Composable
@@ -302,30 +344,24 @@ private fun HeaderIcon(res: Int, description: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MapButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val contentColor = if (enabled) Colors.textSecondary else Colors.textDisabled
-    val borderColor = if (enabled) Colors.gray200 else Colors.gray100
+private fun MapButton(onClick: () -> Unit) {
     Row(
-        modifier = modifier
-            .width(75.dp)
+        modifier = Modifier
             .height(32.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Colors.commonWhite)
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
-            .then(
-                Modifier.clickable(enabled = enabled, onClick = onClick),
-            )
-            .padding(horizontal = 8.dp),
+            .background(Colors.gray900)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Image(
             painter = painterResource(R.drawable.mappin),
             contentDescription = null,
-            colorFilter = ColorFilter.tint(contentColor),
+            colorFilter = ColorFilter.tint(Colors.gray50),
             modifier = Modifier.size(16.dp),
         )
-        Text(text = "지도", style = Typography.caption1M, color = contentColor)
+        Text(text = "지도로 보기", style = Typography.caption1M, color = Colors.commonWhite)
     }
 }
 
@@ -401,4 +437,24 @@ private fun PlaceCategory.categoryName(): String = when (this) {
     PlaceCategory.ACCOMMODATION -> "숙박"
     PlaceCategory.TOURISM -> "관광"
     PlaceCategory.CONVENIENCE -> "생활편의"
+}
+
+// 지도 앱 고르기 시트. 지도 위 상세 시트 위에 또 띄우므로 모달로 올린다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MapAppSheet(title: String, onSelect: (PlaceMapApp) -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Colors.commonWhite,
+        dragHandle = null,
+    ) {
+        PlaceMapSheet(
+            title = title,
+            // 지도 검색어는 실제 장소 이름이라 가릴 것이 없다
+            isAlias = false,
+            onSelect = onSelect,
+            onClose = onDismiss,
+        )
+    }
 }

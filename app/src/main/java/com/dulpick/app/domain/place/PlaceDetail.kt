@@ -17,6 +17,8 @@ data class PlaceDetail(
     val phone: String?,
     // 카카오맵 앱이 없을 때 여는 웹 주소
     val kakaoPlaceUrl: String?,
+    // 카카오 분류에서 고른 가장 구체적인 업종(예: 커피전문점). 모르면 null
+    val detailCategory: String? = null,
 ) {
     val id: String get() = place.id
 }

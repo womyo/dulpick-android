@@ -38,10 +38,19 @@ object PlaceDtoMapper {
         serverPlaceId = dto.placeId,
         savedByMe = dto.savedByMe,
         savedMemberCount = dto.savedMemberCount,
+        detailCategory = detailCategory(dto.category),
         ownership = dto.ownershipStatus?.let(::ownership),
         phone = dto.phone,
         kakaoPlaceUrl = dto.kakaoPlaceUrl,
     )
+
+    // 카카오 분류 경로(음식점 > 카페 > 커피전문점)에서 세부 분류 하나를 고른다.
+    // 셋째 단계가 있으면 셋째, 없으면 둘째다. 넷째 단계는 대개 상호명이라 쓰지 않는다
+    private fun detailCategory(path: String?): String? {
+        val steps = path.orEmpty().split(">").map { it.trim() }.filter { it.isNotEmpty() }
+        if (steps.size < 2) return null
+        return steps[minOf(steps.size, 3) - 1]
+    }
 
     private fun toSearchResult(dto: PlaceSearchItemDto): PlaceSearchResult? {
         val latitude = dto.latitude ?: return null

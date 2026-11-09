@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -157,11 +159,9 @@ fun MapScreen(
         onClosePostDetail = onClosePostDetail,
         onToast = { toast = it },
     )
-    LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
-    ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
+    val savedListState = rememberShowAllListState(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
     ReportMapScreenName(isActive, state)
-    // 지도 탭이 보이는 동안만 내 위치를 받는다. 다른 탭으로 가면 끊는다
-    LaunchedEffect(isActive) { viewModel.onIntent(MapIntent.MapVisibilityChanged(isActive)) }
+    MapLifecycleEffects(isActive, viewModel::onIntent)
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -205,6 +205,7 @@ fun MapScreen(
             sheetContent = {
                 MapSheet(
                     state = state,
+                    savedListState = savedListState,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
                     onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
                     onFilterMenuOpened = { sheetStep.isMinimized = false },
@@ -484,10 +485,24 @@ private fun ReportMapScreenName(isActive: Boolean, state: MapState) {
     LaunchedEffect(isActive, screen) { if (isActive) AnalyticsScreen.set(screen) }
 }
 
-// 전체 보기 신호를 인텐트로 올린다. 0 은 첫 조합이라 거른다
+// 첫 진입에 한 번 읽고, 탭이 보이는 동안만 내 위치를 받는다
 @Composable
-private fun ConsumeShowAll(nonce: Int, onShowAll: () -> Unit) {
-    LaunchedEffect(nonce) { if (nonce > 0) onShowAll() }
+private fun MapLifecycleEffects(isActive: Boolean, onIntent: (MapIntent) -> Unit) {
+    LaunchedEffect(Unit) { onIntent(MapIntent.OnAppear) }
+    LaunchedEffect(isActive) { onIntent(MapIntent.MapVisibilityChanged(isActive)) }
+}
+
+// 전체 보기 신호를 올리고 목록을 맨 위로 되돌린다. 0 은 첫 조합이라 거른다
+@Composable
+private fun rememberShowAllListState(nonce: Int, onShowAll: () -> Unit): LazyListState {
+    val listState = rememberLazyListState()
+    LaunchedEffect(nonce) {
+        if (nonce <= 0) return@LaunchedEffect
+        onShowAll()
+        // 새로 저장한 곳이 맨 위에 온다. 보던 자리에 남아 있으면 갱신된 줄 모른다
+        listState.scrollToItem(0)
+    }
+    return listState
 }
 
 // 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
@@ -585,6 +600,7 @@ private class MapTopBarActions(
 @Suppress("LongParameterList")
 private fun MapSheet(
     state: MapState,
+    savedListState: LazyListState,
     sheetHeight: Dp,
     // 시트 내용 끝에 둘 여백 (내비게이션 버튼 자리)
     contentBottomInset: Dp,
@@ -635,6 +651,7 @@ private fun MapSheet(
         )
         else -> MapSheetContent(
             state = state,
+            listState = savedListState,
             onIntent = onIntent,
             height = sheetHeight,
             onHeaderHeightChange = onHeaderHeightChange,
@@ -726,8 +743,10 @@ private fun MapBody(
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun MapSheetContent(
     state: MapState,
+    listState: LazyListState,
     onIntent: (MapIntent) -> Unit,
     height: Dp,
     onHeaderHeightChange: (Dp) -> Unit,
@@ -775,7 +794,7 @@ private fun MapSheetContent(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
         } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f)) {
                 items(state.filteredPlaces, key = { it.id }) { place ->
                     PlaceListRow(
                         place = place,

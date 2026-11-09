@@ -96,6 +96,9 @@ import com.dulpick.app.ui.theme.Typography
 // 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
+
+// 접힘보다 이만큼 더 올리면 떠 있는 버튼을 숨긴다
+private val BUTTON_HIDE_MARGIN = 72.dp
 private val SHEET_CORNER_RADIUS = 32.dp
 
 // 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다
@@ -188,6 +191,7 @@ fun MapScreen(
         // 안쪽 람다에서는 BoxWithConstraints 의 값을 못 읽는다. 먼저 받아 둔다
         val containerHeight = maxHeight
         val sheet = mapSheetMetrics(containerHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
+        val sheetHeight = sheetVisibleHeight(sheetState, containerHeight, sheet.collapsedHeight)
         BottomSheetScaffold(
             modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
@@ -224,10 +228,12 @@ fun MapScreen(
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = chrome.hidesTopBar,
                 selectedCategory = state.selectedCategory,
-                showsLocationButton = chrome.showsFloatingButtons,
+                // 시트를 접힘보다 한 뼘 넘게 올리면 버튼을 숨긴다. 시트가 지도를 거의 덮은 상태다
+                showsLocationButton = chrome.showsFloatingButtons &&
+                    sheetHeight < sheet.collapsedHeight + BUTTON_HIDE_MARGIN,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = sheetVisibleHeight(sheetState, containerHeight, sheet.collapsedHeight) + 12.dp,
+                locationButtonBottom = sheetHeight + 12.dp,
                 collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )

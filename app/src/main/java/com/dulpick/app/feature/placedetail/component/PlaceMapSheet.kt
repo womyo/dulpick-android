@@ -34,7 +34,7 @@ fun PlaceMapSheet(
     onSelect: (PlaceMapApp) -> Unit,
     onClose: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 20.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
         Header(title = title, isAlias = isAlias, onClose = onClose)
         Column(
             modifier = Modifier.padding(20.dp),

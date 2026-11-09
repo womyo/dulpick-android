@@ -78,7 +78,7 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
-import com.dulpick.app.ui.map.MapSheetHandle
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.placePin
@@ -200,7 +200,7 @@ fun MapScreen(
             containerColor = Color.Transparent,
             // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
             sheetTonalElevation = 0.dp,
-            sheetDragHandle = { MapSheetHandle() },
+            sheetDragHandle = { SheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 MapSheet(
@@ -425,6 +425,7 @@ private fun AliasEditModal(edit: AliasEdit, onIntent: (MapIntent) -> Unit) {
         containerColor = Colors.commonWhite,
         // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 회색으로 뜨므로 끈다
         tonalElevation = 0.dp,
+        dragHandle = { SheetHandle() },
     ) {
         PlaceAliasSheet(edit = edit, onSave = { onIntent(MapIntent.AliasSaveClicked(it)) })
     }

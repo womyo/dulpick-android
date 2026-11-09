@@ -69,7 +69,7 @@ import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
-import com.dulpick.app.ui.map.MapSheetHandle
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -155,7 +155,7 @@ fun CoursePlacePickScreen(
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
-            sheetDragHandle = { MapSheetHandle() },
+            sheetDragHandle = { SheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 SheetBody(

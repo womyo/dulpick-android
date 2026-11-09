@@ -54,6 +54,7 @@ import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.ContentCard
 import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.component.RemoteImage
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -464,7 +465,7 @@ private fun MapAppSheet(title: String, onSelect: (PlaceMapApp) -> Unit, onDismis
         containerColor = Colors.commonWhite,
         // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
         tonalElevation = 0.dp,
-        dragHandle = null,
+        dragHandle = { SheetHandle() },
         // 기본값은 내비게이션 바 높이만큼 시트를 띄운다. 그 틈으로 뒤 화면이 비친다.
         // 시트를 바닥까지 내리고 그 여백은 안의 내용이 직접 가진다
         windowInsets = WindowInsets(0),

@@ -59,6 +59,7 @@ import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.ModalContent
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.component.ShimmerBox
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -213,6 +214,7 @@ private fun MyPageOverlays(state: MyPageState, onIntent: (MyPageIntent) -> Unit)
             containerColor = Colors.commonWhite,
             // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
             tonalElevation = 0.dp,
+            dragHandle = { SheetHandle() },
         ) {
             ProfileEditSheet(
                 initialNickname = state.nickname,

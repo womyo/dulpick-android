@@ -3,6 +3,9 @@ package com.dulpick.app.core.map
 import android.graphics.Bitmap
 import com.dulpick.app.domain.place.Coordinate
 
+// 지도 위 표식(카테고리 핀·물방울·내 위치 점)을 그리는 배율
+const val MAP_MARKER_SCALE = 0.8f
+
 // 핀 하나를 어떻게 그릴지. 같은 styleId 를 쓰는 핀은 이 값을 공유한다 — SDK 에 한 번만 등록한다
 // (iOS MapPinStyle 대응)
 data class MapPinStyle(

@@ -60,7 +60,9 @@ internal fun RenderUserLocation(kakaoMap: KakaoMap?, revision: Int, userLocation
     }
 }
 
-private fun userLocationDot(density: Float): Bitmap {
+private fun userLocationDot(displayDensity: Float): Bitmap {
+    // 배율을 밀도에 녹여 안쪽 원들이 한꺼번에 줄어들게 한다
+    val density = displayDensity * MAP_MARKER_SCALE
     val size = (DOT_SIZE_DP * density).roundToInt()
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)

@@ -267,6 +267,8 @@ class MapViewModel @Inject constructor(
             )
             if (reset.showsSavedOverview) reset.withOverviewCamera() else reset
         }
+        // 홈·탐색에서 저장하고 돌아올 수 있다. 탭을 열 때마다 목록을 다시 읽는다
+        loadPlaces()
     }
 
     // 실패를 다시 시도한다. 빈 목록으로 두지 않고 로딩부터 다시 보여준다

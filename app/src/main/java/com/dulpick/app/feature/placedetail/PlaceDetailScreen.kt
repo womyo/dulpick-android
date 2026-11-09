@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -461,7 +462,12 @@ private fun MapAppSheet(title: String, onSelect: (PlaceMapApp) -> Unit, onDismis
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Colors.commonWhite,
+        // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
+        tonalElevation = 0.dp,
         dragHandle = null,
+        // 기본값은 내비게이션 바 높이만큼 시트를 띄운다. 그 틈으로 뒤 화면이 비친다.
+        // 시트를 바닥까지 내리고 그 여백은 안의 내용이 직접 가진다
+        windowInsets = WindowInsets(0),
     ) {
         PlaceMapSheet(
             title = title,

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -713,8 +715,10 @@ private fun MapBody(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 0.dp)
-                    .padding(bottom = locationButtonBottom),
+                    // 시트 바로 위에 붙어 따라 오른다. 자리를 차지하지 않는 offset 이라
+                    // 시트를 많이 올리면 화면 밖으로 밀려 사라진다
+                    .offset { IntOffset(0, -locationButtonBottom.roundToPx()) }
+                    .padding(horizontal = 20.dp),
             ) {
                 if (showsCourseButton) {
                     MapPillButton(text = courseButtonTitle, onClick = actions.onOpenCourse)

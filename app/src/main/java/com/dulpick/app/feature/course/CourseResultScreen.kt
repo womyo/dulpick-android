@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,12 +30,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -58,11 +55,13 @@ import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
-import com.dulpick.app.ui.component.SheetHandle
+import com.dulpick.app.ui.map.MapBottomSheet
+import com.dulpick.app.ui.map.MapSheetHeights
 import com.dulpick.app.ui.map.mapSheetMetrics
+import com.dulpick.app.ui.map.rememberMapBottomSheetState
+import com.dulpick.app.ui.map.rememberSheetMover
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
-import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -73,10 +72,8 @@ import com.dulpick.app.ui.component.sheetContentScroll
 import com.dulpick.app.ui.component.sheetVisibleHeight
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
-import kotlinx.coroutines.launch
 
 private const val SHEET_EXPANDED_FRACTION = 0.74f
-private val SHEET_CORNER_RADIUS = 32.dp
 private const val SKELETON_ROW_COUNT = 3
 private val SKELETON_ROW_HEIGHT = 64.dp
 
@@ -129,8 +126,7 @@ fun CourseResultScreen(
     }
     BackHandler { viewModel.onIntent(CourseResultIntent.BackClicked) }
 
-    val scaffoldState = rememberMapSheetState()
-    val scope = rememberCoroutineScope()
+    val sheetState = rememberMapBottomSheetState()
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
 
@@ -140,31 +136,27 @@ fun CourseResultScreen(
             .background(Colors.bgDefault)
             .onSizeChanged { rootHeightPx = it.height },
     ) {
+        val containerHeight = maxHeight
         // 접힘(초기) 높이는 담는 층(= 화면 전체) 기준이다. 탭바가 없는 화면이라 항상 이 값이다
-        val collapsedSheetHeight = mapSheetMetrics(maxHeight).collapsedHeight
-        BottomSheetScaffold(
-            scaffoldState = scaffoldState,
-            sheetPeekHeight = collapsedSheetHeight,
-            sheetContainerColor = Colors.commonWhite,
-            containerColor = Color.Transparent,
-            sheetTonalElevation = 0.dp,
-            sheetDragHandle = { SheetHandle() },
-            sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
-            sheetContent = {
-                SheetBody(
-                    state = state,
-                    height = sheetHeight,
-                    rootHeightPx = rootHeightPx,
-                    onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
-                    onIntent = viewModel::onIntent,
-                )
-            },
-        ) {
+        val collapsedSheetHeight = mapSheetMetrics(containerHeight).collapsedHeight
+        // 코스 상세는 최소 단계가 없는 2단계 시트다
+        val heights = MapSheetHeights(collapsed = collapsedSheetHeight, expanded = sheetHeight)
+        val moveSheet = rememberSheetMover(sheetState, heights, containerHeight)
+        Box(modifier = Modifier.fillMaxSize()) {
             CourseMap(
                 state = state,
                 sheetPeekHeight = collapsedSheetHeight,
                 onBack = { viewModel.onIntent(CourseResultIntent.BackClicked) },
             )
+            MapBottomSheet(state = sheetState, heights = heights, containerHeight = containerHeight) {
+                SheetBody(
+                    state = state,
+                    height = sheetHeight,
+                    rootHeightPx = rootHeightPx,
+                    onCollapse = { moveSheet.stepDown() },
+                    onIntent = viewModel::onIntent,
+                )
+            }
         }
 
         if (state.showsNotifyButton) {

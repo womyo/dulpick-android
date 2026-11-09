@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.BottomSheetScaffold
-import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -37,8 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -79,11 +74,16 @@ import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.SheetHandle
+import com.dulpick.app.ui.map.MapBottomSheet
+import com.dulpick.app.ui.map.MapBottomSheetState
+import com.dulpick.app.ui.map.MapSheetHeights
+import com.dulpick.app.ui.map.MAP_MINIMUM_SHEET_GAP
 import com.dulpick.app.ui.map.mapSheetMetrics
+import com.dulpick.app.ui.map.rememberMapBottomSheetState
+import com.dulpick.app.ui.map.rememberSheetMover
 import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.selectedPin
-import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.iconRes
 import androidx.compose.ui.text.style.TextOverflow
 import com.dulpick.app.ui.theme.Colors
@@ -94,7 +94,6 @@ import com.dulpick.app.ui.theme.Typography
 // 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
-private val SHEET_CORNER_RADIUS = 32.dp
 
 // 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다
 private data class MapToast(val message: String, val isError: Boolean)
@@ -108,7 +107,7 @@ fun MapScreen(
     // 시트가 바뀌어도 지도 뷰 크기가 변하지 않게 한다
     tabBarHeight: Dp = 0.dp,
     // 탭 밖에서 들고 있는 시트 상태. 여기서 만들면 탭을 옮길 때마다 새로 만들어져 시트가 위에서 떨어진다
-    sheetState: BottomSheetScaffoldState = rememberMapSheetState(),
+    sheetState: MapBottomSheetState = rememberMapBottomSheetState(),
     onSessionExpired: () -> Unit,
     onOpenSearch: (isSavedOnly: Boolean) -> Unit,
     // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
@@ -187,35 +186,19 @@ fun MapScreen(
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
+        // 안쪽 Box 에서는 BoxWithConstraints 의 값을 못 읽는다. 먼저 받아 둔다
+        val containerHeight = maxHeight
+        val sheet = mapSheetMetrics(containerHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
         // 저장 목록 시트에만 필터가 있다. 상세·검색 결과에서는 최소로 내리지 않는다
-        val minimumHeight = sheetStep.minimumHeight(tabBarHeight)
+        val minimumHeight = sheetStep.minimumHeight(tabBarHeight, MAP_MINIMUM_SHEET_GAP)
             ?.takeIf { state.showsSavedOverview && !chrome.tabBarHidden }
-        BottomSheetScaffold(
-            modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
-            scaffoldState = sheetState,
-            sheetPeekHeight = sheetStep.peekHeight(sheet.collapsedHeight, minimumHeight),
-            sheetContainerColor = Colors.commonWhite,
-            // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
-            containerColor = Color.Transparent,
-            // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
-            sheetTonalElevation = 0.dp,
-            sheetDragHandle = { SheetHandle() },
-            sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
-            sheetContent = {
-                MapSheet(
-                    state = state,
-                    sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
-                    onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
-                    onFilterMenuOpened = { sheetStep.isMinimized = false },
-                    contentBottomInset = sheet.contentBottomInset,
-                    incomingDetail = chrome.incomingDetail,
-                    onIntent = viewModel::onIntent,
-                    onSessionExpired = onSessionExpired,
-                    onCloseDetail = dismissDetail,
-                )
-            },
-        ) {
+        val heights = MapSheetHeights(
+            collapsed = sheet.collapsedHeight,
+            expanded = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
+            minimum = minimumHeight,
+        )
+        val moveSheet = rememberSheetMover(sheetState, heights, containerHeight)
+        Box(modifier = Modifier.fillMaxSize()) {
             MapBody(
                 isActive = isActive,
                 // 탭바가 사라져 길어진 만큼 비워 두면 지도 뷰 크기가 늘 같다
@@ -224,7 +207,7 @@ fun MapScreen(
                 cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                 userLocation = state.userLocation,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
-                onUserGestureBegan = { if (minimumHeight != null) sheetStep.isMinimized = true },
+                onUserGestureBegan = moveSheet::lowerForMapGesture,
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = chrome.hidesTopBar,
@@ -236,6 +219,19 @@ fun MapScreen(
                 collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )
+            MapBottomSheet(state = sheetState, heights = heights, containerHeight = containerHeight) {
+                MapSheet(
+                    state = state,
+                    sheetHeight = heights.expanded,
+                    onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
+                    onFilterMenuOpened = moveSheet::raiseForMenu,
+                    contentBottomInset = sheet.contentBottomInset,
+                    incomingDetail = chrome.incomingDetail,
+                    onIntent = viewModel::onIntent,
+                    onSessionExpired = onSessionExpired,
+                    onCloseDetail = dismissDetail,
+                )
+            }
         }
 
         AppToast(
@@ -282,15 +278,6 @@ private fun mapPins(state: MapState): List<MapPin> {
 // 시트는 첫 레이아웃 전까지 위치가 없어 화면 맨 위에 그려진다. 그 한 프레임만 감추고,
 // 위치가 정해진 뒤로는(아래에서 올라오는 동안에도) 계속 보여준다
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun rememberSheetAlpha(sheetState: BottomSheetScaffoldState): Float {
-    // 위치가 정해지기 전에는 requireOffset 이 던진다
-    val positioned = runCatching { sheetState.bottomSheetState.requireOffset() }.isSuccess
-    var placed by remember { mutableStateOf(false) }
-    LaunchedEffect(positioned) { if (positioned) placed = true }
-    return if (placed) 1f else 0f
-}
-
 // 상세가 들어오는 중인지와, 그에 따라 걷을 것들
 private data class MapChrome(
     val incomingDetail: Boolean,

@@ -19,13 +19,12 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,12 +33,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -69,10 +66,14 @@ import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
-import com.dulpick.app.ui.component.SheetHandle
+import com.dulpick.app.ui.map.COURSE_MINIMUM_SHEET_GAP
+import com.dulpick.app.ui.map.COURSE_PICK_SHEET_SCREEN_RATIO
+import com.dulpick.app.ui.map.MapBottomSheet
+import com.dulpick.app.ui.map.MapSheetHeights
 import com.dulpick.app.ui.map.mapSheetMetrics
+import com.dulpick.app.ui.map.rememberMapBottomSheetState
+import com.dulpick.app.ui.map.rememberSheetMover
 import com.dulpick.app.ui.map.rememberMapSheetStep
-import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
@@ -83,11 +84,9 @@ import com.dulpick.app.ui.component.sheetContentScroll
 import com.dulpick.app.ui.component.sheetVisibleHeight
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
-import kotlinx.coroutines.launch
 
 // 지도 화면과 같은 시트 높이 비율
 private const val SHEET_EXPANDED_FRACTION = 0.74f
-private val SHEET_CORNER_RADIUS = 32.dp
 private const val SKELETON_ROW_COUNT = 3
 private val SKELETON_ROW_HEIGHT = 64.dp
 
@@ -135,9 +134,8 @@ fun CoursePlacePickScreen(
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
-    val scaffoldState = rememberMapSheetState()
+    val sheetState = rememberMapBottomSheetState()
     val sheetStep = rememberMapSheetStep()
-    val scope = rememberCoroutineScope()
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
 
@@ -147,41 +145,36 @@ fun CoursePlacePickScreen(
             .background(Colors.bgDefault)
             .onSizeChanged { rootHeightPx = it.height },
     ) {
-        val sheet = mapSheetMetrics(maxHeight)
-        val minimumHeight = sheetStep.minimumHeight()
-        BottomSheetScaffold(
-            scaffoldState = scaffoldState,
-            sheetPeekHeight = sheetStep.peekHeight(sheet.collapsedHeight, minimumHeight),
-            sheetContainerColor = Colors.commonWhite,
-            containerColor = Color.Transparent,
-            sheetTonalElevation = 0.dp,
-            sheetDragHandle = { SheetHandle() },
-            sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
-            sheetContent = {
+        val containerHeight = maxHeight
+        val sheet = mapSheetMetrics(containerHeight, middleRatio = COURSE_PICK_SHEET_SCREEN_RATIO)
+        val heights = MapSheetHeights(
+            collapsed = sheet.collapsedHeight,
+            expanded = sheetExpandedHeight,
+            minimum = sheetStep.minimumHeight(gap = COURSE_MINIMUM_SHEET_GAP),
+        )
+        val moveSheet = rememberSheetMover(sheetState, heights, containerHeight)
+        Box(modifier = Modifier.fillMaxSize()) {
+            KakaoMapView(
+                modifier = Modifier.fillMaxSize(),
+                pins = coursePins(state),
+                routes = state.routes,
+                userLocation = state.userLocation,
+                // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다
+                collapsedSheetTopPx = sheet.collapsedTopPx,
+                cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
+                onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
+            )
+            BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
+            MapBottomSheet(state = sheetState, heights = heights, containerHeight = containerHeight) {
                 SheetBody(
                     state = state,
                     height = sheetExpandedHeight,
                     rootHeightPx = rootHeightPx,
-                    onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
+                    onCollapse = { moveSheet.stepDown() },
                     onIntent = viewModel::onIntent,
                     onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
-                    onMenuOpened = { sheetStep.isMinimized = false },
+                    onMenuOpened = moveSheet::raiseForMenu,
                 )
-            },
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                KakaoMapView(
-                    modifier = Modifier.fillMaxSize(),
-                    pins = coursePins(state),
-                    routes = state.routes,
-                    userLocation = state.userLocation,
-                    // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
-                    collapsedSheetTopPx = sheet.collapsedTopPx,
-                    cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
-                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
-                    onUserGestureBegan = { if (minimumHeight != null) sheetStep.isMinimized = true },
-                )
-                BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
         }
 

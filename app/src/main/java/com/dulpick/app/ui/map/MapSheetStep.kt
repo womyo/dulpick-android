@@ -8,8 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-// 최소 단계가 있는 지도형 시트의 단계 기억.
-// 지도를 손으로 끌면 최소로 내려가고, 필터·검색을 열면 중간으로 돌아온다
+// 최소 단계 높이를 내는 데 필요한 두 값을 재어 둔다
 class MapSheetStep {
     // 제목부터 필터 줄 아래 끝까지
     var headerHeight by mutableStateOf(0.dp)
@@ -17,11 +16,8 @@ class MapSheetStep {
     // 시트 아래를 가리는 것(탭바·버튼 영역)의 높이
     var obstacleHeight by mutableStateOf(0.dp)
 
-    var isMinimized by mutableStateOf(false)
-
-    fun minimumHeight(obstacle: Dp = obstacleHeight): Dp? = mapSheetMinimumHeight(headerHeight, obstacle)
-
-    fun peekHeight(collapsed: Dp, minimum: Dp?): Dp = if (isMinimized) minimum ?: collapsed else collapsed
+    fun minimumHeight(obstacle: Dp = obstacleHeight, gap: Dp): Dp? =
+        mapSheetMinimumHeight(headerHeight, obstacle, gap)
 }
 
 @Composable

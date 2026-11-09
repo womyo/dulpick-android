@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.material3.BottomSheetScaffoldState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -49,7 +48,8 @@ import com.dulpick.app.feature.map.DetailTarget
 import com.dulpick.app.feature.map.MapScreen
 import com.dulpick.app.feature.mypage.MyPageScreen
 import com.dulpick.app.feature.search.SearchScreen
-import com.dulpick.app.ui.map.rememberMapSheetState
+import com.dulpick.app.ui.map.MapBottomSheetState
+import com.dulpick.app.ui.map.rememberMapBottomSheetState
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
 
@@ -112,7 +112,7 @@ fun MainTabScreen(
     }
     // 지도 시트 상태를 탭 밖에 둔다. 지도 화면 안에 두면 탭을 옮길 때마다 새로 만들어지고,
     // 새 상태는 첫 레이아웃 전까지 위치가 없어 시트가 화면 맨 위에서 제자리로 떨어진다
-    val mapSheetState = rememberMapSheetState()
+    val mapSheetState = rememberMapBottomSheetState()
     // 탭바가 차지하는 높이 = Material 탭바 높이 + 시스템 내비게이션 인셋(탭바가 스스로 더한다)
     val tabBarHeight = NAVIGATION_BAR_HEIGHT +
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -168,7 +168,7 @@ private fun MainTabNavHost(
     onSelectTab: (String) -> Unit,
     currentDestination: NavDestination?,
     tabBarHeight: Dp,
-    mapSheetState: BottomSheetScaffoldState,
+    mapSheetState: MapBottomSheetState,
     search: MapTabSearch,
     pending: MapTabPending,
     mapHidesTabBar: Boolean,
@@ -318,7 +318,7 @@ private fun MapTabLayer(
     isCurrent: Boolean,
     hideBar: Boolean,
     tabBarHeight: Dp,
-    mapSheetState: BottomSheetScaffoldState,
+    mapSheetState: MapBottomSheetState,
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
     onSelectTab: (String) -> Unit,
@@ -384,7 +384,7 @@ private fun MapTab(
     isActive: Boolean,
     tabBarHeight: Dp,
     hideBar: Boolean,
-    mapSheetState: BottomSheetScaffoldState,
+    mapSheetState: MapBottomSheetState,
     onLoggedOut: () -> Unit,
     navigateToTab: (String) -> Unit,
     tabNavController: androidx.navigation.NavHostController,

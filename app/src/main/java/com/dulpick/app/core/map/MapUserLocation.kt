@@ -82,5 +82,17 @@ private fun userLocationDot(density: Float): Bitmap {
 
     paint.color = BRAND_COLOR
     canvas.drawCircle(center, center, CORE_DIAMETER_DP * density / 2f, paint)
-    return bitmap
+    return bitmap.withStraightAlpha()
+}
+
+// 캔버스는 색에 알파를 미리 곱해 저장한다. 그 값을 원래 색으로 읽고 알파를 한 번 더 곱하면
+// 반투명한 자리가 검게 가라앉는다. 곱하지 않은 값으로 바꿔 넘긴다
+private fun Bitmap.withStraightAlpha(): Bitmap {
+    val pixels = IntArray(width * height)
+    // getPixels 는 곱하지 않은 ARGB 로 돌려준다
+    getPixels(pixels, 0, width, 0, 0, width, height)
+    val straight = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    straight.setPremultiplied(false)
+    straight.setPixels(pixels, 0, width, 0, 0, width, height)
+    return straight
 }

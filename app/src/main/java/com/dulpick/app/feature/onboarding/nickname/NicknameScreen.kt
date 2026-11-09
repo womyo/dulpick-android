@@ -120,6 +120,8 @@ fun NicknameScreen(
                 onDismissRequest = {},
                 sheetState = sheetState,
                 containerColor = Colors.bgDefault,
+                // 기본 tonalElevation 이 바탕색에 톤 오버레이를 얹어 색이 뜨므로 끈다
+                tonalElevation = 0.dp,
                 properties = ModalBottomSheetProperties(
                     securePolicy = SecureFlagPolicy.Inherit,
                     isFocusable = true,

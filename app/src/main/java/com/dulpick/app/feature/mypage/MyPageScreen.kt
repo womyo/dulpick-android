@@ -211,6 +211,8 @@ private fun MyPageOverlays(state: MyPageState, onIntent: (MyPageIntent) -> Unit)
             onDismissRequest = { onIntent(MyPageIntent.ProfileEditDismissed) },
             sheetState = sheetState,
             containerColor = Colors.commonWhite,
+            // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
+            tonalElevation = 0.dp,
         ) {
             ProfileEditSheet(
                 initialNickname = state.nickname,

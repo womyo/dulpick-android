@@ -183,7 +183,9 @@ fun MapScreen(
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
+        // 안쪽 람다에서는 BoxWithConstraints 의 값을 못 읽는다. 먼저 받아 둔다
+        val containerHeight = maxHeight
+        val sheet = mapSheetMetrics(containerHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
         BottomSheetScaffold(
             modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
@@ -223,7 +225,7 @@ fun MapScreen(
                 showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = sheetVisibleHeight(sheetState, sheet.collapsedHeight) + 12.dp,
+                locationButtonBottom = sheetVisibleHeight(sheetState, containerHeight, sheet.collapsedHeight) + 12.dp,
                 collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )
@@ -494,10 +496,13 @@ private fun MapLifecycleEffects(
 // 자리가 정해지기 전에는 requireOffset 이 던져 접힘 높이로 둔다
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun sheetVisibleHeight(sheetState: BottomSheetScaffoldState, collapsed: Dp): Dp {
+private fun sheetVisibleHeight(
+    sheetState: BottomSheetScaffoldState,
+    containerHeight: Dp,
+    collapsed: Dp,
+): Dp {
     val offset = runCatching { sheetState.bottomSheetState.requireOffset() }.getOrNull() ?: return collapsed
-    val height = LocalConfiguration.current.screenHeightDp.dp
-    return (height - with(LocalDensity.current) { offset.toDp() }).coerceAtLeast(0.dp)
+    return (containerHeight - with(LocalDensity.current) { offset.toDp() }).coerceAtLeast(0.dp)
 }
 
 // 전체 보기 신호를 올리고 목록을 맨 위로 되돌린다. 0 은 첫 조합이라 거른다

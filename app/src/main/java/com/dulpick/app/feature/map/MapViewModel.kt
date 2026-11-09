@@ -62,13 +62,7 @@ class MapViewModel @Inject constructor(
             MapIntent.OnAppear -> load()
             MapIntent.RetryClicked -> retryLoad()
             MapIntent.ShowAllSaved -> showAllSaved()
-            // 떠 있는 코스 버튼. 진행 중인 코스가 있으면 보기, 없으면 만들기다
-            MapIntent.CourseButtonClicked -> analytics.track(
-                AnalyticsEvent.courseButton(
-                    entryPoint = AnalyticsEntryPoint.MAP_FLOATING_BUTTON,
-                    hasCourse = currentState.currentCourse != null,
-                ),
-            )
+            MapIntent.CourseButtonClicked -> trackCourseButton()
             // 필터를 바꾸면 남은 목록의 첫 장소로 옮긴다 (iOS ownershipSelected·categoryTapped 와 같다)
             is MapIntent.OwnershipSelected ->
                 setState { copy(selectedOwnership = intent.ownership).withOverviewCamera() }
@@ -76,7 +70,7 @@ class MapViewModel @Inject constructor(
                 setState { copy(selectedCategory = intent.category).withOverviewCamera() }
             is MapIntent.DeleteClicked -> delete(intent.id)
             is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
-            MapIntent.CloseDetail -> setState { closingPlaceDetail() }
+            MapIntent.CloseDetail -> closePlaceDetail()
             else -> onDelegatedIntent(intent)
         }
     }
@@ -88,13 +82,7 @@ class MapViewModel @Inject constructor(
                 alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
-            is MapIntent.MapVisibilityChanged -> if (intent.isVisible) {
-                userLocation.start()
-                // 다른 탭에서 저장하고 올 수 있다. 탭이 보일 때마다 목록을 다시 읽는다
-                loadPlaces()
-            } else {
-                userLocation.stop()
-            }
+            is MapIntent.MapVisibilityChanged -> changeVisibility(intent.isVisible)
             MapIntent.CurrentLocationClicked, is MapIntent.LocationPermissionResult,
             MapIntent.LocationModalDismissed -> location.handle(intent)
             else -> onSearchIntent(intent)
@@ -115,11 +103,31 @@ class MapViewModel @Inject constructor(
     }
 
     // 다른 곳에서 들어온 게시글이면 닫을 때 온 곳으로 되돌리라고 알린다
+    // 다른 탭에서 저장하고 올 수 있다. 탭이 보일 때마다 목록을 다시 읽는다
+    private fun changeVisibility(isVisible: Boolean) {
+        if (!isVisible) return userLocation.stop()
+        userLocation.start()
+        loadPlaces()
+    }
+
+    // 떠 있는 코스 버튼. 진행 중인 코스가 있으면 보기, 없으면 만들기다
+    private fun trackCourseButton() {
+        val hasCourse = currentState.currentCourse != null
+        analytics.track(AnalyticsEvent.courseButton(AnalyticsEntryPoint.MAP_FLOATING_BUTTON, hasCourse))
+    }
+
+    // 상세에서 저장·해제했을 수 있다. 닫을 때 목록을 다시 읽는다
+    private fun closePlaceDetail() {
+        setState { closingPlaceDetail() }
+        loadPlaces()
+    }
+
     private fun closePostDetail() {
         if (currentState.postDetail?.returnsOnClose == true) {
             postSideEffect(MapSideEffect.PostDetailClosed)
         }
         setState { closingPostDetail() }
+        loadPlaces()
     }
 
     // 검색 결과·상세 진입 인텐트 (onIntent 복잡도 분리)
@@ -272,8 +280,6 @@ class MapViewModel @Inject constructor(
             )
             if (reset.showsSavedOverview) reset.withOverviewCamera() else reset
         }
-        // 홈·탐색에서 저장하고 돌아올 수 있다. 탭을 열 때마다 목록을 다시 읽는다
-        loadPlaces()
     }
 
     // 실패를 다시 시도한다. 빈 목록으로 두지 않고 로딩부터 다시 보여준다

@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.dulpick.app.ui.component.SHEET_HANDLE_AREA
 
 // 지도형 시트(지도 탭·코스 결과·코스 장소 선택)가 서는 자리.
 // 세 화면이 같은 값을 써야 해 계산을 여기 한 곳에 둔다
@@ -19,16 +18,6 @@ data class MapSheetMetrics(
     // 시트 내용 끝에 둘 여백. 시트가 화면 바닥까지 내려오는 경우의 내비게이션 버튼 자리다
     val contentBottomInset: Dp,
 )
-
-// 최소 시트에서 필터 아래 끝과 아래 가림막(탭바·버튼 영역) 위 끝 사이
-private val MINIMUM_SHEET_GAP = 20.dp
-
-// 최소 단계에서 보이는 높이. 필터 아래 끝이 가림막 위 끝보다 MINIMUM_SHEET_GAP 위에 선다.
-// 머리 높이나 가림막을 아직 못 쟀으면 null 이고, 그동안 시트는 2단계로 돈다
-fun mapSheetMinimumHeight(headerHeight: Dp, obstacleHeight: Dp): Dp? {
-    if (headerHeight <= 0.dp) return null
-    return SHEET_HANDLE_AREA + headerHeight + MINIMUM_SHEET_GAP + obstacleHeight
-}
 
 // 접힘 높이 비율. 기준은 시트를 담는 층의 높이다 —
 // 앱이 edge-to-edge 라 그 값이 기기 화면 전체 높이와 같다.

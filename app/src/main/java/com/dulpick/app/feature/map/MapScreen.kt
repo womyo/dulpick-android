@@ -38,7 +38,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -82,7 +81,6 @@ import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
 import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
-import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.selectedPin
 import com.dulpick.app.ui.map.rememberMapSheetState
@@ -180,21 +178,16 @@ fun MapScreen(
     val dismissDetail = rememberDismissDetail(state, viewModel::onIntent, onCloseContentDetail, onCloseDetail)
     HandleBack(isActive, state, viewModel::onIntent, dismissDetail)
 
-    val sheetStep = rememberMapSheetStep()
-
     val pins = mapPins(state)
     // 코스 버튼은 커플 연동 + 검색 중이 아닐 때만
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
-        // 저장 목록 시트에만 필터가 있다. 상세·검색 결과에서는 최소로 내리지 않는다
-        val minimumHeight = sheetStep.minimumHeight(tabBarHeight)
-            ?.takeIf { state.showsSavedOverview && !chrome.tabBarHidden }
         BottomSheetScaffold(
             modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
-            sheetPeekHeight = sheetStep.peekHeight(sheet.collapsedHeight, minimumHeight),
+            sheetPeekHeight = sheet.collapsedHeight,
             sheetContainerColor = Colors.commonWhite,
             // 지도가 이 화면 아래층(탭 컨테이너)에 있으므로 배경을 비워 지도가 비치게 한다
             containerColor = Color.Transparent,
@@ -207,8 +200,6 @@ fun MapScreen(
                     state = state,
                     savedListState = savedListState,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
-                    onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
-                    onFilterMenuOpened = { sheetStep.isMinimized = false },
                     contentBottomInset = sheet.contentBottomInset,
                     incomingDetail = chrome.incomingDetail,
                     onIntent = viewModel::onIntent,
@@ -225,7 +216,6 @@ fun MapScreen(
                 cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                 userLocation = state.userLocation,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
-                onUserGestureBegan = { if (minimumHeight != null) sheetStep.isMinimized = true },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = chrome.hidesTopBar,
@@ -233,7 +223,7 @@ fun MapScreen(
                 showsLocationButton = chrome.showsFloatingButtons,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = sheet.collapsedHeight + 12.dp,
+                locationButtonBottom = sheetVisibleHeight(sheetState, sheet.collapsedHeight) + 12.dp,
                 collapsedSheetTopPx = sheet.collapsedTopPx,
                 actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )
@@ -500,6 +490,16 @@ private fun MapLifecycleEffects(
     }
 }
 
+// 지금 보이는 시트 높이. 떠 있는 버튼이 시트를 따라 오르내리게 하는 값이다.
+// 자리가 정해지기 전에는 requireOffset 이 던져 접힘 높이로 둔다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun sheetVisibleHeight(sheetState: BottomSheetScaffoldState, collapsed: Dp): Dp {
+    val offset = runCatching { sheetState.bottomSheetState.requireOffset() }.getOrNull() ?: return collapsed
+    val height = LocalConfiguration.current.screenHeightDp.dp
+    return (height - with(LocalDensity.current) { offset.toDp() }).coerceAtLeast(0.dp)
+}
+
 // 전체 보기 신호를 올리고 목록을 맨 위로 되돌린다. 0 은 첫 조합이라 거른다
 @Composable
 private fun rememberShowAllListState(nonce: Int, onShowAll: () -> Unit): LazyListState {
@@ -617,10 +617,6 @@ private fun MapSheet(
     onIntent: (MapIntent) -> Unit,
     onSessionExpired: () -> Unit,
     onCloseDetail: (DetailTarget) -> Unit,
-    // 제목부터 필터 줄 아래 끝까지의 높이. 최소 단계 높이의 근거다
-    onHeaderHeightChange: (Dp) -> Unit,
-    // 필터 메뉴가 열렸다. 최소에서는 드롭다운이 탭바에 가려 중간으로 올린다
-    onFilterMenuOpened: () -> Unit,
 ) {
     val detail = state.detail
     val searchResult = state.searchResult
@@ -662,8 +658,6 @@ private fun MapSheet(
             listState = savedListState,
             onIntent = onIntent,
             height = sheetHeight,
-            onHeaderHeightChange = onHeaderHeightChange,
-            onFilterMenuOpened = onFilterMenuOpened,
         )
     }
 }
@@ -679,7 +673,6 @@ private fun MapBody(
     cameraRequest: MapCameraRequest,
     userLocation: Coordinate?,
     onPinTap: (String) -> Unit,
-    onUserGestureBegan: () -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
     selectedCategory: PlaceCategory?,
@@ -707,7 +700,6 @@ private fun MapBody(
             userLocation = userLocation,
             collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
-            onUserGestureBegan = onUserGestureBegan,
         )
         if (showsLocationButton) {
             // 좌하단 코스 버튼 · 우하단 내 위치 버튼 (iOS floatingControls 대응)
@@ -751,22 +743,17 @@ private fun MapBody(
 }
 
 @Composable
-@Suppress("LongParameterList")
 private fun MapSheetContent(
     state: MapState,
     listState: LazyListState,
     onIntent: (MapIntent) -> Unit,
     height: Dp,
-    onHeaderHeightChange: (Dp) -> Unit,
-    onFilterMenuOpened: () -> Unit,
 ) {
-    val density = LocalDensity.current
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
         Column(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 8.dp)
-                .onSizeChanged { onHeaderHeightChange(with(density) { it.height.toDp() }) },
+                .padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
@@ -778,7 +765,6 @@ private fun MapSheetContent(
                         options = OWNERSHIP_ORDER.map { it.displayName() },
                         selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
                         onSelect = { onIntent(MapIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
-                        onExpand = onFilterMenuOpened,
                     )
                 }
                 FilterDropdown(
@@ -787,7 +773,6 @@ private fun MapSheetContent(
                     options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
                     selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
                     onSelect = { onIntent(MapIntent.CategorySelected(if (it == 0) null else CATEGORY_ORDER[it - 1])) },
-                    onExpand = onFilterMenuOpened,
                 )
             }
         }

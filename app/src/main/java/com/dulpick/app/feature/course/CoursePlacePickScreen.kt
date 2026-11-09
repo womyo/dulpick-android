@@ -44,7 +44,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -71,7 +70,6 @@ import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
-import com.dulpick.app.ui.map.rememberMapSheetStep
 import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
@@ -136,7 +134,6 @@ fun CoursePlacePickScreen(
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
     val scaffoldState = rememberMapSheetState()
-    val sheetStep = rememberMapSheetStep()
     val scope = rememberCoroutineScope()
     // 시트가 보이는 높이를 재는 기준. 목록 뷰포트가 이 안에 든다
     var rootHeightPx by remember { mutableStateOf(0) }
@@ -148,10 +145,9 @@ fun CoursePlacePickScreen(
             .onSizeChanged { rootHeightPx = it.height },
     ) {
         val sheet = mapSheetMetrics(maxHeight)
-        val minimumHeight = sheetStep.minimumHeight()
         BottomSheetScaffold(
             scaffoldState = scaffoldState,
-            sheetPeekHeight = sheetStep.peekHeight(sheet.collapsedHeight, minimumHeight),
+            sheetPeekHeight = sheet.collapsedHeight,
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
@@ -164,8 +160,6 @@ fun CoursePlacePickScreen(
                     rootHeightPx = rootHeightPx,
                     onCollapse = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
                     onIntent = viewModel::onIntent,
-                    onHeaderHeightChange = { height -> sheetStep.headerHeight = height },
-                    onMenuOpened = { sheetStep.isMinimized = false },
                 )
             },
         ) {
@@ -179,7 +173,6 @@ fun CoursePlacePickScreen(
                     collapsedSheetTopPx = sheet.collapsedTopPx,
                     cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
                     onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
-                    onUserGestureBegan = { if (minimumHeight != null) sheetStep.isMinimized = true },
                 )
                 BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
@@ -189,7 +182,6 @@ fun CoursePlacePickScreen(
             title = state.ctaTitle,
             isEnabled = state.isCtaEnabled,
             onClick = { viewModel.onIntent(CoursePlacePickIntent.BuildClicked) },
-            onHeightChange = { height -> sheetStep.obstacleHeight = height },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 
@@ -247,11 +239,9 @@ private fun BuildCta(
     title: String,
     isEnabled: Boolean,
     onClick: () -> Unit,
-    onHeightChange: (Dp) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val density = LocalDensity.current
-    Column(modifier = modifier.onSizeChanged { onHeightChange(with(density) { it.height.toDp() }) }) {
+    Column(modifier = modifier) {
         CtaContainer {
             AppButton(
                 text = title,
@@ -290,16 +280,9 @@ private fun SheetBody(
     rootHeightPx: Int,
     onCollapse: () -> Unit,
     onIntent: (CoursePlacePickIntent) -> Unit,
-    onHeaderHeightChange: (androidx.compose.ui.unit.Dp) -> Unit,
-    onMenuOpened: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
-        Header(
-            state = state,
-            onIntent = onIntent,
-            onHeightChange = onHeaderHeightChange,
-            onMenuOpened = onMenuOpened,
-        )
+        Header(state = state, onIntent = onIntent)
         when (state.listContent) {
             CoursePlaceListContent.SKELETON -> Skeleton()
             CoursePlaceListContent.LOAD_FAILED -> Failure(
@@ -324,33 +307,20 @@ private fun SheetBody(
 }
 
 @Composable
-private fun Header(
-    state: CoursePlacePickState,
-    onIntent: (CoursePlacePickIntent) -> Unit,
-    onHeightChange: (androidx.compose.ui.unit.Dp) -> Unit,
-    onMenuOpened: () -> Unit,
-) {
-    val density = LocalDensity.current
+private fun Header(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
     Column(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 8.dp)
-            .onSizeChanged { onHeightChange(with(density) { it.height.toDp() }) },
+        modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
-        FilterRow(state = state, onIntent = onIntent, onMenuOpened = onMenuOpened)
+        FilterRow(state = state, onIntent = onIntent)
     }
 }
 
 // 검색창이 열리면 「검색」 칩이 줄 너비로 늘어나 검색창이 되고 나머지 칩은 사라진다.
 // 두 모양이 같은 높이라 바뀌어도 머리 높이가 그대로다
 @Composable
-private fun FilterRow(
-    state: CoursePlacePickState,
-    onIntent: (CoursePlacePickIntent) -> Unit,
-    onMenuOpened: () -> Unit,
-) {
+private fun FilterRow(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().height(SAVED_PLACE_SEARCH_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -376,10 +346,7 @@ private fun FilterRow(
         SavedPlaceSearchChip(
             query = state.search.query,
             isEnabled = state.isSearchAvailable,
-            onClick = {
-                onMenuOpened()
-                onIntent(CoursePlacePickIntent.SearchChipClicked)
-            },
+            onClick = { onIntent(CoursePlacePickIntent.SearchChipClicked) },
             onClear = { onIntent(CoursePlacePickIntent.SearchChipClearClicked) },
             modifier = Modifier.weight(1f, fill = false),
         )
@@ -390,7 +357,6 @@ private fun FilterRow(
                 options = OWNERSHIP_ORDER.map { it.displayName() },
                 selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
                 onSelect = { onIntent(CoursePlacePickIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
-                onExpand = onMenuOpened,
             )
         }
         FilterDropdown(

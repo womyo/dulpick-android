@@ -20,15 +20,14 @@ data class MapSheetMetrics(
     val contentBottomInset: Dp,
 )
 
-// 지도 탭은 필터 아래 끝과 탭바 사이가 20, 코스 장소 고르기는 버튼 영역과 8 이다
-val MAP_MINIMUM_SHEET_GAP = 20.dp
-val COURSE_MINIMUM_SHEET_GAP = 8.dp
+// 최소 시트에서 필터 아래 끝과 아래 가림막(탭바·버튼 영역) 위 끝 사이
+private val MINIMUM_SHEET_GAP = 20.dp
 
-// 최소 단계에서 보이는 높이. 필터 아래 끝이 아래 가림막 위 끝보다 gap 만큼 위에 선다.
-// 머리 높이를 아직 못 쟀으면 null 이고, 그동안 시트는 2단계로 돈다
-fun mapSheetMinimumHeight(headerHeight: Dp, obstacleHeight: Dp, gap: Dp): Dp? {
+// 최소 단계에서 보이는 높이. 필터 아래 끝이 가림막 위 끝보다 MINIMUM_SHEET_GAP 위에 선다.
+// 머리 높이나 가림막을 아직 못 쟀으면 null 이고, 그동안 시트는 2단계로 돈다
+fun mapSheetMinimumHeight(headerHeight: Dp, obstacleHeight: Dp): Dp? {
     if (headerHeight <= 0.dp) return null
-    return SHEET_HANDLE_AREA + headerHeight + gap + obstacleHeight
+    return SHEET_HANDLE_AREA + headerHeight + MINIMUM_SHEET_GAP + obstacleHeight
 }
 
 // 접힘 높이 비율. 기준은 시트를 담는 층의 높이다 —
@@ -37,9 +36,6 @@ fun mapSheetMinimumHeight(headerHeight: Dp, obstacleHeight: Dp, gap: Dp): Dp? {
 // (iOS 0.45, 실기기에서 상세 시트가 낮아 보여 올린 값)
 const val COLLAPSED_SHEET_SCREEN_RATIO = 0.47f
 
-// 코스 장소 고르기 시트의 중간 비율. 목록을 더 보여 준다
-const val COURSE_PICK_SHEET_SCREEN_RATIO = 0.70f
-
 // containerHeight 는 시트를 담는 층의 높이다.
 //
 // tabBarCollapsedHeight 는 탭바가 시트와 함께 올라오는 경우(지도 탭의 저장 목록)에만 넘긴다.
@@ -47,12 +43,8 @@ const val COURSE_PICK_SHEET_SCREEN_RATIO = 0.70f
 // 넘기지 않으면 담는 층 높이에 비율을 곱해 띄우고, 시트가 화면 바닥까지 내려오므로
 // 내비게이션 버튼 자리만큼 내용을 올린다
 @Composable
-fun mapSheetMetrics(
-    containerHeight: Dp,
-    tabBarCollapsedHeight: Dp? = null,
-    middleRatio: Float = COLLAPSED_SHEET_SCREEN_RATIO,
-): MapSheetMetrics {
-    val collapsedHeight = tabBarCollapsedHeight ?: (containerHeight * middleRatio)
+fun mapSheetMetrics(containerHeight: Dp, tabBarCollapsedHeight: Dp? = null): MapSheetMetrics {
+    val collapsedHeight = tabBarCollapsedHeight ?: (containerHeight * COLLAPSED_SHEET_SCREEN_RATIO)
     return MapSheetMetrics(
         collapsedHeight = collapsedHeight,
         collapsedTopPx = with(LocalDensity.current) { (containerHeight - collapsedHeight).toPx() },

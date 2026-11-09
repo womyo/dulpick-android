@@ -371,7 +371,7 @@ private fun MapButton(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Image(
-            painter = painterResource(R.drawable.mappin),
+            painter = painterResource(R.drawable.map),
             contentDescription = null,
             colorFilter = ColorFilter.tint(Colors.gray50),
             modifier = Modifier.size(16.dp),

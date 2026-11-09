@@ -161,7 +161,7 @@ fun MapScreen(
     )
     val savedListState = rememberShowAllListState(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
     ReportMapScreenName(isActive, state)
-    MapLifecycleEffects(isActive, viewModel::onIntent)
+    MapLifecycleEffects(isActive, viewModel::onIntent, savedListState)
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -487,9 +487,17 @@ private fun ReportMapScreenName(isActive: Boolean, state: MapState) {
 
 // 첫 진입에 한 번 읽고, 탭이 보이는 동안만 내 위치를 받는다
 @Composable
-private fun MapLifecycleEffects(isActive: Boolean, onIntent: (MapIntent) -> Unit) {
+private fun MapLifecycleEffects(
+    isActive: Boolean,
+    onIntent: (MapIntent) -> Unit,
+    savedListState: LazyListState,
+) {
     LaunchedEffect(Unit) { onIntent(MapIntent.OnAppear) }
-    LaunchedEffect(isActive) { onIntent(MapIntent.MapVisibilityChanged(isActive)) }
+    LaunchedEffect(isActive) {
+        onIntent(MapIntent.MapVisibilityChanged(isActive))
+        // 새로 저장한 곳을 보여 주려면 보던 자리에 남아 있으면 안 된다
+        if (isActive) savedListState.scrollToItem(0)
+    }
 }
 
 // 전체 보기 신호를 올리고 목록을 맨 위로 되돌린다. 0 은 첫 조합이라 거른다

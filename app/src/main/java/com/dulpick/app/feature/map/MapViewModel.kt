@@ -88,8 +88,13 @@ class MapViewModel @Inject constructor(
                 alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
-            is MapIntent.MapVisibilityChanged ->
-                if (intent.isVisible) userLocation.start() else userLocation.stop()
+            is MapIntent.MapVisibilityChanged -> if (intent.isVisible) {
+                userLocation.start()
+                // 다른 탭에서 저장하고 올 수 있다. 탭이 보일 때마다 목록을 다시 읽는다
+                loadPlaces()
+            } else {
+                userLocation.stop()
+            }
             MapIntent.CurrentLocationClicked, is MapIntent.LocationPermissionResult,
             MapIntent.LocationModalDismissed -> location.handle(intent)
             else -> onSearchIntent(intent)

@@ -25,7 +25,9 @@ private const val DOT_SIZE_DP = 40f
 private const val HALO_ALPHA = 0.15f
 private const val SHADOW_DIAMETER_DP = 22f
 private const val SHADOW_ALPHA = 0.8f
-private const val SHADOW_BLUR_DP = 3.75f
+// SwiftUI 의 blur radius 는 표준편차의 약 두 배고, Skia 는 sigma = 0.577r + 0.5 다.
+// 같은 숫자를 넣으면 안드로이드가 1.4 배 넓게 번져, 같은 표준편차가 되는 값으로 바꾼다
+private const val SHADOW_BLUR_DP = 2.38f
 private const val WHITE_DIAMETER_DP = 20f
 private const val CORE_DIAMETER_DP = 14f
 private const val BRAND_COLOR = 0xFFF6465F.toInt()
@@ -69,7 +71,7 @@ private fun userLocationDot(density: Float): Bitmap {
     paint.alpha = (HALO_ALPHA * 255).roundToInt()
     canvas.drawCircle(center, center, size / 2f, paint)
 
-    // 흰 원의 그림자. 안드로이드 Paint 에는 퍼짐이 없어 한 단계 큰 원을 흐려 아래에 깐다
+    // 흰 원의 그림자. Paint 에는 퍼짐이 없어 한 단계 큰 원을 흐려 아래에 깐다
     paint.alpha = (SHADOW_ALPHA * 255).roundToInt()
     paint.maskFilter = BlurMaskFilter(SHADOW_BLUR_DP * density, BlurMaskFilter.Blur.NORMAL)
     canvas.drawCircle(center, center, SHADOW_DIAMETER_DP * density / 2f, paint)

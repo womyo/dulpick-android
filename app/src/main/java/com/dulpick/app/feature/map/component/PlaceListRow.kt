@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.ui.component.iconRes
@@ -56,8 +57,6 @@ fun PlaceListRow(
     onDeleteClick: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val name = place.alias ?: place.place.name
-    val address = place.place.roadAddress.ifEmpty { place.place.address }
     val thumbnails = place.place.thumbnailUrls
 
     Column(modifier = Modifier.clickable(onClick = onClick)) {
@@ -66,9 +65,7 @@ fun PlaceListRow(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             RowHeader(
-                name = name,
-                address = address,
-                category = place.place.category.iconRes(),
+                place = place,
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
             )
@@ -87,12 +84,13 @@ fun PlaceListRow(
 
 @Composable
 private fun RowHeader(
-    name: String,
-    address: String,
-    category: Int,
+    place: SavedPlace,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
+    val name = place.alias ?: place.place.name
+    val address = place.place.roadAddress.ifEmpty { place.place.address }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -101,7 +99,7 @@ private fun RowHeader(
         verticalAlignment = Alignment.Top,
     ) {
         Image(
-            painter = painterResource(category),
+            painter = painterResource(place.place.category.iconRes()),
             contentDescription = null,
             modifier = Modifier.size(24.dp),
         )
@@ -112,6 +110,8 @@ private fun RowHeader(
                 color = Colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // 사용자가 붙인 별칭이면 가린다. 원래 장소명은 가리지 않는다
+                modifier = Modifier.analyticsMasked(place.alias != null),
             )
             Text(
                 text = address,

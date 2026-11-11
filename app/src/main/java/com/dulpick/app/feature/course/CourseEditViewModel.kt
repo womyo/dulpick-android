@@ -1,12 +1,13 @@
 package com.dulpick.app.feature.course
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseContent
-import com.dulpick.app.ui.component.displayName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions")
 class CourseEditViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<CourseEditState, CourseEditIntent, CourseEditSideEffect>(initialState()) {
 
     private var dateCourseId: String? = null
@@ -66,7 +68,7 @@ class CourseEditViewModel @Inject constructor(
             CourseEditIntent.UndoClicked -> undo()
             CourseEditIntent.ToastDismissed -> setState { copy(toast = null, pendingUndo = null) }
             CourseEditIntent.AddPlaceClicked ->
-                postSideEffect(CourseEditSideEffect.AddPlaceRequested(currentState.placeIds))
+                postSideEffect(CourseEditSideEffect.AddPlaceRequested(existingPlaces()))
             is CourseEditIntent.PlacesAdded -> add(intent.places)
             else -> Unit
         }
@@ -95,14 +97,20 @@ class CourseEditViewModel @Inject constructor(
         }
     }
 
+    // 장소 추가 화면이 지도에 그릴 기존 코스. 저장 전 순서 그대로다
+    private fun existingPlaces(): List<ExistingCoursePlace> = currentState.places.map {
+        ExistingCoursePlace(id = it.id, category = it.category, coordinate = it.coordinate)
+    }
+
     // 들어온 코스로 칸을 채우고, 바뀐 걸 가릴 기준도 같이 둔다
     private fun applyLoaded(course: DateCourse) {
         val places = course.stops.map {
             EditablePlace(
                 id = it.place.id,
                 name = it.place.name,
-                category = it.place.category.displayName(),
+                category = it.place.category,
                 address = it.place.roadAddress.ifEmpty { it.place.address },
+                coordinate = it.place.coordinate,
             )
         }
         setState {
@@ -170,10 +178,11 @@ class CourseEditViewModel @Inject constructor(
 
     // 이미 담긴 곳은 다시 넣지 않는다. 고른 순서대로 뒤에 붙는다
     private fun add(added: List<EditablePlace>) {
-        setState {
-            val existing = places.map { it.id }.toSet()
-            copy(places = places + added.filter { it.id !in existing })
-        }
+        val existing = currentState.places.map { it.id }.toSet()
+        val fresh = added.filter { it.id !in existing }
+        if (fresh.isEmpty()) return
+        analytics.track(AnalyticsEvent.PlaceAddedToCourse)
+        setState { copy(places = places + fresh) }
     }
 
     private fun back() {
@@ -188,6 +197,7 @@ class CourseEditViewModel @Inject constructor(
         val id = dateCourseId ?: return
         val date = currentState.scheduledDate ?: return
         if (!currentState.canSave || saveJob?.isActive == true) return
+        analytics.track(AnalyticsEvent.CourseEdited)
         setState { copy(showsBackModal = false, isSaving = true) }
         val content = DateCourseContent(
             title = currentState.title,

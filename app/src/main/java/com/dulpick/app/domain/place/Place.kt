@@ -19,8 +19,3 @@ data class Place(
     val roadAddress: String = "",
     val coordinate: Coordinate = Coordinate(0.0, 0.0),
 )
-
-data class PlacePage(
-    val items: List<Place>,
-    val hasNext: Boolean,
-)

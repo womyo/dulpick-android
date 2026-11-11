@@ -2,6 +2,7 @@ package com.dulpick.app.data.auth
 
 import com.dulpick.app.core.network.NetworkError
 import com.dulpick.app.data.auth.local.AuthLocalDataSource
+import com.dulpick.app.data.auth.token.AuthLogoutGuard
 import com.dulpick.app.data.auth.local.AuthSessionEntity
 import com.dulpick.app.data.auth.mapper.AuthErrorMapper
 import com.dulpick.app.data.auth.mapper.AuthMapper
@@ -17,7 +18,7 @@ import com.dulpick.app.domain.auth.AuthSession
 import com.dulpick.app.domain.notification.PushDeviceRepository
 import javax.inject.Inject
 
-@Suppress("TooGenericExceptionCaught", "SwallowedException")
+@Suppress("TooGenericExceptionCaught", "SwallowedException", "LongParameterList")
 class AuthRepositoryImpl @Inject constructor(
     private val authRemote: AuthRemoteDataSource,
     private val authLocal: AuthLocalDataSource,
@@ -25,6 +26,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val profileRemote: ProfileRemoteDataSource,
     private val pushDevice: PushDeviceRepository,
     private val pushRegistrar: PushDeviceRegistrar,
+    private val logoutGuard: AuthLogoutGuard,
 ) : AuthRepository {
 
     override suspend fun restoreSession(): AuthBootstrap? {
@@ -81,12 +83,14 @@ class AuthRepositoryImpl @Inject constructor(
             // 서버 로그아웃이 액세스 토큰을 무효화할 수 있다. 그 전에 불러야 401 을 피한다
             pushRegistrar.stop()
             runCatching { pushDevice.unregisterDevice() }
-            val session = authLocal.loadSession()
-            if (session != null) {
-                // 서버 로그아웃 실패는 삼킨다. 로컬 삭제는 반드시 한다
-                runCatching { authRemote.logout(session.refreshToken) }
+            logoutGuard.whileLoggingOut {
+                val session = authLocal.loadSession()
+                if (session != null) {
+                    // 서버 로그아웃 실패는 삼킨다. 로컬 삭제는 반드시 한다
+                    runCatching { authRemote.logout(session.refreshToken) }
+                }
+                authLocal.deleteSession()
             }
-            authLocal.deleteSession()
         } catch (error: Throwable) {
             throw AuthErrorMapper.map(error)
         }

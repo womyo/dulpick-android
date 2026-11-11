@@ -2,6 +2,8 @@ package com.dulpick.app.feature.onboarding.datetype
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.profile.ProfileError
 import com.dulpick.app.domain.profile.ProfileRepository
@@ -15,6 +17,7 @@ const val ARG_DATETYPE_EDIT = "edit"
 @HiltViewModel
 class DateTypeViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
+    private val analytics: Analytics,
     savedStateHandle: SavedStateHandle,
 ) : MviViewModel<DateTypeState, DateTypeIntent, DateTypeSideEffect>(DateTypeState()) {
 
@@ -47,6 +50,8 @@ class DateTypeViewModel @Inject constructor(
     // 저장 중에는 선택을 받지 않는다. 응답을 기다리는 동안 값이 바뀌면 서버와 화면이 어긋난다
     private fun select(reducer: DateTypeState.() -> DateTypeState) {
         if (currentState.isSubmitting) return
+        // 네 축이 모두 비어 있을 때의 첫 선택이 성향 설정 시작이다 (iOS preferenceSetupStartedIfNeeded 대응)
+        if (currentState.isPreferenceEmpty) analytics.track(AnalyticsEvent.PreferenceSetupStarted)
         userEdited = true
         setState { reducer().copy(isTooltipPresented = false) }
     }
@@ -61,6 +66,7 @@ class DateTypeViewModel @Inject constructor(
         val state = currentState
         val preference = state.datePreference ?: return
         if (!state.isSaveEnabled) return
+        analytics.track(AnalyticsEvent.PreferenceSaved)
         setState { copy(isSubmitting = true, isTooltipPresented = false) }
         viewModelScope.launch {
             runCatching { profileRepository.updateDatePreference(preference) }

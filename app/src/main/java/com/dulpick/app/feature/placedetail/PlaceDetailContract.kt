@@ -5,6 +5,7 @@ import com.dulpick.app.core.mvi.UiSideEffect
 import com.dulpick.app.core.mvi.UiState
 import com.dulpick.app.domain.explore.Content
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.ui.component.displayName
 
 
 // 관련 게시물 로드 상태
@@ -25,9 +26,15 @@ data class PlaceDetailState(
     val contents: List<Content> = emptyList(),
     val hasNextContents: Boolean = true,
     val contentsLoad: ContentsLoad = ContentsLoad.LOADING,
-    // 북마크 표시값. 헤더 북마크 아이콘·"저장한 사람 N" 이 이걸 본다
+    // 북마크 표시값. 저장 버튼·"저장한 사람 N" 이 이걸 본다
     val isBookmarked: Boolean = false,
     val bookmarkCount: Int = 0,
+    // 카카오 분류에서 고른 세부 업종
+    val detailCategory: String? = null,
+    // 「지도로 보기」 로 띄우는 지도 앱 고르기 시트
+    val showsMapSheet: Boolean = false,
+    // null 이 아니면 그 순번의 사진부터 전체 화면 뷰어를 띄운다
+    val photoViewerIndex: Int? = null,
 ) : UiState {
     // 서버가 아는 장소여야 게시물을 부른다. 있고, 결과가 있거나 로딩·실패면 섹션을 보인다(0건이면 숨김)
     val showsRelatedSection: Boolean
@@ -37,6 +44,17 @@ data class PlaceDetailState(
     // 카카오맵 앱/웹 어느 쪽이든 열 곳이 있는지
     val canOpenKakaoMap: Boolean
         get() = place?.kakaoPlaceId != null || kakaoPlaceUrl != null
+
+    // 둘째 줄에 붙이는 세부 분류. 둘픽 분류와 같은 말이면 붙이지 않는다
+    val detailCategoryText: String?
+        get() {
+            val text = detailCategory?.replace(',', '/')?.trim().orEmpty()
+            if (text.isEmpty()) return null
+            val category = place?.category ?: return text
+            return text.takeUnless { spaceless(it) == spaceless(category.displayName()) }
+        }
+
+    private fun spaceless(text: String): String = text.filterNot { it.isWhitespace() }
 }
 
 sealed interface PlaceDetailIntent : UiIntent {
@@ -44,17 +62,21 @@ sealed interface PlaceDetailIntent : UiIntent {
     data class Start(val place: Place, val query: String, val serverPlaceId: Long?) : PlaceDetailIntent
     data object AddressToggled : PlaceDetailIntent
     data object MapClicked : PlaceDetailIntent
+    data object MapSheetDismissed : PlaceDetailIntent
+    data class MapAppSelected(val app: PlaceMapApp) : PlaceDetailIntent
     data object CloseClicked : PlaceDetailIntent
     data object MoreContentsClicked : PlaceDetailIntent
     data object RetryContentsClicked : PlaceDetailIntent
     data class ContentClicked(val id: String) : PlaceDetailIntent
     data object BookmarkClicked : PlaceDetailIntent
+    data class PhotoClicked(val index: Int) : PlaceDetailIntent
+    data object PhotoViewerDismissed : PlaceDetailIntent
 }
 
 sealed interface PlaceDetailSideEffect : UiSideEffect {
     data object Close : PlaceDetailSideEffect
-    // 카카오맵 앱/웹으로 열기 (앱 우선, 실패 시 웹)
-    data class OpenKakaoMap(val appUri: String?, val webUrl: String?) : PlaceDetailSideEffect
+    // 지도 앱/웹으로 열기 (앱 우선, 없으면 웹)
+    data class OpenMap(val appUri: String, val webUrl: String) : PlaceDetailSideEffect
     data class OpenContent(val id: String) : PlaceDetailSideEffect
     data object SessionExpired : PlaceDetailSideEffect
 }

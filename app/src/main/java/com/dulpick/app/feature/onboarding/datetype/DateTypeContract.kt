@@ -30,6 +30,10 @@ data class DateTypeState(
             return DatePreference(indoor, activity, time, focus)
         }
 
+    // 네 축이 모두 비었는지. 첫 선택이 성향 설정 시작인지 가른다 (iOS isPreferenceSetupEmpty 대응)
+    val isPreferenceEmpty: Boolean
+        get() = indoorOutdoor == null && activityLevel == null && dateTime == null && dateFocus == null
+
     val isSaveEnabled: Boolean
         get() = datePreference != null && !isSubmitting
 }

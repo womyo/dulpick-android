@@ -141,7 +141,9 @@ class SearchViewModel @Inject constructor(
                 setState {
                     copy(
                         contents = contentPage.items, contentsHasNext = contentPage.hasNext, contentsPage = 1,
-                        places = placePage.items, placesHasNext = placePage.hasNext, placesPage = 1,
+                        // 탐색 검색은 장소만 쓴다. 저장 관계는 이 화면에 안 보인다
+                        places = placePage.items.map { it.place },
+                        placesHasNext = placePage.hasNext, placesPage = 1,
                         isSearching = false, isFirstSearch = false,
                     )
                 }
@@ -202,7 +204,7 @@ class SearchViewModel @Inject constructor(
                 val result = placeRepository.searchPlaces(query, page, SearchState.PAGE_SIZE)
                 setState {
                     copy(
-                        places = (places + result.items).distinctBy { it.id },
+                        places = (places + result.items.map { it.place }).distinctBy { it.id },
                         placesHasNext = result.hasNext,
                         placesPage = this.placesPage + 1,
                         isLoadingMore = false,

@@ -30,6 +30,8 @@ import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dulpick.app.R
 import com.dulpick.app.core.notification.NotificationPermissionEffect
+import com.dulpick.app.core.analytics.AnalyticsScreen
+import com.dulpick.app.core.analytics.AnalyticsScreenName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -56,8 +58,8 @@ import com.dulpick.app.feature.course.CourseEditScreen
 import com.dulpick.app.feature.course.CourseReloadReason
 import com.dulpick.app.feature.course.CoursePlacePickMode
 import com.dulpick.app.feature.course.CoursePlacePickScreen
+import com.dulpick.app.feature.course.ExistingPlacesArg
 import com.dulpick.app.feature.course.PickedPlacesArg
-import com.dulpick.app.ui.component.displayName
 import com.dulpick.app.feature.course.CourseResultOrigin
 import com.dulpick.app.feature.course.CourseResultScreen
 import com.dulpick.app.feature.pastdates.PastDateCoursesScreen
@@ -91,6 +93,8 @@ fun DulpickRoot(
             startRoute = current.start.route,
             sharedUrl = sharedUrl,
             onSharedUrlConsumed = onImportUrlConsumed,
+            onShareImportStarted = viewModel::onShareImportStarted,
+            onSignedOut = viewModel::onSignedOut,
         )
     }
 }
@@ -100,6 +104,8 @@ private fun DulpickNavHost(
     startRoute: String,
     sharedUrl: String?,
     onSharedUrlConsumed: () -> Unit,
+    onShareImportStarted: () -> Unit,
+    onSignedOut: () -> Unit,
 ) {
     val navController = rememberNavController()
     // 공유로 받은 URL 을 대기열에 담는다. 로그인(MAIN) 상태가 되면 추출 모달을 띄운다
@@ -108,6 +114,7 @@ private fun DulpickNavHost(
     LaunchedEffect(sharedUrl) {
         val url = sharedUrl ?: return@LaunchedEffect
         pendingImportUrl = url
+        onShareImportStarted()
         // 소스는 비운다. 대기는 여기서 관리한다
         onSharedUrlConsumed()
     }
@@ -122,6 +129,12 @@ private fun DulpickNavHost(
         currentRoute != RootRoute.APP_INTRO.route &&
         currentRoute != RootRoute.AUTH.route
     NotificationPermissionEffect(enabled = isAuthenticated)
+    // 로그인 상태에서만 장소 가져오기 모달이 뜬다. 라우트가 없어 여기서 이름을 알린다
+    val showsImportModal = pendingImportUrl != null && isLoggedIn
+
+    ReportRootScreenName(currentRoute, showsImportModal)
+    // 로그인 화면까지 물러나면(로그아웃·탈퇴·세션 만료) 사람 묶음을 끊는다
+    LaunchedEffect(currentRoute) { if (currentRoute == RootRoute.AUTH.route) onSignedOut() }
 
     NavHost(
         navController = navController,
@@ -186,7 +199,7 @@ private fun DulpickNavHost(
 
     // 로그인 상태에서만, 탭바 포함 전 화면 위에 Dialog 로 추출 모달을 띄운다
     val importUrl = pendingImportUrl
-    if (importUrl != null && isLoggedIn) {
+    if (importUrl != null && showsImportModal) {
         PlaceImportScreen(
             sourceUrl = importUrl,
             onClose = { pendingImportUrl = null },
@@ -209,8 +222,8 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
             pendingMapSearchArg = pendingSearchJson,
             onMapSearchConsumed = { entry.savedStateHandle[KEY_MAP_SEARCH] = null },
             // 검색 결과 모드에서 검색바 뒤로 → 같은 검색어로 지도 검색을 다시 연다
-            onReopenMapSearch = { query ->
-                navController.navigate("$MAIN_MAP_SEARCH_ROUTE?query=${Uri.encode(query)}")
+            onReopenMapSearch = { query, isSavedOnly ->
+                navController.navigateToMapSearch(query, isSavedOnly)
             },
             // 로그아웃·세션 만료 → 백스택 전체를 비우고 로그인으로
             onLoggedOut = {
@@ -230,7 +243,7 @@ private fun NavGraphBuilder.mainRoutes(navController: NavHostController) {
                 onOpenCoupleConnectFromHome = { nickname ->
                     navController.navigate("$MAIN_COUPLE_ROUTE_BASE/${Uri.encode(nickname)}/$COUPLE_ORIGIN_HOME")
                 },
-                onOpenMapSearch = { navController.navigate(MAIN_MAP_SEARCH_ROUTE) },
+                onOpenMapSearch = { isSavedOnly -> navController.navigateToMapSearch(null, isSavedOnly) },
                 onOpenCourse = { dateCourseId ->
                     if (dateCourseId == null) {
                         navController.navigate(MAIN_COURSE_DATE_ROUTE)
@@ -476,12 +489,12 @@ private fun NavGraphBuilder.noticeRoutes(navController: NavHostController) {
 }
 
 // 코스 수정 중 장소 더하기(push). 같은 장소 고르기 화면을 더하기 모드로 쓴다.
-// 이미 담긴 장소는 빼고 보여주고, 고른 것만 수정 화면으로 돌려준다
+// 이미 담긴 장소는 목록에서 빼고 지도에 기존 코스로 그리고, 고른 것만 수정 화면으로 돌려준다
 private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING={$ARG_EXCLUDING}",
+        route = "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXISTING={$ARG_EXISTING}",
         arguments = listOf(
-            navArgument(ARG_EXCLUDING) {
+            navArgument(ARG_EXISTING) {
                 type = NavType.StringType
                 defaultValue = ""
             },
@@ -495,12 +508,9 @@ private fun NavGraphBuilder.coursePlaceAddRoute(navController: NavHostController
             onBack = { navController.popBackStack() },
             onSessionExpired = { navController.navigateToAuth() },
             mode = CoursePlacePickMode.ADD,
-            excluding = entry.arguments?.getString(ARG_EXCLUDING)
-                .orEmpty()
-                .split(",")
-                .filter { it.isNotBlank() },
+            existing = ExistingPlacesArg.decode(entry.arguments?.getString(ARG_EXISTING).orEmpty()),
             onPicked = { picked ->
-                val arg = PickedPlacesArg.from(picked) { it.place.category.displayName() }
+                val arg = PickedPlacesArg.from(picked)
                 navController.previousBackStackEntry
                     ?.savedStateHandle
                     ?.set(KEY_COURSE_PICKED, arg.encode())
@@ -531,10 +541,9 @@ private fun NavGraphBuilder.courseEditRoute(navController: NavHostController) {
             // 저장도 충돌도 결과 화면이 서버에서 다시 읽는다. 충돌은 그 사실을 알린다
             onSaved = { navController.popBackWithCourseReload(CourseReloadReason.SAVED) },
             onConflicted = { navController.popBackWithCourseReload(CourseReloadReason.CONFLICT) },
-            onAddPlace = { excluding ->
-                navController.navigate(
-                    "$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXCLUDING=${Uri.encode(excluding.joinToString(","))}",
-                )
+            onAddPlace = { existing ->
+                val arg = Uri.encode(ExistingPlacesArg.from(existing).encode())
+                navController.navigate("$MAIN_COURSE_PLACE_ADD_ROUTE?$ARG_EXISTING=$arg")
             },
             pickedPlaces = picked,
             onPickedConsumed = { entry.savedStateHandle[KEY_COURSE_PICKED] = null },
@@ -552,12 +561,16 @@ private fun NavHostController.popBackWithCourseReload(reason: CourseReloadReason
 // query 를 넘기면(검색바 뒤로로 재진입) 그 검색어로 곧장 검색해 결과를 복원한다
 private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     composable(
-        route = "$MAIN_MAP_SEARCH_ROUTE?query={$ARG_MAP_SEARCH_QUERY}",
+        route = "$MAIN_MAP_SEARCH_ROUTE?query={$ARG_MAP_SEARCH_QUERY}&savedOnly={$ARG_MAP_SEARCH_SAVED_ONLY}",
         arguments = listOf(
             navArgument(ARG_MAP_SEARCH_QUERY) {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = null
+            },
+            navArgument(ARG_MAP_SEARCH_SAVED_ONLY) {
+                type = NavType.BoolType
+                defaultValue = false
             },
         ),
         enterTransition = { slideInHorizontally { it } },
@@ -567,18 +580,28 @@ private fun NavGraphBuilder.mapSearchRoute(navController: NavHostController) {
     ) { entry ->
         MapSearchScreen(
             initialQuery = entry.arguments?.getString(ARG_MAP_SEARCH_QUERY),
+            initialSavedOnly = entry.arguments?.getBoolean(ARG_MAP_SEARCH_SAVED_ONLY) == true,
             onBack = { navController.popBackStack() },
-            // 검색 제출 → 전체 결과를 지도 검색 결과 모드로 (iOS searchConfirmed 대응)
-            onSearchConfirmed = { query, places ->
-                navController.returnSearchResult(MapSearchReturnArg.confirming(query, places))
+            onSearchConfirmed = { query, results, isSavedOnly ->
+                navController.returnSearchResult(
+                    MapSearchReturnArg.confirming(query, results, isSavedOnly),
+                )
             },
-            // 결과 행 탭 → 그 장소만 남기고 상세를 연다 (iOS placeSelected 대응)
-            onPlaceSelected = { query, place ->
-                navController.returnSearchResult(MapSearchReturnArg.selecting(place, query))
+            // 결과 행 탭 → 그 장소만 남기고 상세를 연다
+            onPlaceSelected = { query, result ->
+                navController.returnSearchResult(MapSearchReturnArg.selecting(result, query))
+            },
+            onSavedPlaceSelected = { savedPlace ->
+                navController.returnSearchResult(MapSearchReturnArg.selectingSaved(savedPlace))
             },
             onSessionExpired = { navController.navigateToAuth() },
         )
     }
+}
+
+private fun NavHostController.navigateToMapSearch(query: String?, isSavedOnly: Boolean) {
+    val encoded = query?.let { Uri.encode(it) }.orEmpty()
+    navigate("$MAIN_MAP_SEARCH_ROUTE?query=$encoded&savedOnly=$isSavedOnly")
 }
 
 // 검색 결과를 MAIN 의 savedStateHandle 로 되돌리고 검색 화면을 pop 한다
@@ -597,24 +620,25 @@ private const val KEY_COURSE_RELOAD = "course_reload"
 private const val KEY_COURSE_PICKED = "course_picked"
 
 // 마이페이지에서 여는 전체화면 라우트 (탭 밖 push)
-private const val MAIN_DATETYPE_ROUTE = "main/datetype"
-private const val MAIN_CONNECTION_ROUTE = "main/connection"
-private const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
-private const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
+internal const val MAIN_DATETYPE_ROUTE = "main/datetype"
+internal const val MAIN_CONNECTION_ROUTE = "main/connection"
+internal const val MAIN_COUPLE_ROUTE_BASE = "main/couple"
+internal const val MAIN_MAP_SEARCH_ROUTE = "main/map-search"
 // 검색바 뒤로로 재진입할 때 넘기는 검색어(선택 인자). 없으면 최근 검색어 화면
 private const val ARG_MAP_SEARCH_QUERY = "query"
-private const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
-private const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
-private const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
-private const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
-private const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
-private const val MAIN_COURSE_PLACE_ADD_ROUTE = "main/course/places/add"
-private const val MAIN_NOTICE_ROUTE = "main/notices"
-private const val MAIN_NOTICE_DETAIL_ROUTE_BASE = "main/notices/detail"
+private const val ARG_MAP_SEARCH_SAVED_ONLY = "savedOnly"
+internal const val MAIN_PASTDATES_ROUTE_BASE = "main/past-dates"
+internal const val MAIN_COURSE_DATE_ROUTE = "main/course/date"
+internal const val MAIN_COURSE_PLACE_ROUTE_BASE = "main/course/places"
+internal const val MAIN_COURSE_RESULT_ROUTE_BASE = "main/course/result"
+internal const val MAIN_COURSE_EDIT_ROUTE_BASE = "main/course/edit"
+internal const val MAIN_COURSE_PLACE_ADD_ROUTE = "main/course/places/add"
+internal const val MAIN_NOTICE_ROUTE = "main/notices"
+internal const val MAIN_NOTICE_DETAIL_ROUTE_BASE = "main/notices/detail"
 // 상세로 넘기는 공지 한 건(JSON)
 private const val ARG_NOTICE = "notice"
-// 이미 코스에 담긴 장소 번호를 쉼표로 이어 넘긴다
-private const val ARG_EXCLUDING = "excluding"
+// 이미 코스에 담긴 장소(번호·분류·좌표)를 JSON 으로 넘긴다
+private const val ARG_EXISTING = "existing"
 private const val ARG_DATE_COURSE_ID = "dateCourseId"
 
 // 코스 결과 진입 출처. 지난 데이트면 수정·알리기를 숨긴다
@@ -635,7 +659,7 @@ private val SPLASH_BUNDLE_OFFSET = 36.dp
 private const val PARALLAX_DIVISOR = 4
 
 // 커플 연결. myNickname 을 경로 인자로 넘겨 완료 화면 닉네임 칸에 쓴다
-private const val ROUTE_COUPLE_BASE = "couple"
+internal const val ROUTE_COUPLE_BASE = "couple"
 
 // 세션 만료·온보딩 이탈 공통. 보호 화면(검색·상세 등)이나 온보딩 화면(예: DATETYPE 세션 만료)에서
 // 호출되든 백스택 전체를 비우고 로그인만 남긴다. ONBOARDING 은 navigateToDateType 시점에 이미
@@ -650,6 +674,20 @@ private fun androidx.navigation.NavController.navigateToAuth() {
 private fun androidx.navigation.NavController.navigateToDateType() {
     navigate(RootRoute.DATETYPE.route) {
         popUpTo(RootRoute.ONBOARDING.route) { inclusive = true }
+    }
+}
+
+// 화면이 바뀌면 녹화에 이름을 남긴다 (iOS RootFlowView 의 onChange 대응).
+// 메인 탭 안의 화면은 탭 NavHost 가, 지도 위 시트는 지도 화면이 알린다.
+// 장소 가져오기 모달은 라우트가 없어 여기서 가른다
+@Composable
+private fun ReportRootScreenName(currentRoute: String, showsImportModal: Boolean) {
+    LaunchedEffect(currentRoute, showsImportModal) {
+        if (showsImportModal) {
+            AnalyticsScreen.set(AnalyticsScreenName.PLACE_IMPORT)
+        } else {
+            rootScreenName(currentRoute)?.let(AnalyticsScreen::set)
+        }
     }
 }
 

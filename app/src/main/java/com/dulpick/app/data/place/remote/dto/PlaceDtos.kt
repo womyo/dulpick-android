@@ -16,11 +16,14 @@ data class PlaceSearchItemDto(
     val name: String = "",
     val address: String = "",
     val roadAddress: String? = null,
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
+    // 명세가 nullable 이다. 좌표가 없는 항목은 매퍼가 버린다
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     // 검색 응답엔 ASCII 코드가 실려 온다. 한글 이름보다 이쪽을 먼저 본다
     val categoryCode: String? = null,
     val categoryName: String = "",
+    // null 이면 커플 누구도 저장하지 않았다
+    val ownershipStatus: String? = null,
     val thumbnailUrl: String? = null,
     val imageUrls: List<String> = emptyList(),
 )
@@ -75,7 +78,8 @@ data class SavedPlaceResponseDto(
     val roadAddress: String? = null,
     val latitude: Double,
     val longitude: Double,
-    val category: String,
+    // 카카오 분류 경로. 명세가 null 을 허용한다
+    val category: String? = null,
     val categoryName: String,
     val ownershipStatus: String,
     val alias: String? = null,

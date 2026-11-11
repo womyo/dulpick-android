@@ -4,16 +4,18 @@ import com.dulpick.app.data.place.remote.dto.PlaceDetailResponseDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchItemDto
 import com.dulpick.app.data.place.remote.dto.PlaceSearchResponseDto
 import com.dulpick.app.data.place.remote.dto.SavedPlaceResponseDto
+import com.dulpick.app.domain.common.Page
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceOwnership
-import com.dulpick.app.domain.place.PlacePage
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.SavedPlace
 
 object PlaceDtoMapper {
-    fun toDomain(dto: PlaceSearchResponseDto): PlacePage =
-        PlacePage(items = dto.places.map(::toPlace), hasNext = dto.hasNext)
+    fun toDomain(dto: PlaceSearchResponseDto): Page<PlaceSearchResult> =
+        // 좌표가 없는 항목은 지도에 못 올린다. 그 항목만 버리고 나머지는 보인다
+        Page(items = dto.places.mapNotNull(::toSearchResult), hasNext = dto.hasNext)
 
     fun toSavedPlaces(dtos: List<SavedPlaceResponseDto>): List<SavedPlace> =
         dtos.map(::toSavedPlace)
@@ -36,24 +38,41 @@ object PlaceDtoMapper {
         serverPlaceId = dto.placeId,
         savedByMe = dto.savedByMe,
         savedMemberCount = dto.savedMemberCount,
+        detailCategory = detailCategory(dto.category),
         ownership = dto.ownershipStatus?.let(::ownership),
         phone = dto.phone,
         kakaoPlaceUrl = dto.kakaoPlaceUrl,
     )
 
-    private fun toPlace(dto: PlaceSearchItemDto): Place =
-        Place(
-            // placeId 없으면 kakaoPlaceId, 둘 다 없으면 이름·좌표로 결정적 식별자를 만든다
-            id = dto.placeId?.toString() ?: dto.kakaoPlaceId ?: "${dto.name}|${dto.latitude}|${dto.longitude}",
-            name = dto.name,
-            category = PlaceCategoryMapper.fromCodeOrName(dto.categoryCode, dto.categoryName),
-            bookmarkCount = 0,
-            thumbnailUrls = dto.imageUrls,
-            kakaoPlaceId = dto.kakaoPlaceId,
-            address = dto.address,
-            roadAddress = dto.roadAddress.orEmpty(),
-            coordinate = Coordinate(dto.latitude, dto.longitude),
+    // 카카오 분류 경로(음식점 > 카페 > 커피전문점)에서 세부 분류 하나를 고른다.
+    // 셋째 단계가 있으면 셋째, 없으면 둘째다. 넷째 단계는 대개 상호명이라 쓰지 않는다
+    private fun detailCategory(path: String?): String? {
+        val steps = path.orEmpty().split(">").map { it.trim() }.filter { it.isNotEmpty() }
+        if (steps.size < 2) return null
+        return steps[minOf(steps.size, 3) - 1]
+    }
+
+    private fun toSearchResult(dto: PlaceSearchItemDto): PlaceSearchResult? {
+        val latitude = dto.latitude ?: return null
+        val longitude = dto.longitude ?: return null
+        return PlaceSearchResult(
+            place = Place(
+                // placeId 없으면 kakaoPlaceId, 둘 다 없으면 이름·좌표로 결정적 식별자를 만든다
+                id = dto.placeId?.toString() ?: dto.kakaoPlaceId ?: "${dto.name}|$latitude|$longitude",
+                name = dto.name,
+                category = PlaceCategoryMapper.fromCodeOrName(dto.categoryCode, dto.categoryName),
+                bookmarkCount = 0,
+                thumbnailUrls = dto.imageUrls,
+                kakaoPlaceId = dto.kakaoPlaceId,
+                address = dto.address,
+                roadAddress = dto.roadAddress.orEmpty(),
+                coordinate = Coordinate(latitude, longitude),
+            ),
+            ownership = dto.ownershipStatus?.let(::ownership),
+            // 지도 검색 응답에는 별칭이 없다
+            alias = null,
         )
+    }
 
     fun toSavedPlace(dto: SavedPlaceResponseDto): SavedPlace =
         SavedPlace(

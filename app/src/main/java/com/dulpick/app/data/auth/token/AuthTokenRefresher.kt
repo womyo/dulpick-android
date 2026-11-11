@@ -9,10 +9,12 @@ import com.dulpick.app.data.auth.remote.dto.ReissueRequest
 class AuthTokenRefresher(
     private val authLocal: AuthLocalDataSource,
     private val plainApi: AuthApi,
+    private val logoutGuard: AuthLogoutGuard,
 ) {
     // 실패하면 null. authenticator 가 재시도를 포기하고 401 을 그대로 흘린다
     @Suppress("TooGenericExceptionCaught")
     suspend fun refresh(): String? {
+        if (logoutGuard.isLoggingOut) return null
         val current = authLocal.loadSession() ?: return null
         return try {
             val token = plainApi.reissue(ReissueRequest(refreshToken = current.refreshToken))

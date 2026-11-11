@@ -2,13 +2,19 @@ package com.dulpick.app.data.course.mapper
 
 import com.dulpick.app.data.course.remote.dto.DateCoursePlaceCandidateResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCoursePlaceResponseDto
+import com.dulpick.app.data.course.remote.dto.DateCoursePlaceSearchPageResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseResponseDto
 import com.dulpick.app.data.course.remote.dto.DateCourseSummaryResponseDto
+import com.dulpick.app.data.course.remote.dto.RoutePointResponseDto
+import com.dulpick.app.data.course.remote.dto.TransitToNextResponseDto
+import com.dulpick.app.data.course.remote.dto.WalkToNextResponseDto
 import com.dulpick.app.data.place.mapper.PlaceCategoryMapper
+import com.dulpick.app.domain.common.Page
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseLeg
 import com.dulpick.app.domain.course.CourseStatus
 import com.dulpick.app.domain.course.CourseStop
+import com.dulpick.app.domain.course.CourseTransit
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseSummary
 import com.dulpick.app.domain.place.Coordinate
@@ -18,6 +24,7 @@ import com.dulpick.app.domain.place.SavedPlace
 import kotlin.math.roundToInt
 
 private const val SECONDS_PER_MINUTE = 60.0
+private const val MAX_SEARCH_PAGE = 100
 
 object CourseDtoMapper {
 
@@ -34,16 +41,29 @@ object CourseDtoMapper {
             version = dto.version,
             stops = sorted.map { CourseStop(place = toPlace(it)) },
             // 구간은 항상 장소 수 - 1 개. 못 받은 구간은 null
-            legs = sorted.dropLast(1).map { place ->
-                place.walkToNext?.let {
-                    CourseLeg(
-                        walkingMinutes = (it.durationSeconds / SECONDS_PER_MINUTE).roundToInt(),
-                        distanceMeters = it.distanceMeters,
-                    )
-                }
-            },
+            legs = sorted.dropLast(1).map { place -> place.walkToNext?.let { toLeg(it) } },
         )
     }
+
+    private fun toLeg(dto: WalkToNextResponseDto): CourseLeg = CourseLeg(
+        walkingMinutes = minutes(dto.durationSeconds),
+        distanceMeters = dto.distanceMeters,
+        walkingPath = dto.path.map { toCoordinate(it) },
+        transit = dto.transit?.let { toTransit(it) },
+    )
+
+    // 대중교통 합계와, 구간들의 좌표를 이동 순서대로 이어 붙인 경로
+    private fun toTransit(dto: TransitToNextResponseDto): CourseTransit = CourseTransit(
+        minutes = minutes(dto.durationSeconds),
+        distanceMeters = dto.distanceMeters,
+        path = dto.legs.flatMap { it.path }.map { toCoordinate(it) },
+    )
+
+    private fun toCoordinate(dto: RoutePointResponseDto): Coordinate =
+        Coordinate(dto.latitude, dto.longitude)
+
+    // 서버는 초를 준다. 분으로 반올림한다. 도보·대중교통이 같은 방식이다
+    private fun minutes(seconds: Int): Int = (seconds / SECONDS_PER_MINUTE).roundToInt()
 
     fun toSummary(dto: DateCourseSummaryResponseDto): DateCourseSummary =
         DateCourseSummary(
@@ -51,6 +71,12 @@ object CourseDtoMapper {
             title = dto.title,
             totalPlaceCount = dto.totalPlaceCount,
         )
+
+    // 명세의 page 최대값이 100 이다. 101 을 요청하면 서버가 400 을 주므로 여기서 끊는다
+    fun toSearchPage(dto: DateCoursePlaceSearchPageResponseDto): Page<SavedPlace> = Page(
+        items = dto.places.map(::toSavedPlace),
+        hasNext = dto.hasNext && dto.page < MAX_SEARCH_PAGE,
+    )
 
     // 코스에 담을 후보. 저장 장소 응답과 거의 같아 SavedPlace 로 옮긴다.
     // 이 응답에 없는 카카오 번호·저장 수·저장 시각은 비워 둔다

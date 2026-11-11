@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.feature.map.AliasEdit
 import com.dulpick.app.ui.component.AppButton
@@ -45,6 +46,7 @@ fun PlaceAliasSheet(edit: AliasEdit, onSave: (String) -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         AppTextField(
+            modifier = Modifier.analyticsMasked(),
             value = alias,
             onValueChange = { alias = sanitize(it) },
             placeholder = edit.placeName,

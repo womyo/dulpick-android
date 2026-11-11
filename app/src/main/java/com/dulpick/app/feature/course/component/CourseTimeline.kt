@@ -1,10 +1,13 @@
 package com.dulpick.app.feature.course.component
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,9 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Warning
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,6 +29,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.R
 import com.dulpick.app.feature.course.TimelineLeg
+import com.dulpick.app.feature.course.TimelineLegMode
 import com.dulpick.app.feature.course.TimelineStop
 import com.dulpick.app.ui.theme.Colors
 import com.dulpick.app.ui.theme.Typography
@@ -36,24 +37,26 @@ import com.dulpick.app.ui.theme.Typography
 private val RAIL_WIDTH = 24.dp
 private val RAIL_GAP = 12.dp
 private val BADGE_SIZE = 20.dp
-private val WALK_ICON_SIZE = 24.dp
-private val WARNING_ICON_SIZE = 13.dp
+private val LEG_ICON_SIZE = 24.dp
+private val DIRECTIONS_ARROW_SIZE = 16.dp
 
-// 코스 순서를 위에서 아래로 잇는 타임라인 (iOS CourseTimeline 대응).
-// 번호 배지 사이를 빨강 점선으로 잇고, 사이마다 이동 구간을 한 줄 끼운다.
 // legs 는 stops 보다 하나 적다. 값이 없어도 구간 행은 그려 점선이 끊기지 않게 한다
 @Composable
 fun CourseTimeline(
     stops: List<TimelineStop>,
     legs: List<TimelineLeg>,
     modifier: Modifier = Modifier,
+    onLegDirectionsClick: (Int) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         stops.forEachIndexed { index, stop ->
             val isLast = index == stops.lastIndex
             StopRow(stop = stop, number = index + 1, isFirst = index == 0, isLast = isLast)
             if (!isLast) {
-                LegRow(legs.getOrNull(index) ?: TimelineLeg("", "", isLong = false))
+                LegRow(
+                    leg = legs.getOrNull(index) ?: TimelineLeg(TimelineLegMode.UNAVAILABLE, "", ""),
+                    onDirectionsClick = { onLegDirectionsClick(index) },
+                )
             }
         }
     }
@@ -89,33 +92,84 @@ private fun StopRow(stop: TimelineStop, number: Int, isFirst: Boolean, isLast: B
 }
 
 @Composable
-private fun LegRow(leg: TimelineLeg) {
+private fun LegRow(leg: TimelineLeg, onDirectionsClick: () -> Unit) {
     TimelineRow(
         rail = {
             Column(modifier = Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Connector(modifier = Modifier.weight(1f), visible = true)
-                // 발자국 아이콘이 점선을 끊고 그 자리에 들어간다
+                // 수단 아이콘이 점선을 끊고 그 자리에 들어간다
                 Image(
-                    painter = painterResource(R.drawable.walk),
+                    painter = painterResource(leg.mode.iconRes()),
                     contentDescription = null,
-                    colorFilter = ColorFilter.tint(Colors.textTertiary),
-                    modifier = Modifier.size(WALK_ICON_SIZE),
+                    // 느낌표 아이콘은 색이 박혀 있다. 물들이면 흰 느낌표가 사라진다
+                    colorFilter = if (leg.mode == TimelineLegMode.UNAVAILABLE) {
+                        null
+                    } else {
+                        ColorFilter.tint(Colors.textTertiary)
+                    },
+                    modifier = Modifier.size(LEG_ICON_SIZE),
                 )
                 Connector(modifier = Modifier.weight(1f), visible = true)
             }
         },
         content = {
             Row(
-                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 28.dp).padding(vertical = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 28.dp)
+                    .padding(vertical = 20.dp, horizontal = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = leg.duration, style = Typography.body2M, color = Colors.textSecondary, maxLines = 1)
-                Text(text = leg.distance, style = Typography.caption1R, color = Colors.textTertiary, maxLines = 1)
-                if (leg.isLong) LongLegBadge()
+                LegText(leg = leg, modifier = Modifier.weight(1f))
+                DirectionsLink(onClick = onDirectionsClick)
             }
         },
     )
+}
+
+// 링크 앞 폭에 한 줄로 안 들어가면 거리를 다음 줄로 내린다
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LegText(leg: TimelineLeg, modifier: Modifier = Modifier) {
+    if (leg.mode == TimelineLegMode.UNAVAILABLE) {
+        Text(text = leg.distance, style = Typography.caption1R, color = Colors.textTertiary, modifier = modifier)
+        return
+    }
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        Text(text = leg.duration, style = Typography.body2M, color = Colors.textSecondary, maxLines = 1)
+        Text(text = leg.distance, style = Typography.caption1R, color = Colors.textTertiary, maxLines = 1)
+    }
+}
+
+@Composable
+private fun DirectionsLink(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick)
+            .defaultMinSize(minHeight = 44.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "카카오맵으로 보기", style = Typography.body2SB, color = Colors.brandPrimary, maxLines = 1)
+        Image(
+            painter = painterResource(R.drawable.arrowright),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(Colors.brandPrimary),
+            modifier = Modifier.size(DIRECTIONS_ARROW_SIZE),
+        )
+    }
+}
+
+private fun TimelineLegMode.iconRes(): Int = when (this) {
+    TimelineLegMode.WALK -> R.drawable.walk
+    TimelineLegMode.TRANSIT -> R.drawable.bus
+    TimelineLegMode.UNAVAILABLE -> R.drawable.errorgray
 }
 
 // 왼쪽은 점선 레일, 오른쪽은 내용. 구분선은 내용 쪽에만 깔린다.
@@ -170,31 +224,5 @@ private fun Connector(modifier: Modifier = Modifier, visible: Boolean) {
     }
     Box(modifier = modifier.width(RAIL_WIDTH), contentAlignment = Alignment.Center) {
         DottedVerticalLine(color = Colors.brandPrimary, modifier = Modifier.fillMaxHeight())
-    }
-}
-
-// 오래 걷는 구간 안내. 경고 삼각형 + 빨강 글자에 연분홍 바탕 (iOS longLegBadge 대응)
-@Composable
-private fun LongLegBadge() {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Colors.brandSurface)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Warning,
-            contentDescription = null,
-            tint = Colors.statusError,
-            modifier = Modifier.size(WARNING_ICON_SIZE),
-        )
-        Text(
-            text = "이동이 긴 구간입니다",
-            style = Typography.caption2M,
-            color = Colors.statusError,
-            maxLines = 1,
-        )
     }
 }

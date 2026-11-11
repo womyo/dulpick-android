@@ -1,7 +1,11 @@
 package com.dulpick.app.feature.map
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEntryPoint
+import com.dulpick.app.core.analytics.AnalyticsEvent
 import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.UserLocationTracker
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
 import com.dulpick.app.domain.course.CourseRepository
@@ -10,6 +14,7 @@ import com.dulpick.app.domain.place.Place
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.SavedPlace
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -23,6 +28,7 @@ class MapViewModel @Inject constructor(
     private val coupleRepository: CoupleRepository,
     private val courseRepository: CourseRepository,
     private val locationRepository: LocationRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<MapState, MapIntent, MapSideEffect>(MapState()) {
 
     // 별칭 편집 흐름. 상태·효과만 넘겨 받아 스스로 처리한다
@@ -42,6 +48,12 @@ class MapViewModel @Inject constructor(
         effect = { postSideEffect(it) },
     )
 
+    private val userLocation = UserLocationTracker(
+        repository = locationRepository,
+        scope = viewModelScope,
+        onChange = { coordinate -> setState { copy(userLocation = coordinate) } },
+    )
+
     // 낙관적으로 뺀 행. 서버 삭제가 실패하면 이 자리로 되돌린다
     private val pendingDeletes = mutableMapOf<String, PendingDelete>()
 
@@ -50,6 +62,7 @@ class MapViewModel @Inject constructor(
             MapIntent.OnAppear -> load()
             MapIntent.RetryClicked -> retryLoad()
             MapIntent.ShowAllSaved -> showAllSaved()
+            MapIntent.CourseButtonClicked -> trackCourseButton()
             // 필터를 바꾸면 남은 목록의 첫 장소로 옮긴다 (iOS ownershipSelected·categoryTapped 와 같다)
             is MapIntent.OwnershipSelected ->
                 setState { copy(selectedOwnership = intent.ownership).withOverviewCamera() }
@@ -57,7 +70,7 @@ class MapViewModel @Inject constructor(
                 setState { copy(selectedCategory = intent.category).withOverviewCamera() }
             is MapIntent.DeleteClicked -> delete(intent.id)
             is MapIntent.OpenSavedDetail -> openSavedDetail(intent.place)
-            MapIntent.CloseDetail -> setState { closingPlaceDetail() }
+            MapIntent.CloseDetail -> closePlaceDetail()
             else -> onDelegatedIntent(intent)
         }
     }
@@ -69,6 +82,7 @@ class MapViewModel @Inject constructor(
                 alias.handle(intent)
             is MapIntent.OpenPostDetail, is MapIntent.PostPlacesApplied,
             is MapIntent.OpenPostPlaceDetail, MapIntent.ClosePostDetail -> onPostIntent(intent)
+            is MapIntent.MapVisibilityChanged -> changeVisibility(intent.isVisible)
             MapIntent.CurrentLocationClicked, is MapIntent.LocationPermissionResult,
             MapIntent.LocationModalDismissed -> location.handle(intent)
             else -> onSearchIntent(intent)
@@ -89,11 +103,31 @@ class MapViewModel @Inject constructor(
     }
 
     // 다른 곳에서 들어온 게시글이면 닫을 때 온 곳으로 되돌리라고 알린다
+    // 다른 탭에서 저장하고 올 수 있다. 탭이 보일 때마다 목록을 다시 읽는다
+    private fun changeVisibility(isVisible: Boolean) {
+        if (!isVisible) return userLocation.stop()
+        userLocation.start()
+        loadPlaces()
+    }
+
+    // 떠 있는 코스 버튼. 진행 중인 코스가 있으면 보기, 없으면 만들기다
+    private fun trackCourseButton() {
+        val hasCourse = currentState.currentCourse != null
+        analytics.track(AnalyticsEvent.courseButton(AnalyticsEntryPoint.MAP_FLOATING_BUTTON, hasCourse))
+    }
+
+    // 상세에서 저장·해제했을 수 있다. 닫을 때 목록을 다시 읽는다
+    private fun closePlaceDetail() {
+        setState { closingPlaceDetail() }
+        loadPlaces()
+    }
+
     private fun closePostDetail() {
         if (currentState.postDetail?.returnsOnClose == true) {
             postSideEffect(MapSideEffect.PostDetailClosed)
         }
         setState { closingPostDetail() }
+        loadPlaces()
     }
 
     // 검색 결과·상세 진입 인텐트 (onIntent 복잡도 분리)
@@ -102,70 +136,50 @@ class MapViewModel @Inject constructor(
             is MapIntent.OpenPlaceDetail -> openPlaceDetail(intent.place)
             is MapIntent.OpenContentDetail -> openContentDetail(intent.place, intent.query)
             is MapIntent.EnterSearchResult -> enterSearchResult(intent)
-            is MapIntent.SearchRowClicked -> openSearchDetail(intent.place)
-            is MapIntent.SearchBookmarkClicked -> toggleSearchBookmark(intent.place)
-            MapIntent.ClearSearch -> setState {
-                copy(searchResult = null, detail = null, bookmarkOverrides = emptyMap())
-            }
+            is MapIntent.SearchRowClicked -> openSearchDetail(intent.result)
+            MapIntent.ClearSearch -> setState { copy(searchResult = null, detail = null) }
             else -> Unit
         }
     }
 
     // 검색 화면에서 돌아온 결과로 검색 결과 모드에 들어간다. selectedIndex 있으면 그 장소 상세도 함께 연다
     private fun enterSearchResult(intent: MapIntent.EnterSearchResult) {
-        val detail = intent.selectedIndex
-            ?.let { intent.places.getOrNull(it) }
-            ?.let { DetailTarget(it, query = intent.searchQuery, serverPlaceId = null) }
+        val selected = intent.selectedIndex?.let { intent.results.getOrNull(it) }
         setState {
             val entered = copy(
-                searchResult = SearchResult(intent.searchQuery, intent.displayQuery, intent.places),
-                detail = detail,
-                bookmarkOverrides = emptyMap(),
+                searchResult = SearchResult(
+                    searchQuery = intent.searchQuery,
+                    displayQuery = intent.displayQuery,
+                    results = intent.results,
+                    isSavedOnly = intent.isSavedOnly,
+                ),
+                detail = selected?.let { detailTarget(it, intent.searchQuery, intent.isSavedOnly) },
             )
-            // 고른 장소가 있으면 그 자리를, 없으면 첫 결과를 비춘다 (iOS searchResultsApplied 와 같다)
-            val focus = detail?.place?.coordinate
+            // 고른 장소가 있으면 그 자리를, 없으면 첫 결과를 비춘다
+            val focus = selected?.place?.coordinate
             when {
                 focus != null -> entered.focusing(focus)
-                else -> intent.places.firstOrNull()
-                    ?.let { entered.focusing(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
+                else -> intent.results.firstOrNull()
+                    ?.let { entered.focusing(it.place.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
                     ?: entered
             }
         }
     }
 
     // 검색 결과 리스트 행 탭 → 상세. 카카오 조회엔 원본 검색어를 쓴다
-    private fun openSearchDetail(place: Place) {
-        val query = currentState.searchResult?.searchQuery.orEmpty()
-        setState { copy(detail = DetailTarget(place, query = query, serverPlaceId = null)).focusing(place.coordinate) }
+    private fun openSearchDetail(result: PlaceSearchResult) {
+        val search = currentState.searchResult
+        val target = detailTarget(result, search?.searchQuery.orEmpty(), search?.isSavedOnly == true)
+        setState { copy(detail = target).focusing(result.place.coordinate) }
     }
 
-    // 검색 결과 행 북마크. 먼저 뒤집고 서버 저장/해제 후 저장목록을 갱신, 실패하면 되돌린다
-    private fun toggleSearchBookmark(place: Place) {
-        val kakaoId = place.kakaoPlaceId ?: return
-        val wasBookmarked = currentState.isBookmarked(place)
-        setState { copy(bookmarkOverrides = bookmarkOverrides + (kakaoId to !wasBookmarked)) }
-        viewModelScope.launch {
-            try {
-                if (wasBookmarked) {
-                    val serverId = currentState.places
-                        .firstOrNull { it.place.kakaoPlaceId == kakaoId }?.place?.id?.toLongOrNull()
-                    if (serverId != null) placeRepository.removePlace(serverId)
-                } else {
-                    placeRepository.savePlace(kakaoId, place.name, null)
-                }
-                loadPlaces()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                setState { copy(bookmarkOverrides = bookmarkOverrides - kakaoId) }
-                if (error == PlaceError.Unauthorized) {
-                    postSideEffect(MapSideEffect.SessionExpired)
-                } else {
-                    postSideEffect(MapSideEffect.ShowToast("저장을 변경하지 못했어요", isError = true))
-                }
-            }
+    // 「저장한 곳만 보기」 결과는 카카오 번호가 없다. 저장 목록에서 연 것처럼 장소 번호로 조회한다
+    private fun detailTarget(result: PlaceSearchResult, query: String, isSavedOnly: Boolean): DetailTarget =
+        if (isSavedOnly) {
+            DetailTarget(result.place, query = "", serverPlaceId = result.place.id.toLongOrNull())
+        } else {
+            DetailTarget(result.place, query = query, serverPlaceId = null)
         }
-    }
 
     // 저장 장소는 서버 placeId 로 조회한다(검색어 불필요)
     private fun openSavedDetail(place: SavedPlace) {
@@ -261,7 +275,6 @@ class MapViewModel @Inject constructor(
         setState {
             val reset = copy(
                 searchResult = null,
-                bookmarkOverrides = emptyMap(),
                 selectedCategory = null,
                 selectedOwnership = PlaceOwnership.TOGETHER,
             )

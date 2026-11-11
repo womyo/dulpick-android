@@ -27,6 +27,8 @@ googleid = "1.1.1"
 playServicesLocation = "21.3.0"
 firebaseBom = "33.7.0"
 googleServices = "4.4.2"
+clarity = "3.6.0"
+mixpanel = "8.11.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -82,6 +84,11 @@ google-identity-googleid = { group = "com.google.android.libraries.identity.goog
 # 푸시 알림 (FCM)
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+
+# 세션 녹화(클라리티) · 이벤트 분석(믹스패널)
+# 클라리티는 Compose 패키지를 쓴다 — 마스킹 모디파이어가 여기 들어 있다
+clarity-compose = { group = "com.microsoft.clarity", name = "clarity-compose", version.ref = "clarity" }
+mixpanel-android = { group = "com.mixpanel.android", name = "mixpanel-android", version.ref = "mixpanel" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,25 +45,30 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
 import com.dulpick.app.core.map.KakaoMapView
-import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.domain.place.SavedPlace
 import com.dulpick.app.feature.course.component.CoursePlaceRow
-import com.dulpick.app.ui.map.candidatePin
+import com.dulpick.app.feature.course.component.SAVED_PLACE_SEARCH_HEIGHT
+import com.dulpick.app.feature.course.component.SavedPlaceSearchChip
+import com.dulpick.app.feature.course.component.SavedPlaceSearchField
 import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.CATEGORY_PLACEHOLDER
 import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.ui.component.FilterDropdown
 import com.dulpick.app.ui.component.OWNERSHIP_ORDER
 import com.dulpick.app.ui.component.displayName
+import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.rememberMapSheetState
 import com.dulpick.app.ui.component.AppButton
@@ -99,8 +105,8 @@ fun CoursePlacePickScreen(
     // 코스를 처음 짤 때만 있다. 더하기로 열면 null 이다
     dateCourseId: String? = null,
     mode: CoursePlacePickMode = CoursePlacePickMode.CREATE,
-    // 더하기로 열 때 이미 담긴 장소. 목록에서 뺀다
-    excluding: List<String> = emptyList(),
+    // 더하기로 열 때 이미 담긴 장소. 목록에서 빼고 지도에는 기존 코스로 그린다
+    existing: List<ExistingCoursePlace> = emptyList(),
     onBuilt: (dateCourseId: String) -> Unit = {},
     // 더하기로 열렸을 때 고른 장소를 코스 수정 화면으로 돌려준다
     onPicked: (List<SavedPlace>) -> Unit = {},
@@ -122,7 +128,8 @@ fun CoursePlacePickScreen(
         }
     }
     LaunchedEffect(dateCourseId, mode) {
-        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, excluding))
+        viewModel.onIntent(CoursePlacePickIntent.Start(dateCourseId, mode, existing))
+        viewModel.onIntent(CoursePlacePickIntent.MapAppeared)
     }
     BackHandler { viewModel.onIntent(CoursePlacePickIntent.BackClicked) }
 
@@ -144,6 +151,7 @@ fun CoursePlacePickScreen(
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
+            sheetDragHandle = { SheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 SheetBody(
@@ -155,38 +163,27 @@ fun CoursePlacePickScreen(
                 )
             },
         ) {
-            val pins = coursePins(state)
             Box(modifier = Modifier.fillMaxSize()) {
                 KakaoMapView(
                     modifier = Modifier.fillMaxSize(),
-                    pins = pins,
+                    pins = coursePins(state),
+                    routes = state.routes,
+                    userLocation = state.userLocation,
                     // 핀을 시트 위 영역의 초점에 둔다. 화면 한가운데면 시트가 가린다 (iOS 와 같다)
                     collapsedSheetTopPx = sheet.collapsedTopPx,
-                    cameraRequest = MapCameraRequest(
-                        pins.firstOrNull()
-                            ?.let { MapCamera(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
-                            ?: MapCamera.SEOUL_CITY_HALL,
-                    ),
-                    // 핀 탭도 목록 행 탭과 같은 토글이다 (iOS markerTapped 대응)
-                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PlaceToggled(it)) },
+                    cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
+                    onPinTap = { viewModel.onIntent(CoursePlacePickIntent.PinTapped(it)) },
                 )
                 BackButton(onClick = { viewModel.onIntent(CoursePlacePickIntent.BackClicked) })
             }
         }
 
-        // 화면 아래에 고정된 CTA. 시트를 올려도 자리가 안 바뀐다
-        Column(modifier = Modifier.align(Alignment.BottomCenter)) {
-            CtaContainer {
-                AppButton(
-                    text = state.ctaTitle,
-                    onClick = { viewModel.onIntent(CoursePlacePickIntent.BuildClicked) },
-                    variant = AppButtonVariant.DARK,
-                    size = AppButtonSize.XL,
-                    enabled = state.isCtaEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
+        BuildCta(
+            title = state.ctaTitle,
+            isEnabled = state.isCtaEnabled,
+            onClick = { viewModel.onIntent(CoursePlacePickIntent.BuildClicked) },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         AppToast(message = toastMessage, onDismiss = { toastMessage = null }, bottomInset = 100)
     }
@@ -205,18 +202,57 @@ fun CoursePlacePickScreen(
     }
 }
 
-// 카테고리 핀을 먼저 두고 고른 물방울을 뒤에 둔다. 지도가 배열 순서로 그려 물방울이 위에 온다.
-// 고른 물방울은 필터를 타지 않는다 — 목록에서 사라져도 핀으로 해제할 수 있어야 한다 (iOS markers 대응)
+// 기존 코스 핀, 목록의 카테고리 핀, 고른 숫자 핀 순서다.
+// 겹침은 배열 순서가 아니라 핀 종류가 정한다 — 숫자 핀이 카테고리 핀 위에 앉는다.
+// 숫자 핀은 필터를 타지 않는다. 목록에서 사라져도 핀으로 뺄 수 있어야 한다 (iOS markers 대응)
 @Composable
 private fun coursePins(state: CoursePlacePickState): List<MapPin> {
     val context = LocalContext.current
+    val existingPins = state.existingPlaces.flatMapIndexed { index, stop ->
+        listOf(
+            placePin(context, CourseMarkerId.existingCategory(stop.id), stop.coordinate, stop.category),
+            numberedPin(
+                context,
+                CourseMarkerId.existingNumbered(stop.id),
+                stop.coordinate,
+                index + 1,
+            ),
+        )
+    }
     val categoryPins = state.filteredPlaces.map {
         placePin(context, it.id, it.place.coordinate, it.place.category)
     }
-    val selectedPins = state.places
-        .filter { it.id in state.selectedPlaceIds }
-        .map { candidatePin(context, it.id, it.place.coordinate) }
-    return categoryPins + selectedPins
+    val numberedPins = state.selectedPlaces.mapIndexed { index, candidate ->
+        numberedPin(
+            context,
+            CourseMarkerId.numbered(candidate.id),
+            candidate.place.coordinate,
+            state.existingPlaces.size + index + 1,
+        )
+    }
+    return existingPins + categoryPins + numberedPins
+}
+
+// 화면 아래에 고정된 CTA. 시트를 올려도 자리가 안 바뀐다
+@Composable
+private fun BuildCta(
+    title: String,
+    isEnabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        CtaContainer {
+            AppButton(
+                text = title,
+                onClick = onClick,
+                variant = AppButtonVariant.DARK,
+                size = AppButtonSize.XL,
+                enabled = isEnabled,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 @Composable
@@ -237,6 +273,7 @@ private fun BackButton(onClick: () -> Unit) {
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun SheetBody(
     state: CoursePlacePickState,
     height: androidx.compose.ui.unit.Dp,
@@ -246,13 +283,20 @@ private fun SheetBody(
 ) {
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
         Header(state = state, onIntent = onIntent)
-        when {
-            state.load == CoursePlaceLoad.LOADING -> Skeleton()
-            state.load == CoursePlaceLoad.FAILED -> Failure(
+        when (state.listContent) {
+            CoursePlaceListContent.SKELETON -> Skeleton()
+            CoursePlaceListContent.LOAD_FAILED -> Failure(
                 onRetry = { onIntent(CoursePlacePickIntent.RetryClicked) },
             )
-            state.isEmpty -> EmptyState(hasNoSavedPlace = state.hasNoSavedPlace)
-            else -> PlaceList(
+            CoursePlaceListContent.NO_SAVED_PLACE ->
+                EmptyState("저장한 장소가 없어요", "마음에 드는 장소를 저장해보세요")
+            CoursePlaceListContent.NO_MATCH ->
+                EmptyState("조건에 맞는 장소가 없어요", "필터를 바꿔보세요")
+            CoursePlaceListContent.NO_SEARCH_RESULT ->
+                EmptyState("검색 결과가 없어요", "다른 검색어를 입력해주세요")
+            CoursePlaceListContent.SEARCH_FAILED ->
+                EmptyState("검색에 실패했어요", "잠시 뒤 다시 시도해주세요")
+            CoursePlaceListContent.LIST -> PlaceList(
                 state = state,
                 rootHeightPx = rootHeightPx,
                 onCollapse = onCollapse,
@@ -269,30 +313,65 @@ private fun Header(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text = "저장한 장소", style = Typography.title3SB, color = Colors.textPrimary)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.isCoupleConnected) {
-                FilterDropdown(
-                    label = state.selectedOwnership.displayName(),
-                    isActive = state.selectedOwnership != PlaceOwnership.TOGETHER,
-                    options = OWNERSHIP_ORDER.map { it.displayName() },
-                    selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
-                    onSelect = { onIntent(CoursePlacePickIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
-                )
-            }
+        FilterRow(state = state, onIntent = onIntent)
+    }
+}
+
+// 검색창이 열리면 「검색」 칩이 줄 너비로 늘어나 검색창이 되고 나머지 칩은 사라진다.
+// 두 모양이 같은 높이라 바뀌어도 머리 높이가 그대로다
+@Composable
+private fun FilterRow(state: CoursePlacePickState, onIntent: (CoursePlacePickIntent) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(SAVED_PLACE_SEARCH_HEIGHT),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (state.search.isFieldOpen) {
+            SavedPlaceSearchField(
+                query = state.search.query,
+                onQueryChange = { onIntent(CoursePlacePickIntent.SearchQueryChanged(it)) },
+                onFocusLost = { onIntent(CoursePlacePickIntent.SearchFieldDismissed) },
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "취소",
+                style = Typography.body2SB,
+                color = Colors.textTertiary,
+                modifier = Modifier
+                    .clickable { onIntent(CoursePlacePickIntent.SearchCancelClicked) }
+                    .padding(horizontal = 6.dp),
+            )
+            return@Row
+        }
+        SavedPlaceSearchChip(
+            query = state.search.query,
+            isEnabled = state.isSearchAvailable,
+            onClick = { onIntent(CoursePlacePickIntent.SearchChipClicked) },
+            onClear = { onIntent(CoursePlacePickIntent.SearchChipClearClicked) },
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (state.isCoupleConnected) {
             FilterDropdown(
-                label = state.selectedCategory?.displayName() ?: CATEGORY_UNFILTERED,
-                isActive = state.selectedCategory != null,
-                options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
-                selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
-                onSelect = {
-                    onIntent(
-                        CoursePlacePickIntent.CategorySelected(
-                            if (it == 0) null else CATEGORY_ORDER[it - 1],
-                        ),
-                    )
-                },
+                label = state.selectedOwnership.displayName(),
+                isActive = state.selectedOwnership != PlaceOwnership.TOGETHER,
+                options = OWNERSHIP_ORDER.map { it.displayName() },
+                selectedIndex = OWNERSHIP_ORDER.indexOf(state.selectedOwnership),
+                onSelect = { onIntent(CoursePlacePickIntent.OwnershipSelected(OWNERSHIP_ORDER[it])) },
             )
         }
+        FilterDropdown(
+            label = state.selectedCategory?.displayName() ?: CATEGORY_PLACEHOLDER,
+            isActive = state.selectedCategory != null,
+            options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
+            selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
+            onSelect = {
+                onIntent(
+                    CoursePlacePickIntent.CategorySelected(
+                        if (it == 0) null else CATEGORY_ORDER[it - 1],
+                    ),
+                )
+            },
+        )
     }
 }
 
@@ -305,6 +384,7 @@ private fun PlaceList(
 ) {
     val places = state.filteredPlaces
     val listState = rememberLazyListState()
+    ScrollToRequestedRow(request = state.rowScrollRequest, places = places, listState = listState)
     LazyColumn(
         state = listState,
         userScrollEnabled = false,
@@ -314,15 +394,34 @@ private fun PlaceList(
             .sheetContentScroll(listState, onPullDownAtTop = onCollapse),
     ) {
         itemsIndexed(places, key = { _, place -> place.id }) { index, place ->
+            // 검색 결과는 끝에 닿으면 다음 장을 부른다
+            if (state.shouldLoadMoreSearch(index, places.size)) {
+                LaunchedEffect(index, places.size) { onIntent(CoursePlacePickIntent.SearchReachedEnd) }
+            }
             CoursePlaceRow(
                 place = place,
                 number = state.badgeNumber(place.id),
                 showsDivider = index != places.lastIndex,
-                onClick = { onIntent(CoursePlacePickIntent.PlaceToggled(place.id)) },
+                onClick = { onIntent(CoursePlacePickIntent.RowClicked(place.id)) },
             )
         }
         // 마지막 행이 CTA 버튼에 가리지 않게 비운다
         item { Spacer(modifier = Modifier.height(CTA_COVER_PADDING)) }
+    }
+}
+
+// 핀을 누르면 리듀서가 남긴 요청대로 목록을 그 행까지 올린다.
+// 요청 번호까지 보므로 같은 행을 다시 눌러도 다시 맞춘다. 시트 높이는 건드리지 않는다
+@Composable
+private fun ScrollToRequestedRow(
+    request: RowScrollRequest?,
+    places: List<SavedPlace>,
+    listState: LazyListState,
+) {
+    LaunchedEffect(request) {
+        val target = request ?: return@LaunchedEffect
+        val index = places.indexOfFirst { it.id == target.placeId }
+        if (index >= 0) listState.animateScrollToItem(index)
     }
 }
 
@@ -366,7 +465,7 @@ private fun Failure(onRetry: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(hasNoSavedPlace: Boolean) {
+private fun EmptyState(title: String, message: String) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -376,16 +475,8 @@ private fun EmptyState(hasNoSavedPlace: Boolean) {
             contentDescription = null,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = if (hasNoSavedPlace) "저장한 장소가 없어요" else "조건에 맞는 장소가 없어요",
-            style = Typography.title3SB,
-            color = Colors.textPrimary,
-        )
+        Text(text = title, style = Typography.title3SB, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = if (hasNoSavedPlace) "마음에 드는 장소를 저장해보세요" else "필터를 바꿔보세요",
-            style = Typography.body1M,
-            color = Colors.textTertiary,
-        )
+        Text(text = message, style = Typography.body1M, color = Colors.textTertiary)
     }
 }

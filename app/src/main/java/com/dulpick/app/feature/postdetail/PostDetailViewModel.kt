@@ -1,6 +1,9 @@
 package com.dulpick.app.feature.postdetail
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
+import com.dulpick.app.core.analytics.AnalyticsSaveSource
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ContentPlace
 import com.dulpick.app.domain.explore.ExploreError
@@ -17,6 +20,7 @@ import javax.inject.Inject
 class PostDetailViewModel @Inject constructor(
     private val exploreRepository: ExploreRepository,
     private val placeRepository: PlaceRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<PostDetailState, PostDetailIntent, PostDetailSideEffect>(PostDetailState()) {
 
     private var contentId: String? = null
@@ -79,6 +83,8 @@ class PostDetailViewModel @Inject constructor(
         val wasSaved = id in currentState.savedPlaceIds
         // 저장하려는데 카카오 식별자가 없으면 부를 수 없다
         if (!wasSaved && place.place.kakaoPlaceId == null) return
+        // 저장으로 뒤집는 경우만 센다
+        if (!wasSaved) analytics.track(AnalyticsEvent.PlaceSaveStarted(AnalyticsSaveSource.IN_APP))
         setState {
             copy(savedPlaceIds = if (wasSaved) savedPlaceIds - id else savedPlaceIds + id)
         }
@@ -102,6 +108,9 @@ class PostDetailViewModel @Inject constructor(
                     placeRepository.removePlace(checkNotNull(placeId))
                 } else {
                     placeRepository.savePlace(checkNotNull(place.place.kakaoPlaceId), place.place.name, null)
+                    analytics.track(
+                        AnalyticsEvent.PlaceSaveCompleted(AnalyticsSaveSource.IN_APP, analytics.userId),
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error

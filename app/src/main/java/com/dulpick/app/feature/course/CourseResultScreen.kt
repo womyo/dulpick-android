@@ -1,5 +1,6 @@
 package com.dulpick.app.feature.course
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -48,15 +49,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dulpick.app.R
+import com.dulpick.app.core.link.openAppOrWeb
 import com.dulpick.app.core.map.KakaoMapView
 import com.dulpick.app.core.map.MapCamera
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
-import com.dulpick.app.core.map.MapRoute
 import com.dulpick.app.core.map.MapZoom
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.feature.course.component.CourseTimeline
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.numberedPin
 import com.dulpick.app.ui.map.placePin
@@ -115,6 +117,7 @@ fun CourseResultScreen(
     }
     LaunchedEffect(dateCourseId) {
         viewModel.onIntent(CourseResultIntent.Start(dateCourseId, origin))
+        viewModel.onIntent(CourseResultIntent.MapAppeared)
     }
     LaunchedEffect(reloadReason) {
         reloadReason ?: return@LaunchedEffect
@@ -145,6 +148,7 @@ fun CourseResultScreen(
             sheetContainerColor = Colors.commonWhite,
             containerColor = Color.Transparent,
             sheetTonalElevation = 0.dp,
+            sheetDragHandle = { SheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 SheetBody(
@@ -183,7 +187,6 @@ fun CourseResultScreen(
     }
 }
 
-// 카테고리 핀 위에 번호 물방울을 얹고, 순서대로 선을 잇는다 (iOS markers·routes 대응)
 @Composable
 private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -194,20 +197,15 @@ private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () 
             numberedPin(context, "numbered:${stop.id}", stop.place.coordinate, index + 1),
         )
     }
-    val routes = if (state.stops.size >= 2) {
-        listOf(MapRoute("course", state.stops.map { it.place.coordinate }))
-    } else {
-        emptyList()
-    }
-
     // 시트 위에 보이는 띠. 지도는 화면 전체를 덮고 그 아래를 시트가 가린다
     val density = LocalDensity.current
     val peekHeightPx = with(density) { sheetPeekHeight.toPx() }
     var mapSize by remember { mutableStateOf(IntSize.Zero) }
     val collapsedSheetTop = (mapSize.height - peekHeightPx).coerceAtLeast(0f)
     // 줌 계산은 dp 로 넘긴다. 카메라 오프셋만 픽셀이다
+    // 경로 선이 장소 바깥으로 돌아도 잘리지 않게 선 좌표까지 담아 줌을 고른다
     val camera = courseCamera(
-        coordinates = state.stops.map { it.place.coordinate },
+        coordinates = state.routeCoordinates,
         viewWidth = with(density) { mapSize.width.toDp().value },
         visibleHeight = with(density) { collapsedSheetTop.toDp().value },
     )
@@ -216,7 +214,8 @@ private fun CourseMap(state: CourseResultState, sheetPeekHeight: Dp, onBack: () 
         KakaoMapView(
             modifier = Modifier.fillMaxSize().onSizeChanged { mapSize = it },
             pins = pins,
-            routes = routes,
+            routes = state.routes,
+            userLocation = state.userLocation,
             cameraRequest = MapCameraRequest(camera),
             collapsedSheetTopPx = collapsedSheetTop,
         )
@@ -270,6 +269,7 @@ private fun SheetBody(
     onCollapse: () -> Unit,
     onIntent: (CourseResultIntent) -> Unit,
 ) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().height(height)) {
         Header(state = state, onIntent = onIntent)
         when (state.load) {
@@ -288,6 +288,7 @@ private fun SheetBody(
                         stops = state.timelineStops,
                         legs = state.timelineLegs,
                         modifier = Modifier.padding(horizontal = 24.dp),
+                        onLegDirectionsClick = { index -> openDirections(context, state, index) },
                     )
                     Spacer(
                         modifier = Modifier.height(
@@ -302,29 +303,30 @@ private fun SheetBody(
 
 @Composable
 private fun Header(state: CourseResultState, onIntent: (CourseResultIntent) -> Unit) {
-    Column(
+    // 수정 버튼을 제목과 한 줄에 두면 버튼 높이가 줄 높이를 정해 요약이 내려간다
+    Row(
         modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = state.course?.title.orEmpty(),
                 style = Typography.title3SB,
                 color = Colors.textPrimary,
-                modifier = Modifier.weight(1f),
             )
-            // 지난 데이트로 들어오면 수정을 안 낸다. 제목이 그 폭을 가져간다
-            if (state.showsEditButton) {
-                AppButton(
-                    text = "수정",
-                    onClick = { onIntent(CourseResultIntent.EditClicked) },
-                    variant = AppButtonVariant.OUTLINED,
-                    size = AppButtonSize.SM,
-                )
+            state.summaryText?.let {
+                Text(text = it, style = Typography.body2M, color = Colors.textTertiary)
             }
         }
-        state.summaryText?.let {
-            Text(text = it, style = Typography.body2M, color = Colors.textTertiary)
+        // 지난 데이트로 들어오면 수정을 안 낸다. 제목이 그 폭을 가져간다
+        if (state.showsEditButton) {
+            AppButton(
+                text = "수정",
+                onClick = { onIntent(CourseResultIntent.EditClicked) },
+                variant = AppButtonVariant.OUTLINED,
+                size = AppButtonSize.SM,
+            )
         }
     }
 }
@@ -366,4 +368,9 @@ private fun Failure(onRetry: () -> Unit) {
             size = AppButtonSize.MD,
         )
     }
+}
+
+private fun openDirections(context: Context, state: CourseResultState, legIndex: Int) {
+    val directions = state.legDirections.getOrNull(legIndex) ?: return
+    context.openAppOrWeb(directions.appUrl, directions.webUrl)
 }

@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
@@ -101,6 +102,7 @@ fun ProfileEditSheet(
         Text(text = "닉네임", style = Typography.body1M, color = Colors.textPrimary)
         Spacer(modifier = Modifier.height(8.dp))
         AppTextField(
+            modifier = Modifier.analyticsMasked(),
             value = nickname,
             onValueChange = { nickname = sanitizeNickname(it) },
             placeholder = "최대 6글자",

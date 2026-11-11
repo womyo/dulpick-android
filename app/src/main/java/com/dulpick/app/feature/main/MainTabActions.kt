@@ -9,7 +9,7 @@ data class MainTabActions(
     // 홈에서 연결 → 완료 시 홈으로 되돌아와 갱신
     val onOpenCoupleConnectFromHome: (myNickname: String) -> Unit,
     // 지도 검색바 → 지도 전용 장소 검색
-    val onOpenMapSearch: () -> Unit,
+    val onOpenMapSearch: (isSavedOnly: Boolean) -> Unit,
     val onOpenPastDates: (hasCurrentCourse: Boolean) -> Unit,
     // 지도 좌하단 코스 버튼·홈 배너. 진행 중인 코스가 있으면 결과로, 없으면 날짜 고르기로
     val onOpenCourse: (dateCourseId: String?) -> Unit,

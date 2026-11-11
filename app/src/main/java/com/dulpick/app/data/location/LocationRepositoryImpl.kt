@@ -4,6 +4,10 @@ import com.dulpick.app.domain.location.LocationAuthorization
 import com.dulpick.app.domain.location.LocationError
 import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.place.Coordinate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,6 +17,10 @@ private const val TIMEOUT_MS = 5_000L
 
 // 캐시 좌표를 바로 쓸 수 있는 최대 나이. 넘으면 새로 잰다 (iOS maxCacheAge 와 같다)
 private const val MAX_CACHE_AGE_MS = 10_000L
+
+// 따라다니기 갱신 주기와 최소 이동 거리
+private const val UPDATE_INTERVAL_MS = 2_000L
+private const val MIN_DISTANCE_M = 10f
 
 @Singleton
 class LocationRepositoryImpl @Inject constructor(
@@ -36,5 +44,14 @@ class LocationRepositoryImpl @Inject constructor(
             locationRemote.lastKnown(MAX_CACHE_AGE_MS) ?: locationRemote.current(TIMEOUT_MS)
         } ?: throw LocationError.Unavailable
         return Coordinate(location.latitude, location.longitude)
+    }
+
+    // 권한이 없으면 점을 지우라고 null 을 한 번 보내고 끝낸다
+    override fun coordinateUpdates(): Flow<Coordinate?> {
+        if (!locationRemote.hasPrecisePermission()) return flowOf(null)
+        return locationRemote.updates(UPDATE_INTERVAL_MS, MIN_DISTANCE_M)
+            // 오차가 없는 좌표는 못 잡았다는 뜻이다
+            .filter { it.hasAccuracy() && it.accuracy > 0f }
+            .map { Coordinate(it.latitude, it.longitude) }
     }
 }

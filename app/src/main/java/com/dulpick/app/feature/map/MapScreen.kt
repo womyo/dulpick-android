@@ -14,9 +14,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,22 +41,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.dulpick.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.core.map.KakaoMapView
+import com.dulpick.app.core.analytics.AnalyticsScreen
+import com.dulpick.app.core.analytics.AnalyticsScreenName
 import com.dulpick.app.core.map.MapCameraRequest
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.mvi.CollectSideEffect
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.Place
+import com.dulpick.app.domain.place.PlaceSearchResult
 import com.dulpick.app.domain.place.PlaceCategory
 import com.dulpick.app.domain.place.PlaceOwnership
 import com.dulpick.app.ui.component.CATEGORY_ORDER
+import com.dulpick.app.ui.component.CATEGORY_PLACEHOLDER
 import com.dulpick.app.ui.component.CATEGORY_UNFILTERED
 import com.dulpick.app.feature.map.component.CategoryChipBar
 import com.dulpick.app.ui.component.FilterDropdown
@@ -69,6 +81,7 @@ import com.dulpick.app.ui.component.AppButton
 import com.dulpick.app.ui.component.AppButtonSize
 import com.dulpick.app.ui.component.AppButtonVariant
 import com.dulpick.app.ui.component.AppToast
+import com.dulpick.app.ui.component.SheetHandle
 import com.dulpick.app.ui.map.mapSheetMetrics
 import com.dulpick.app.ui.map.placePin
 import com.dulpick.app.ui.map.selectedPin
@@ -83,6 +96,9 @@ import com.dulpick.app.ui.theme.Typography
 // 펼침은 모든 시트(저장목록·검색결과·상세) 공통. 화면을 다 덮지 않도록 상단(검색바)을 남긴다
 private const val SHEET_PEEK_FRACTION = 0.42f
 private const val SHEET_EXPANDED_FRACTION = 0.74f
+
+// 접힘보다 이만큼 더 올리면 떠 있는 버튼을 숨긴다
+private val BUTTON_HIDE_MARGIN = 72.dp
 private val SHEET_CORNER_RADIUS = 32.dp
 
 // 화면에 떠 있는 토스트. isError 면 에러 아이콘을 붙인다
@@ -99,12 +115,12 @@ fun MapScreen(
     // 탭 밖에서 들고 있는 시트 상태. 여기서 만들면 탭을 옮길 때마다 새로 만들어져 시트가 위에서 떨어진다
     sheetState: BottomSheetScaffoldState = rememberMapSheetState(),
     onSessionExpired: () -> Unit,
-    onOpenSearch: () -> Unit,
+    onOpenSearch: (isSavedOnly: Boolean) -> Unit,
     // 검색 화면에서 되돌아온 검색 결과(query+places JSON). 검색이 pop 되며 지도로 전달된다
     pendingSearchArg: String? = null,
     onSearchConsumed: () -> Unit = {},
     // 검색 결과 모드에서 검색바 뒤로 → 그 검색어로 검색 화면을 다시 연다
-    onReopenSearch: (String) -> Unit = {},
+    onReopenSearch: (query: String, isSavedOnly: Boolean) -> Unit = { _, _ -> },
     // 홈 등 다른 탭에서 넘어온 저장 장소. 지도 탭 진입 시 그 장소 상세를 연다
     pendingPlace: Place? = null,
     onPlaceConsumed: () -> Unit = {},
@@ -146,8 +162,9 @@ fun MapScreen(
         onClosePostDetail = onClosePostDetail,
         onToast = { toast = it },
     )
-    LaunchedEffect(Unit) { viewModel.onIntent(MapIntent.OnAppear) }
-    ConsumeShowAll(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
+    val savedListState = rememberShowAllListState(showAllNonce) { viewModel.onIntent(MapIntent.ShowAllSaved) }
+    ReportMapScreenName(isActive, state)
+    MapLifecycleEffects(isActive, viewModel::onIntent, savedListState)
 
     ConsumeExternalInputs(
         pendingPlace = pendingPlace,
@@ -171,7 +188,10 @@ fun MapScreen(
     val showsCourseButton = state.isCoupleConnected && !state.isSearching
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sheet = mapSheetMetrics(maxHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
+        // 안쪽 람다에서는 BoxWithConstraints 의 값을 못 읽는다. 먼저 받아 둔다
+        val containerHeight = maxHeight
+        val sheet = mapSheetMetrics(containerHeight, tabBarSheetHeight.takeUnless { chrome.tabBarHidden })
+        val sheetHeight = sheetVisibleHeight(sheetState, containerHeight, sheet.collapsedHeight)
         BottomSheetScaffold(
             modifier = Modifier.alpha(rememberSheetAlpha(sheetState)),
             scaffoldState = sheetState,
@@ -181,10 +201,12 @@ fun MapScreen(
             containerColor = Color.Transparent,
             // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 색이 뜨므로 끈다
             sheetTonalElevation = 0.dp,
+            sheetDragHandle = { SheetHandle() },
             sheetShape = RoundedCornerShape(topStart = SHEET_CORNER_RADIUS, topEnd = SHEET_CORNER_RADIUS),
             sheetContent = {
                 MapSheet(
                     state = state,
+                    savedListState = savedListState,
                     sheetHeight = (screenHeight * SHEET_EXPANDED_FRACTION).dp + sheetBottomInset,
                     contentBottomInset = sheet.contentBottomInset,
                     incomingDetail = chrome.incomingDetail,
@@ -200,29 +222,20 @@ fun MapScreen(
                 mapBottomInset = if (chrome.tabBarHidden) tabBarHeight else 0.dp,
                 pins = pins,
                 cameraRequest = MapCameraRequest(state.camera, state.cameraNonce),
+                userLocation = state.userLocation,
                 onPinTap = { id -> state.pinTapIntent(id)?.let(viewModel::onIntent) },
                 searchQuery = state.searchResult?.displayQuery,
                 // content 모드는 검색바·칩 없이 지도 위 상세만 보인다 (iOS isContentMode 대응)
                 hideTopBar = chrome.hidesTopBar,
                 selectedCategory = state.selectedCategory,
-                showsLocationButton = chrome.showsFloatingButtons,
+                // 시트를 접힘보다 한 뼘 넘게 올리면 버튼을 숨긴다. 시트가 지도를 거의 덮은 상태다
+                showsLocationButton = chrome.showsFloatingButtons &&
+                    sheetHeight < sheet.collapsedHeight + BUTTON_HIDE_MARGIN,
                 showsCourseButton = showsCourseButton,
                 courseButtonTitle = state.courseButtonTitle,
-                locationButtonBottom = sheet.collapsedHeight + 12.dp,
+                locationButtonBottom = sheetHeight + 12.dp,
                 collapsedSheetTopPx = sheet.collapsedTopPx,
-                actions = MapTopBarActions(
-                    onOpenSearch = onOpenSearch,
-                    // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
-                    // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
-                    onReopenSearch = {
-                        state.searchResult?.let { onReopenSearch(it.searchQuery) }
-                        viewModel.onIntent(MapIntent.ClearSearch)
-                    },
-                    onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
-                    onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
-                    onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
-                    onOpenCourse = { onOpenCourse(state.currentCourse?.id) },
-                ),
+                actions = mapTopBarActions(state, viewModel, onOpenSearch, onReopenSearch, onOpenCourse),
             )
         }
 
@@ -255,7 +268,7 @@ private fun mapPins(state: MapState): List<MapPin> {
         // content 모드는 그 장소 하나만 찍는다 (iOS mode=.content([place]) 대응)
         detail != null && detail.contentMode ->
             listOf(placePin(context, detail.place.id, detail.place.coordinate, detail.place.category))
-        searchResult != null -> searchResult.places
+        searchResult != null -> searchResult.results.map { it.place }
             .map { placePin(context, it.id, it.coordinate, it.category) }
         else -> state.filteredPlaces
             .map { placePin(context, it.place.id, it.place.coordinate, it.place.category) }
@@ -413,6 +426,7 @@ private fun AliasEditModal(edit: AliasEdit, onIntent: (MapIntent) -> Unit) {
         containerColor = Colors.commonWhite,
         // 기본 tonalElevation 이 흰색에 톤 오버레이를 얹어 회색으로 뜨므로 끈다
         tonalElevation = 0.dp,
+        dragHandle = { SheetHandle() },
     ) {
         PlaceAliasSheet(edit = edit, onSave = { onIntent(MapIntent.AliasSaveClicked(it)) })
     }
@@ -425,16 +439,91 @@ private fun MapState.pinTapIntent(placeId: String?): MapIntent? {
     if (placeId == null || detail?.contentMode == true) return null
     val result = searchResult
     return if (result != null) {
-        result.places.firstOrNull { it.id == placeId }?.let { MapIntent.SearchRowClicked(it) }
+        result.results.firstOrNull { it.id == placeId }?.let { MapIntent.SearchRowClicked(it) }
     } else {
         filteredPlaces.firstOrNull { it.id == placeId }?.let { MapIntent.OpenSavedDetail(it) }
     }
 }
 
-// 전체 보기 신호를 인텐트로 올린다. 0 은 첫 조합이라 거른다
+// 상단바·떠 있는 버튼이 올리는 동작 묶음
+private fun mapTopBarActions(
+    state: MapState,
+    viewModel: MapViewModel,
+    onOpenSearch: (isSavedOnly: Boolean) -> Unit,
+    onReopenSearch: (query: String, isSavedOnly: Boolean) -> Unit,
+    onOpenCourse: (dateCourseId: String?) -> Unit,
+): MapTopBarActions = MapTopBarActions(
+    // 결과에서 검색창을 누르면 그 결과의 토글을 이어받는다
+    onOpenSearch = { onOpenSearch(state.searchResult?.isSavedOnly == true) },
+    // 재검색: 입력 화면으로 이동하며 지도의 검색 상태를 비운다.
+    // 안 비우면 입력 화면에서 뒤로갈 때 네비가 얼린 상세를 복원해 무한 루프가 된다
+    onReopenSearch = {
+        state.searchResult?.let { onReopenSearch(it.searchQuery, it.isSavedOnly) }
+        viewModel.onIntent(MapIntent.ClearSearch)
+    },
+    onClearSearch = { viewModel.onIntent(MapIntent.ClearSearch) },
+    onCategorySelected = { viewModel.onIntent(MapIntent.CategorySelected(it)) },
+    onCurrentLocation = { viewModel.onIntent(MapIntent.CurrentLocationClicked) },
+    onOpenCourse = {
+        // 이동 전에 이벤트를 센다. 진행 중인 코스 유무로 만들기/보기가 갈린다
+        viewModel.onIntent(MapIntent.CourseButtonClicked)
+        onOpenCourse(state.currentCourse?.id)
+    },
+)
+
+// 지도 위 시트는 라우트가 없어 탭 NavHost 가 이름을 알릴 수 없다.
+// 상태에서 지금 보이는 화면을 정해 녹화에 알린다 (iOS MapFlowFeature.currentScreenName 대응)
 @Composable
-private fun ConsumeShowAll(nonce: Int, onShowAll: () -> Unit) {
-    LaunchedEffect(nonce) { if (nonce > 0) onShowAll() }
+private fun ReportMapScreenName(isActive: Boolean, state: MapState) {
+    val screen = when {
+        state.aliasEdit != null -> AnalyticsScreenName.PLACE_ALIAS
+        state.showsPostDetail -> AnalyticsScreenName.POST_DETAIL
+        state.detail != null -> AnalyticsScreenName.PLACE_DETAIL
+        else -> AnalyticsScreenName.MAP
+    }
+    // 탭을 다시 열 때도 다시 알린다. 그사이 다른 탭이 전역 이름을 바꿔 뒀다
+    LaunchedEffect(isActive, screen) { if (isActive) AnalyticsScreen.set(screen) }
+}
+
+// 첫 진입에 한 번 읽고, 탭이 보이는 동안만 내 위치를 받는다
+@Composable
+private fun MapLifecycleEffects(
+    isActive: Boolean,
+    onIntent: (MapIntent) -> Unit,
+    savedListState: LazyListState,
+) {
+    LaunchedEffect(Unit) { onIntent(MapIntent.OnAppear) }
+    LaunchedEffect(isActive) {
+        onIntent(MapIntent.MapVisibilityChanged(isActive))
+        // 새로 저장한 곳을 보여 주려면 보던 자리에 남아 있으면 안 된다
+        if (isActive) savedListState.scrollToItem(0)
+    }
+}
+
+// 지금 보이는 시트 높이. 떠 있는 버튼이 시트를 따라 오르내리게 하는 값이다.
+// 자리가 정해지기 전에는 requireOffset 이 던져 접힘 높이로 둔다
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun sheetVisibleHeight(
+    sheetState: BottomSheetScaffoldState,
+    containerHeight: Dp,
+    collapsed: Dp,
+): Dp {
+    val offset = runCatching { sheetState.bottomSheetState.requireOffset() }.getOrNull() ?: return collapsed
+    return (containerHeight - with(LocalDensity.current) { offset.toDp() }).coerceAtLeast(0.dp)
+}
+
+// 전체 보기 신호를 올리고 목록을 맨 위로 되돌린다. 0 은 첫 조합이라 거른다
+@Composable
+private fun rememberShowAllListState(nonce: Int, onShowAll: () -> Unit): LazyListState {
+    val listState = rememberLazyListState()
+    LaunchedEffect(nonce) {
+        if (nonce <= 0) return@LaunchedEffect
+        onShowAll()
+        // 새로 저장한 곳이 맨 위에 온다. 보던 자리에 남아 있으면 갱신된 줄 모른다
+        listState.scrollToItem(0)
+    }
+    return listState
 }
 
 // 탭바를 감춰야 하는지 위로 알린다. 화면을 떠날 때는 내려 줘야 다른 탭에 탭바가 돌아온다
@@ -481,8 +570,9 @@ private fun ConsumeExternalInputs(
             MapIntent.EnterSearchResult(
                 searchQuery = arg.searchQuery,
                 displayQuery = arg.displayQuery,
-                places = arg.places.map { it.toPlace() },
+                results = arg.results.map { it.toResult() },
                 selectedIndex = arg.selectedIndex,
+                isSavedOnly = arg.isSavedOnly,
             ),
         )
     }
@@ -531,6 +621,7 @@ private class MapTopBarActions(
 @Suppress("LongParameterList")
 private fun MapSheet(
     state: MapState,
+    savedListState: LazyListState,
     sheetHeight: Dp,
     // 시트 내용 끝에 둘 여백 (내비게이션 버튼 자리)
     contentBottomInset: Dp,
@@ -577,6 +668,7 @@ private fun MapSheet(
         )
         else -> MapSheetContent(
             state = state,
+            listState = savedListState,
             onIntent = onIntent,
             height = sheetHeight,
         )
@@ -592,6 +684,7 @@ private fun MapBody(
     mapBottomInset: Dp,
     pins: List<MapPin>,
     cameraRequest: MapCameraRequest,
+    userLocation: Coordinate?,
     onPinTap: (String) -> Unit,
     searchQuery: String?,
     hideTopBar: Boolean,
@@ -617,6 +710,7 @@ private fun MapBody(
             isActive = isActive,
             pins = pins,
             cameraRequest = cameraRequest,
+            userLocation = userLocation,
             collapsedSheetTopPx = collapsedSheetTopPx,
             onPinTap = onPinTap,
         )
@@ -627,8 +721,10 @@ private fun MapBody(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 0.dp)
-                    .padding(bottom = locationButtonBottom),
+                    // 시트 바로 위에 붙어 따라 오른다. 자리를 차지하지 않는 offset 이라
+                    // 시트를 많이 올리면 화면 밖으로 밀려 사라진다
+                    .offset { IntOffset(0, -locationButtonBottom.roundToPx()) }
+                    .padding(horizontal = 20.dp),
             ) {
                 if (showsCourseButton) {
                     MapPillButton(text = courseButtonTitle, onClick = actions.onOpenCourse)
@@ -664,6 +760,7 @@ private fun MapBody(
 @Composable
 private fun MapSheetContent(
     state: MapState,
+    listState: LazyListState,
     onIntent: (MapIntent) -> Unit,
     height: Dp,
 ) {
@@ -686,7 +783,7 @@ private fun MapSheetContent(
                     )
                 }
                 FilterDropdown(
-                    label = state.selectedCategory?.displayName() ?: CATEGORY_UNFILTERED,
+                    label = state.selectedCategory?.displayName() ?: CATEGORY_PLACEHOLDER,
                     isActive = state.selectedCategory != null,
                     options = listOf(CATEGORY_UNFILTERED) + CATEGORY_ORDER.map { it.displayName() },
                     selectedIndex = state.selectedCategory?.let { CATEGORY_ORDER.indexOf(it) + 1 } ?: 0,
@@ -705,7 +802,7 @@ private fun MapSheetContent(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
         } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f)) {
                 items(state.filteredPlaces, key = { it.id }) { place ->
                     PlaceListRow(
                         place = place,
@@ -735,27 +832,26 @@ private fun SearchResultSheet(
             .padding(top = 8.dp),
         contentPadding = PaddingValues(bottom = bottomInset),
     ) {
-        items(result.places, key = { it.id }) { place ->
+        items(result.results, key = { it.id }) { searchResult ->
             SearchResultRow(
-                place = place,
-                isBookmarked = state.isBookmarked(place),
-                showsDivider = place.id != result.places.last().id,
-                onClick = { onIntent(MapIntent.SearchRowClicked(place)) },
-                onBookmark = { onIntent(MapIntent.SearchBookmarkClicked(place)) },
+                result = searchResult,
+                isBookmarked = state.isBookmarked(searchResult),
+                showsDivider = searchResult.id != result.results.last().id,
+                onClick = { onIntent(MapIntent.SearchRowClicked(searchResult)) },
             )
         }
     }
 }
 
-// 검색 결과 한 줄: 아이콘 + 이름 + 주소 + 우측 북마크 + 하단 구분선 (iOS PlaceListRow 검색 변형 대응)
+// 저장 여부는 보여 주기만 한다. 저장·취소는 상세에서만 한다
 @Composable
 private fun SearchResultRow(
-    place: Place,
+    result: PlaceSearchResult,
     isBookmarked: Boolean,
     showsDivider: Boolean,
     onClick: () -> Unit,
-    onBookmark: () -> Unit,
 ) {
+    val place = result.place
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Row(
             modifier = Modifier
@@ -771,11 +867,12 @@ private fun SearchResultRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = place.name,
+                    text = result.alias ?: place.name,
                     style = Typography.body1SB,
                     color = Colors.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.analyticsMasked(result.alias != null),
                 )
                 Text(
                     text = place.roadAddress.ifEmpty { place.address },
@@ -785,13 +882,14 @@ private fun SearchResultRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val bookmarkRes = if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke
             Image(
-                painter = painterResource(bookmarkRes),
-                contentDescription = if (isBookmarked) "저장 취소" else "저장",
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable(onClick = onBookmark),
+                painter = painterResource(
+                    if (isBookmarked) R.drawable.bookmarkfillcolor else R.drawable.bookmarkstroke,
+                ),
+                contentDescription = if (isBookmarked) "저장한 장소" else "저장하지 않은 장소",
+                // 빈 북마크 에셋은 상세·게시글도 검정으로 쓴다. 누를 수 없는 이 자리만 연하게 칠한다
+                colorFilter = if (isBookmarked) null else ColorFilter.tint(Colors.textTertiary),
+                modifier = Modifier.size(24.dp),
             )
         }
         if (showsDivider) {

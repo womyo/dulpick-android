@@ -1,12 +1,18 @@
 package com.dulpick.app.feature.course
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
+import com.dulpick.app.core.map.MapCamera
+import com.dulpick.app.core.map.UserLocationTracker
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.couple.CoupleRepository
+import com.dulpick.app.domain.location.LocationRepository
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
 import com.dulpick.app.domain.course.DateCourseContent
+import com.dulpick.app.domain.place.Coordinate
 import com.dulpick.app.domain.place.PlaceOwnership
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -18,6 +24,8 @@ import javax.inject.Inject
 class CoursePlacePickViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
     private val coupleRepository: CoupleRepository,
+    private val locationRepository: LocationRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<CoursePlacePickState, CoursePlacePickIntent, CoursePlacePickSideEffect>(
     CoursePlacePickState(),
 ) {
@@ -28,28 +36,64 @@ class CoursePlacePickViewModel @Inject constructor(
     // 낙관적 락 번호(version)도 여기서 본다
     private var course: DateCourse? = null
 
+    private val userLocation = UserLocationTracker(
+        repository = locationRepository,
+        scope = viewModelScope,
+        onChange = { coordinate -> setState { copy(userLocation = coordinate) } },
+    )
+
+    // 시트의 장소 검색. 상태·효과만 넘겨 받아 스스로 처리한다
+    private val search = CoursePlaceSearchController(
+        repository = courseRepository,
+        scope = viewModelScope,
+        state = { currentState },
+        update = { reducer -> setState(reducer) },
+        effect = { postSideEffect(it) },
+    )
+
     override fun onIntent(intent: CoursePlacePickIntent) {
         when (intent) {
             is CoursePlacePickIntent.Start -> start(intent)
             CoursePlacePickIntent.RetryClicked -> load()
-            is CoursePlacePickIntent.OwnershipSelected ->
-                setState { copy(selectedOwnership = intent.ownership) }
-            is CoursePlacePickIntent.CategorySelected ->
-                setState { copy(selectedCategory = intent.category) }
-            is CoursePlacePickIntent.PlaceToggled -> toggle(intent.id)
-            // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
-            CoursePlacePickIntent.BuildClicked ->
-                if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
-            CoursePlacePickIntent.ConflictDismissed -> setState { copy(conflictMessage = null) }
+            is CoursePlacePickIntent.OwnershipSelected,
+            is CoursePlacePickIntent.CategorySelected,
+            -> selectFilter(intent)
+            is CoursePlacePickIntent.RowClicked -> clickRow(intent.id)
+            is CoursePlacePickIntent.PinTapped -> tapPin(intent.markerId)
+            CoursePlacePickIntent.BuildClicked -> build()
+            CoursePlacePickIntent.ConflictDismissed -> dismissConflict()
             CoursePlacePickIntent.BackClicked -> postSideEffect(CoursePlacePickSideEffect.Dismissed)
+            CoursePlacePickIntent.MapAppeared -> userLocation.start()
+            else -> search.onIntent(intent)
         }
+    }
+
+    private fun dismissConflict() {
+        setState { copy(conflictMessage = null) }
+    }
+
+    // 더하기로 열렸으면 코스를 저장하지 않고 고른 것만 돌려준다
+    private fun build() {
+        if (currentState.mode == CoursePlacePickMode.ADD) returnPicked() else saveCourse()
+    }
+
+    // 필터가 바뀌면 걸러진 결과가 비어 다음 페이지가 필요할 수 있다
+    private fun selectFilter(intent: CoursePlacePickIntent) {
+        when (intent) {
+            is CoursePlacePickIntent.OwnershipSelected -> setState { copy(selectedOwnership = intent.ownership) }
+            is CoursePlacePickIntent.CategorySelected -> setState { copy(selectedCategory = intent.category) }
+            else -> return
+        }
+        search.onFilterChanged()
     }
 
     private fun start(intent: CoursePlacePickIntent.Start) {
         if (started) return
         started = true
         dateCourseId = intent.dateCourseId
-        setState { copy(mode = intent.mode, excludedPlaceIds = intent.excluding) }
+        setState { copy(mode = intent.mode, existingPlaces = intent.existing) }
+        // 기존 코스 핀은 장소를 불러오기 전에 이미 그려지므로 카메라도 처음부터 그 끝을 본다
+        intent.existing.lastOrNull()?.let { focus(it.coordinate, MapCamera.MULTI_PLACE_ZOOM) }
         load()
         loadCouple()
     }
@@ -62,6 +106,7 @@ class CoursePlacePickViewModel @Inject constructor(
                 course = dateCourseId?.let { courseRepository.course(it) }
                 val places = courseRepository.coursePlaces()
                 setState { copy(places = places, load = CoursePlaceLoad.LOADED) }
+                moveToOverview()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
@@ -94,8 +139,33 @@ class CoursePlacePickViewModel @Inject constructor(
         }
     }
 
+    // 목록 행. 고르고 그 장소로 카메라를 옮긴다 (iOS rowTapped 대응)
+    private fun clickRow(id: String) {
+        toggle(id)
+        currentState.places.firstOrNull { it.id == id }
+            ?.let { focus(it.place.coordinate, currentState.camera.zoomLevel) }
+    }
+
+    // 지도 핀 (iOS markerTapped 대응)
+    private fun tapPin(markerId: String) {
+        // 기존 코스 장소는 이 화면에서 고르거나 빼지 않는다
+        val placeId = when (val target = CourseMarkerId.targetOf(markerId)) {
+            CourseMarkerId.Target.Existing -> return
+            is CourseMarkerId.Target.Candidate -> target.placeId
+        }
+        val isListed = currentState.filteredPlaces.any { it.id == placeId }
+        toggle(placeId)
+        // 필터에 걸려 목록에 없는 장소는 빼기만 한다. 옮길 행이 없고, 빼면 그 자리에 핀도 안 남는다
+        if (!isListed) return
+        setState {
+            copy(rowScrollRequest = RowScrollRequest(placeId, (rowScrollRequest?.sequence ?: 0) + 1))
+        }
+    }
+
     // 고른 순서가 곧 번호다. 다시 누르면 빼고 뒤 번호가 당겨진다
     private fun toggle(id: String) {
+        // 새로 고르는 경우만 센다 (iOS rowTapped·markerTapped 와 같다)
+        if (id !in currentState.selectedPlaceIds) analytics.track(AnalyticsEvent.PlaceAddedToCourse)
         setState {
             copy(
                 selectedPlaceIds = if (id in selectedPlaceIds) {
@@ -105,6 +175,19 @@ class CoursePlacePickViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    // 여러 장소를 보는 자리. 장소 추가면 새 장소가 이어 붙을 기존 코스의 끝,
+    // 아니면 첫 행, 둘 다 없으면 서울 시청이다 (iOS overview 대응)
+    private fun moveToOverview() {
+        val coordinate = currentState.existingPlaces.lastOrNull()?.coordinate
+            ?: currentState.filteredPlaces.firstOrNull()?.place?.coordinate
+            ?: MapCamera.SEOUL_CITY_HALL.center
+        focus(coordinate, MapCamera.MULTI_PLACE_ZOOM)
+    }
+
+    private fun focus(coordinate: Coordinate, zoomLevel: Int) {
+        setState { copy(camera = MapCamera(coordinate, zoomLevel), cameraNonce = cameraNonce + 1) }
     }
 
     // 고른 장소를 그 순서대로 돌려준다
@@ -120,6 +203,7 @@ class CoursePlacePickViewModel @Inject constructor(
         val saved = course ?: return
         val placeIds = currentState.selectedPlaceIds
         if (placeIds.isEmpty() || currentState.isSavingCourse) return
+        analytics.track(AnalyticsEvent.CourseCreated)
         setState { copy(isSavingCourse = true) }
         val content = DateCourseContent(
             title = saved.title,

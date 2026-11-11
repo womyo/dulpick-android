@@ -11,8 +11,8 @@ import kotlin.math.tan
 // 코스 결과 화면이 쓰는 줌 계산.
 //
 // 지도 SDK 없이 도는 순수 계산이다.
-// 카카오 지도의 zoomLevel 은 웹 메르카토르 z 와 같은 뜻이다 — 한 단계 오르면 축척이 두 배다.
-// (iOS MapZoom 대응)
+// 카카오 지도의 zoomLevel 은 한 단계 오르면 축척이 두 배다.
+// 다만 같은 레벨에서 웹 메르카토르 z 보다 4/3 배 크게 그린다. 정규 좌표는 웹 메르카토르 그대로다
 object MapZoom {
 
     // 더 줌아웃하지 않는 바닥. 여기 닿으면 일부 장소가 화면 밖에 남는다
@@ -23,6 +23,9 @@ object MapZoom {
 
     // 지도 타일 한 장의 크기 (dp)
     private const val TILE_SIZE = 256.0
+
+    // SDK 가 같은 레벨에서 웹 메르카토르보다 크게 그리는 배율. 레벨 12·14 실측값이다
+    private const val KAKAO_SCALE = 4.0 / 3.0
 
     // anchor 를 focusRatio 자리에 둔 채, 모든 좌표가 보이는 영역에 들어오는 가장 큰 줌.
     //
@@ -48,7 +51,7 @@ object MapZoom {
 
         val span = span(coordinates, anchor, focusRatio) ?: return maximum
         for (level in maximum downTo minimum) {
-            val worldPixels = TILE_SIZE * 2.0.pow(level)
+            val worldPixels = TILE_SIZE * 2.0.pow(level) * KAKAO_SCALE
             val fitsWidth = span.x * worldPixels <= viewWidth
             val fitsHeight = span.y * worldPixels <= visibleHeight
             if (fitsWidth && fitsHeight) return level

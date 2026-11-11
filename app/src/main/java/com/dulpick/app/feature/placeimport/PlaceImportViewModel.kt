@@ -1,6 +1,9 @@
 package com.dulpick.app.feature.placeimport
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
+import com.dulpick.app.core.analytics.AnalyticsSaveSource
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.placeimport.ImportNextAction
 import com.dulpick.app.domain.placeimport.ImportStatus
@@ -18,6 +21,7 @@ import javax.inject.Inject
 @Suppress("TooGenericExceptionCaught")
 class PlaceImportViewModel @Inject constructor(
     private val repository: PlaceImportRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<PlaceImportState, PlaceImportIntent, PlaceImportSideEffect>(PlaceImportState()) {
 
     private var importId: Long? = null
@@ -102,6 +106,7 @@ class PlaceImportViewModel @Inject constructor(
             fail()
             return
         }
+        analytics.track(AnalyticsEvent.PlaceSaveModalViewed)
         setState {
             copy(
                 phase = PlaceImportState.Phase.Loaded(placeImport),
@@ -129,9 +134,11 @@ class PlaceImportViewModel @Inject constructor(
         val id = importId ?: return
         // 진행 중이면 연타를 무시해 같은 선택으로 confirm 이 중복 전송되지 않게 한다
         if (confirmJob?.isActive == true) return
+        analytics.track(AnalyticsEvent.PlaceSaveStarted(AnalyticsSaveSource.SHARE))
         confirmJob = viewModelScope.launch {
             try {
                 repository.confirm(id, ids.toList())
+                analytics.track(AnalyticsEvent.PlaceSaveCompleted(AnalyticsSaveSource.SHARE, analytics.userId))
                 postSideEffect(PlaceImportSideEffect.Dismiss)
             } catch (error: CancellationException) {
                 throw error

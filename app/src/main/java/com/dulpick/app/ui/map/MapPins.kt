@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
 import com.dulpick.app.R
+import com.dulpick.app.core.map.MAP_MARKER_SCALE
 import com.dulpick.app.core.map.MapPin
 import com.dulpick.app.core.map.MapPinStyle
 import com.dulpick.app.domain.place.Coordinate
@@ -117,8 +118,8 @@ private fun Canvas.drawNumber(number: Int, centerX: Float, centerY: Float, pinHe
 // 벡터 드로어블을 라벨용 비트맵으로 래스터화한다. 카카오 라벨은 벡터를 못 그린다
 private fun drawableToBitmap(context: Context, @DrawableRes resId: Int): Bitmap {
     val drawable = requireNotNull(ContextCompat.getDrawable(context, resId))
-    val width = drawable.intrinsicWidth.coerceAtLeast(1)
-    val height = drawable.intrinsicHeight.coerceAtLeast(1)
+    val width = (drawable.intrinsicWidth * MAP_MARKER_SCALE).toInt().coerceAtLeast(1)
+    val height = (drawable.intrinsicHeight * MAP_MARKER_SCALE).toInt().coerceAtLeast(1)
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     drawable.setBounds(0, 0, width, height)
     drawable.draw(Canvas(bitmap))

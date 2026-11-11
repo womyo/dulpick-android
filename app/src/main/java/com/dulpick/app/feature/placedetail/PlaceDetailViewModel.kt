@@ -1,6 +1,10 @@
 package com.dulpick.app.feature.placedetail
 
 import androidx.lifecycle.viewModelScope
+import com.dulpick.app.core.analytics.Analytics
+import com.dulpick.app.core.analytics.AnalyticsEvent
+import com.dulpick.app.core.analytics.AnalyticsSaveSource
+import android.content.Context
 import com.dulpick.app.core.mvi.MviViewModel
 import com.dulpick.app.domain.explore.ExploreError
 import com.dulpick.app.domain.explore.ExploreRepository
@@ -10,6 +14,7 @@ import com.dulpick.app.domain.place.PlaceDetail
 import com.dulpick.app.domain.place.PlaceError
 import com.dulpick.app.domain.place.PlaceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -20,8 +25,10 @@ private const val CONTENTS_PAGE_SIZE = 4
 @HiltViewModel
 @Suppress("TooGenericExceptionCaught")
 class PlaceDetailViewModel @Inject constructor(
+    @ApplicationContext context: Context,
     private val placeRepository: PlaceRepository,
     private val exploreRepository: ExploreRepository,
+    private val analytics: Analytics,
 ) : MviViewModel<PlaceDetailState, PlaceDetailIntent, PlaceDetailSideEffect>(PlaceDetailState()) {
 
     // 진입 시 넘겨받은 장소·소스. Start 로 세팅한다 (iOS init(place:) 대응)
@@ -31,6 +38,9 @@ class PlaceDetailViewModel @Inject constructor(
 
     private var started = false
     private var contentsPage = 0
+    // 네이버 지도가 돌아갈 앱을 알려면 패키지 이름이 필요하다
+    private val packageName = context.packageName
+
     private var savedServerId: String? = null
     private var bookmarkToggled = false
     private var bookmarkJob: Job? = null
@@ -39,10 +49,13 @@ class PlaceDetailViewModel @Inject constructor(
         when (intent) {
             is PlaceDetailIntent.Start -> start(intent.place, intent.query, intent.serverPlaceId)
             PlaceDetailIntent.AddressToggled -> setState { copy(isAddressExpanded = !isAddressExpanded) }
-            PlaceDetailIntent.MapClicked -> openKakaoMap()
+            PlaceDetailIntent.MapClicked -> setState { copy(showsMapSheet = true) }
+            PlaceDetailIntent.MapSheetDismissed -> setState { copy(showsMapSheet = false) }
+            is PlaceDetailIntent.PhotoClicked, PlaceDetailIntent.PhotoViewerDismissed ->
+                showPhotoViewer((intent as? PlaceDetailIntent.PhotoClicked)?.index)
+            is PlaceDetailIntent.MapAppSelected -> openMap(intent.app)
             PlaceDetailIntent.CloseClicked -> postSideEffect(PlaceDetailSideEffect.Close)
-            PlaceDetailIntent.MoreContentsClicked -> loadContents()
-            PlaceDetailIntent.RetryContentsClicked -> loadContents()
+            PlaceDetailIntent.MoreContentsClicked, PlaceDetailIntent.RetryContentsClicked -> loadContents()
             is PlaceDetailIntent.ContentClicked -> postSideEffect(PlaceDetailSideEffect.OpenContent(intent.id))
             PlaceDetailIntent.BookmarkClicked -> toggleBookmark()
         }
@@ -95,11 +108,14 @@ class PlaceDetailViewModel @Inject constructor(
                 isLoading = false,
                 serverPlaceId = detail.serverPlaceId ?: serverPlaceId,
                 kakaoPlaceUrl = detail.kakaoPlaceUrl,
+                detailCategory = detail.detailCategory,
                 bookmarkCount = detail.savedMemberCount,
                 // 조회 중 북마크를 눌렀으면 응답의 savedByMe 는 낡은 값이라 덮지 않는다
                 isBookmarked = if (bookmarkToggled) isBookmarked else detail.savedByMe,
             )
         }
+        // 저장된 장소를 열어본 것만 센다 (iOS savedPlaceDetailViewed 와 같다)
+        if (detail.savedByMe) analytics.track(AnalyticsEvent.SavedPlaceDetailViewed)
         if (currentState.serverPlaceId != null) loadContents()
     }
 
@@ -144,6 +160,8 @@ class PlaceDetailViewModel @Inject constructor(
         if (!wasBookmarked && place.kakaoPlaceId == null) return
 
         bookmarkToggled = true
+        // 저장으로 뒤집는 경우만 센다
+        if (!wasBookmarked) analytics.track(AnalyticsEvent.PlaceSaveStarted(AnalyticsSaveSource.IN_APP))
         setState {
             copy(
                 isBookmarked = !wasBookmarked,
@@ -175,6 +193,7 @@ class PlaceDetailViewModel @Inject constructor(
     private suspend fun addBookmark(place: Place) {
         val kakaoId = place.kakaoPlaceId ?: return
         savedServerId = placeRepository.savePlace(kakaoId, place.name, null).place.id
+        analytics.track(AnalyticsEvent.PlaceSaveCompleted(AnalyticsSaveSource.IN_APP, analytics.userId))
     }
 
     private fun rollbackBookmark(wasBookmarked: Boolean) {
@@ -186,13 +205,21 @@ class PlaceDetailViewModel @Inject constructor(
         }
     }
 
-    // 카카오맵 앱(kakaomap://) 우선, 없으면 웹. 웹은 서버가 준 kakaoPlaceUrl 이 먼저 (iOS 로직 대응)
-    private fun openKakaoMap() {
+    private fun showPhotoViewer(index: Int?) {
+        setState { copy(photoViewerIndex = index) }
+    }
+
+    // 고른 지도 앱을 연다. 검색어는 별칭이 아니라 실제 장소 이름이다
+    private fun openMap(app: PlaceMapApp) {
         val place = currentState.place ?: return
-        val appUri = place.kakaoPlaceId?.let { "kakaomap://place?id=$it" }
-        val webUrl = currentState.kakaoPlaceUrl
-            ?: place.kakaoPlaceId?.let { "https://place.map.kakao.com/$it" }
-        if (appUri == null && webUrl == null) return
-        postSideEffect(PlaceDetailSideEffect.OpenKakaoMap(appUri, webUrl))
+        setState { copy(showsMapSheet = false) }
+        val link = PlaceMapLink.of(
+            app = app,
+            name = place.name,
+            kakaoPlaceId = place.kakaoPlaceId,
+            kakaoPlaceUrl = currentState.kakaoPlaceUrl,
+            packageName = packageName,
+        )
+        postSideEffect(PlaceDetailSideEffect.OpenMap(link.appUrl, link.webUrl))
     }
 }

@@ -6,6 +6,7 @@ import com.dulpick.app.data.course.mapper.CourseErrorMapper
 import com.dulpick.app.data.course.remote.CourseRemoteDataSource
 import com.dulpick.app.data.course.remote.dto.CreateDateCourseRequestDto
 import com.dulpick.app.data.course.remote.dto.SaveDateCourseRequestDto
+import com.dulpick.app.domain.common.Page
 import com.dulpick.app.domain.course.CourseError
 import com.dulpick.app.domain.course.CourseRepository
 import com.dulpick.app.domain.course.DateCourse
@@ -37,6 +38,14 @@ class CourseRepositoryImpl @Inject constructor(
     override suspend fun coursePlaces(): List<SavedPlace> {
         try {
             return remote.placePool().places.map(CourseDtoMapper::toSavedPlace)
+        } catch (error: Throwable) {
+            throw CourseErrorMapper.map(error)
+        }
+    }
+
+    override suspend fun searchCoursePlaces(query: String?, page: Int): Page<SavedPlace> {
+        try {
+            return CourseDtoMapper.toSearchPage(remote.placeSearch(query, page))
         } catch (error: Throwable) {
             throw CourseErrorMapper.map(error)
         }

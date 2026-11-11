@@ -32,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.feature.course.component.CourseInputField
@@ -127,6 +128,7 @@ private fun Body(state: CourseDateState, onIntent: (CourseDateIntent) -> Unit, m
             text = state.partnerNickname?.let { "${it}님과의 데이트\n언제 만날까요?" } ?: "언제 만날까요?",
             style = Typography.title2B,
             color = Colors.textPrimary,
+            modifier = Modifier.analyticsMasked(),
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(

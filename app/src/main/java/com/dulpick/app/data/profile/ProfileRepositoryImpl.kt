@@ -1,5 +1,7 @@
 package com.dulpick.app.data.profile
 
+import com.dulpick.app.data.auth.local.AuthLocalDataSource
+import com.dulpick.app.data.notification.PushDeviceRegistrar
 import com.dulpick.app.data.profile.mapper.ProfileDtoMapper
 import com.dulpick.app.data.profile.mapper.ProfileErrorMapper
 import com.dulpick.app.data.profile.remote.ProfileRemoteDataSource
@@ -15,6 +17,8 @@ import javax.inject.Inject
 @Suppress("TooGenericExceptionCaught")
 class ProfileRepositoryImpl @Inject constructor(
     private val profileRemote: ProfileRemoteDataSource,
+    private val authLocal: AuthLocalDataSource,
+    private val pushRegistrar: PushDeviceRegistrar,
 ) : ProfileRepository {
 
     override suspend fun profile(): UserProfile {
@@ -31,6 +35,10 @@ class ProfileRepositoryImpl @Inject constructor(
         } catch (error: Throwable) {
             throw ProfileErrorMapper.map(error)
         }
+        // 탈퇴는 서버에서 끝났다. 이 기기의 세션만 지운다.
+        // 기기 등록 해제와 서버 로그아웃은 보내지 않는다 — 계정이 사라져 둘 다 401 이다
+        pushRegistrar.stop()
+        authLocal.deleteSession()
     }
 
     override suspend fun updateProfile(nickname: String, iconId: Int): UserProfile {

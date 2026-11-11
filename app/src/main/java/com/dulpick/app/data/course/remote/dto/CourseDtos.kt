@@ -54,6 +54,45 @@ data class DateCoursePlaceResponseDto(
 data class WalkToNextResponseDto(
     val distanceMeters: Int,
     val durationSeconds: Int,
+    // 명세상 필수지만 키가 없거나 형식이 틀리면 빈 배열로 읽는다
+    @Serializable(with = RoutePathSerializer::class)
+    val path: List<RoutePointResponseDto> = emptyList(),
+    // 도보 30분 이상 구간에만 온다. 해당하지 않거나 조회하지 못하면 null. 형식이 틀려도 null 이다
+    @Serializable(with = TransitSerializer::class)
+    val transit: TransitToNextResponseDto? = null,
+)
+
+// type·transfers·fare 는 화면이 안 쓰므로 읽지 않는다
+@Serializable
+data class TransitToNextResponseDto(
+    val distanceMeters: Int,
+    val durationSeconds: Int,
+    // 이동 순서대로. 키가 없거나 형식이 틀리면 빈 배열
+    @Serializable(with = TransitLegsSerializer::class)
+    val legs: List<TransitLegResponseDto> = emptyList(),
+)
+
+// 구간 좌표만 읽는다. 노선·정류장·안내 문구는 화면이 안 쓴다
+@Serializable
+data class TransitLegResponseDto(
+    @Serializable(with = RoutePathSerializer::class)
+    val path: List<RoutePointResponseDto> = emptyList(),
+)
+
+// WGS84 좌표
+@Serializable
+data class RoutePointResponseDto(
+    val latitude: Double,
+    val longitude: Double,
+)
+
+// 코스 장소 검색 한 페이지. 항목은 코스 후보와 같은 모양이다
+@Serializable
+data class DateCoursePlaceSearchPageResponseDto(
+    val places: List<DateCoursePlaceCandidateResponseDto> = emptyList(),
+    // 0 부터 센다
+    val page: Int = 0,
+    val hasNext: Boolean = false,
 )
 
 @Serializable

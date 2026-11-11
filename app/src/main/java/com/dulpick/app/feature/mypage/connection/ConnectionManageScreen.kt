@@ -39,6 +39,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dulpick.app.core.analytics.analyticsMasked
 import com.dulpick.app.R
 import com.dulpick.app.core.mvi.CollectSideEffect
 import com.dulpick.app.domain.couple.CoupleMember
@@ -247,7 +248,7 @@ private fun NameText(name: String) {
         style = Typography.headline,
         color = Colors.textPrimary,
         textAlign = TextAlign.Center,
-        modifier = Modifier.width(PROFILE_SIZE),
+        modifier = Modifier.width(PROFILE_SIZE).analyticsMasked(),
     )
 }
 

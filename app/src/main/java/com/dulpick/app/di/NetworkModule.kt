@@ -5,6 +5,7 @@ import com.dulpick.app.core.network.Authed
 import com.dulpick.app.core.network.Plain
 import com.dulpick.app.data.auth.local.AuthLocalDataSource
 import com.dulpick.app.data.auth.remote.AuthApi
+import com.dulpick.app.data.auth.token.AuthLogoutGuard
 import com.dulpick.app.data.auth.token.AuthTokenAuthenticator
 import com.dulpick.app.data.auth.token.AuthTokenInterceptor
 import com.dulpick.app.data.auth.token.AuthTokenRefresher
@@ -67,7 +68,8 @@ object NetworkModule {
     fun authTokenRefresher(
         authLocal: AuthLocalDataSource,
         @Plain plainApi: AuthApi,
-    ): AuthTokenRefresher = AuthTokenRefresher(authLocal, plainApi)
+        logoutGuard: AuthLogoutGuard,
+    ): AuthTokenRefresher = AuthTokenRefresher(authLocal, plainApi, logoutGuard)
 
     @Provides
     @Singleton
